@@ -1,9 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { LayoutGrid, Plus, Trash2, PawPrint, Shield, Users } from "lucide-react";
-import { api } from "../api.js";
+import { LayoutGrid, Plus, Trash2, PawPrint, Shield, Users, type LucideIcon } from "lucide-react";
+import { api } from "../api";
+import type { Personnel, Role, Species } from "../types";
 
-function Panel({ title, icon: Icon, children }) {
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function Panel({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: ReactNode }) {
   return (
     <div className="bg-white border border-gray-200 rounded-lg">
       <div className="px-4 py-2.5 border-b border-gray-100 flex items-center gap-2 font-semibold text-gray-800 text-sm">
@@ -16,14 +21,14 @@ function Panel({ title, icon: Icon, children }) {
 }
 
 function SpeciesPanel() {
-  const [species, setSpecies] = useState([]);
+  const [species, setSpecies] = useState<Species[]>([]);
   const [name, setName] = useState("");
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const load = () => api.listSpecies().then(setSpecies).catch(err => setError(err.message));
+  const load = () => api.listSpecies().then(setSpecies).catch(err => setError(errorMessage(err)));
   useEffect(() => { load(); }, []);
 
-  const add = async (e) => {
+  const add = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     setError(null);
@@ -32,16 +37,16 @@ function SpeciesPanel() {
       setName("");
       load();
     } catch (err) {
-      setError(err.message);
+      setError(errorMessage(err));
     }
   };
 
-  const remove = async (id) => {
+  const remove = async (id: number) => {
     try {
       await api.deleteSpecies(id);
       load();
     } catch (err) {
-      setError(err.message);
+      setError(errorMessage(err));
     }
   };
 
@@ -75,16 +80,16 @@ function SpeciesPanel() {
   );
 }
 
-function RolesPanel({ onRolesChange }) {
-  const [roles, setRoles] = useState([]);
+function RolesPanel({ onRolesChange }: { onRolesChange: (roles: Role[]) => void }) {
+  const [roles, setRoles] = useState<Role[]>([]);
   const [name, setName] = useState("");
   const [isCommittee, setIsCommittee] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const load = () => api.listRoles().then(rows => { setRoles(rows); onRolesChange?.(rows); }).catch(err => setError(err.message));
+  const load = () => api.listRoles().then(rows => { setRoles(rows); onRolesChange(rows); }).catch(err => setError(errorMessage(err)));
   useEffect(() => { load(); }, []);
 
-  const add = async (e) => {
+  const add = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     setError(null);
@@ -94,17 +99,17 @@ function RolesPanel({ onRolesChange }) {
       setIsCommittee(false);
       load();
     } catch (err) {
-      setError(err.message);
+      setError(errorMessage(err));
     }
   };
 
-  const remove = async (id) => {
+  const remove = async (id: number) => {
     setError(null);
     try {
       await api.deleteRole(id);
       load();
     } catch (err) {
-      setError(err.message);
+      setError(errorMessage(err));
     }
   };
 
@@ -151,12 +156,18 @@ function RolesPanel({ onRolesChange }) {
   );
 }
 
-function PersonnelPanel({ roles }) {
-  const [personnel, setPersonnel] = useState([]);
-  const [form, setForm] = useState({ name: "", email: "", role_id: "" });
-  const [error, setError] = useState(null);
+interface PersonnelFormState {
+  name: string;
+  email: string;
+  role_id: string;
+}
 
-  const load = () => api.listPersonnel().then(setPersonnel).catch(err => setError(err.message));
+function PersonnelPanel({ roles }: { roles: Role[] }) {
+  const [personnel, setPersonnel] = useState<Personnel[]>([]);
+  const [form, setForm] = useState<PersonnelFormState>({ name: "", email: "", role_id: "" });
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => api.listPersonnel().then(setPersonnel).catch(err => setError(errorMessage(err)));
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
@@ -165,7 +176,7 @@ function PersonnelPanel({ roles }) {
     }
   }, [roles]);
 
-  const add = async (e) => {
+  const add = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.role_id) return;
     setError(null);
@@ -174,16 +185,16 @@ function PersonnelPanel({ roles }) {
       setForm(f => ({ ...f, name: "", email: "" }));
       load();
     } catch (err) {
-      setError(err.message);
+      setError(errorMessage(err));
     }
   };
 
-  const remove = async (id) => {
+  const remove = async (id: number) => {
     try {
       await api.deletePersonnel(id);
       load();
     } catch (err) {
-      setError(err.message);
+      setError(errorMessage(err));
     }
   };
 
@@ -243,7 +254,7 @@ function PersonnelPanel({ roles }) {
 }
 
 export default function AdminPage() {
-  const [roles, setRoles] = useState([]);
+  const [roles, setRoles] = useState<Role[]>([]);
 
   return (
     <div>

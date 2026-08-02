@@ -1,17 +1,28 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { LayoutGrid, Gavel, PawPrint, ThumbsUp, ThumbsDown, PauseCircle, PenLine } from "lucide-react";
-import StatusBadge from "../components/StatusBadge.jsx";
-import { api } from "../api.js";
+import { LayoutGrid, Gavel, PawPrint, ThumbsUp, ThumbsDown, PauseCircle, PenLine, type LucideIcon } from "lucide-react";
+import StatusBadge from "../components/StatusBadge";
+import { api } from "../api";
+import type { CommitteeProtocol, Voter } from "../types";
 
-const VOTE_OPTIONS = [
+interface VoteOption {
+  value: string;
+  icon: LucideIcon;
+  tint: string;
+}
+
+const VOTE_OPTIONS: VoteOption[] = [
   { value: "Approve", icon: ThumbsUp, tint: "text-[#3B6D11]" },
   { value: "Request Modifications", icon: PenLine, tint: "text-[#854F0B]" },
   { value: "Table", icon: PauseCircle, tint: "text-gray-600" },
   { value: "Withhold Approval", icon: ThumbsDown, tint: "text-[#A32D2D]" },
 ];
 
-function VoteBar({ counts, totalVotes }) {
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function VoteBar({ counts, totalVotes }: { counts: Record<string, number>; totalVotes: number }) {
   if (totalVotes === 0) {
     return <div className="text-[12px] text-gray-400">No votes cast yet.</div>;
   }
@@ -35,18 +46,24 @@ function VoteBar({ counts, totalVotes }) {
   );
 }
 
-function ProtocolVoteCard({ protocol, voters, onVoted }) {
-  const [voterId, setVoterId] = useState(voters[0]?.id || "");
+interface ProtocolVoteCardProps {
+  protocol: CommitteeProtocol;
+  voters: Voter[];
+  onVoted: () => void;
+}
+
+function ProtocolVoteCard({ protocol, voters, onVoted }: ProtocolVoteCardProps) {
+  const [voterId, setVoterId] = useState<string>(String(voters[0]?.id ?? ""));
   const [vote, setVote] = useState("Approve");
   const [comment, setComment] = useState("");
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!voterId && voters.length > 0) setVoterId(voters[0].id);
+    if (!voterId && voters.length > 0) setVoterId(String(voters[0].id));
   }, [voters]);
 
-  const submit = async (e) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!voterId) return;
     setSubmitting(true);
@@ -56,7 +73,7 @@ function ProtocolVoteCard({ protocol, voters, onVoted }) {
       setComment("");
       onVoted();
     } catch (err) {
-      setError(err.message);
+      setError(errorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -127,16 +144,16 @@ function ProtocolVoteCard({ protocol, voters, onVoted }) {
 }
 
 export default function CommitteePage() {
-  const [protocols, setProtocols] = useState([]);
-  const [voters, setVoters] = useState([]);
-  const [error, setError] = useState(null);
+  const [protocols, setProtocols] = useState<CommitteeProtocol[]>([]);
+  const [voters, setVoters] = useState<Voter[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = () => {
     setLoading(true);
     Promise.all([api.listCommitteeProtocols(), api.listVoters()])
       .then(([p, v]) => { setProtocols(p); setVoters(v); setError(null); })
-      .catch(err => setError(err.message))
+      .catch(err => setError(errorMessage(err)))
       .finally(() => setLoading(false));
   };
 

@@ -1,21 +1,14 @@
-import React from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
-import ProtocolForm from "../components/ProtocolForm.jsx";
-import { api } from "../api.js";
+import ProtocolForm from "../components/ProtocolForm";
+import { api } from "../api";
+import type { ProtocolFormValues } from "../types";
 
 export default function CreatePage() {
   const navigate = useNavigate();
 
-  const submit = async (values) => {
-    const created = await api.createProtocol({
-      id: values.id,
-      title: values.title,
-      pi: values.pi,
-      species: values.species,
-      animals: values.animals,
-      pain_category: values.pain_category,
-    });
+  const submit = async (values: ProtocolFormValues) => {
+    const created = await api.createProtocol(values);
     navigate(`/protocols/${created.id}`);
   };
 

@@ -3,32 +3,36 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ChevronLeft, Star, Printer, MoreHorizontal, Check, X,
   Users, FileText, Clock, Paperclip, Mail, Phone, Building2,
+  Syringe, ClipboardList, type LucideIcon,
 } from "lucide-react";
-import StatusBadge from "../components/StatusBadge.jsx";
-import ProtocolForm from "../components/ProtocolForm.jsx";
-import { api } from "../api.js";
+import StatusBadge from "../components/StatusBadge";
+import ProtocolForm from "../components/ProtocolForm";
+import { api } from "../api";
+import type { ProtocolDetail, ProtocolFormValues } from "../types";
 
-const LIST_ICONS = { Personnel: Users, Amendments: FileText, "Approval history": Clock, Attachments: Paperclip };
+const LIST_ICONS: Record<string, LucideIcon> = {
+  Personnel: Users,
+  Amendments: FileText,
+  "Approval history": Clock,
+  Attachments: Paperclip,
+};
 
-function EditProtocolModal({ protocol, onClose, onSaved }) {
-  const submit = async (values) => {
-    await api.updateProtocol(protocol.id, {
-      title: values.title,
-      pi: values.pi,
-      species: values.species,
-      animals: values.animals,
-      pain_category: values.pain_category,
-      status: values.status,
-      submitted: values.submitted,
-      expires: values.expires,
-    });
+interface EditProtocolModalProps {
+  protocol: ProtocolDetail;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function EditProtocolModal({ protocol, onClose, onSaved }: EditProtocolModalProps) {
+  const submit = async (values: ProtocolFormValues) => {
+    await api.updateProtocol(protocol.id, values);
     onSaved();
   };
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+      <div className="bg-white rounded-lg w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
           <h2 className="font-semibold text-gray-900 text-sm">Edit protocol</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close">
             <X size={16} />
@@ -47,24 +51,45 @@ function EditProtocolModal({ protocol, onClose, onSaved }) {
   );
 }
 
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[11px] text-gray-500 mb-0.5">{label}</div>
+      <div className="text-[13px] text-gray-900">{value}</div>
+    </div>
+  );
+}
+
+function SectionBlock({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg">
+      <div className="px-4 py-2.5 border-b border-gray-100 flex items-center gap-2 font-semibold text-gray-800 text-sm">
+        <Icon size={15} className="text-gray-500" />
+        {title}
+      </div>
+      <div className="p-4 space-y-2.5">{children}</div>
+    </div>
+  );
+}
+
 export default function DetailPage() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [protocol, setProtocol] = useState(null);
-  const [error, setError] = useState(null);
+  const [protocol, setProtocol] = useState<ProtocolDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [showEdit, setShowEdit] = useState(false);
 
   const reload = () => {
-    api.getProtocol(id)
+    api.getProtocol(id!)
       .then(setProtocol)
-      .catch(err => setError(err.message));
+      .catch(err => setError(err instanceof Error ? err.message : String(err)));
   };
 
   useEffect(() => {
     let cancelled = false;
-    api.getProtocol(id)
+    api.getProtocol(id!)
       .then(data => !cancelled && setProtocol(data))
-      .catch(err => !cancelled && setError(err.message));
+      .catch(err => !cancelled && setError(err instanceof Error ? err.message : String(err)));
     return () => { cancelled = true; };
   }, [id]);
 
@@ -133,14 +158,38 @@ export default function DetailPage() {
 
       <div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white border border-gray-200 rounded-lg">
-            <div className="px-4 py-2.5 border-b border-gray-100 font-semibold text-gray-800 text-sm">Protocol information</div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 p-4">
-              <div><div className="text-[11px] text-gray-500 mb-0.5">Protocol title</div><div className="text-[13px] text-gray-900">{protocol.title}</div></div>
-              <div><div className="text-[11px] text-gray-500 mb-0.5">Submitted</div><div className="text-[13px] text-gray-900">{protocol.submitted || "—"}</div></div>
-              <div><div className="text-[11px] text-gray-500 mb-0.5">Expires</div><div className="text-[13px] text-gray-900">{protocol.expires || "—"}</div></div>
+          <SectionBlock icon={FileText} title="Protocol information">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+              <InfoRow label="Protocol title" value={protocol.title} />
+              <InfoRow label="Protocol type" value={protocol.protocol_type || "—"} />
+              <InfoRow label="PI proxy" value={protocol.pi_proxy || "—"} />
+              <InfoRow label="PTM member" value={protocol.ptm_member || "—"} />
+              <InfoRow label="Submitted" value={protocol.submitted || "—"} />
+              <InfoRow label="Expires" value={protocol.expires || "—"} />
             </div>
-          </div>
+          </SectionBlock>
+
+          <SectionBlock icon={Syringe} title="Animal care & use">
+            <InfoRow label="Anesthesia" value={protocol.anesthesia_required ? "Yes" : "No"} />
+            <InfoRow label="Non-pharmaceutical-grade compounds" value={protocol.npg || "None"} />
+            <InfoRow label="Housing" value={protocol.housing || "—"} />
+            <InfoRow label="Disposal" value={protocol.disposal || "—"} />
+          </SectionBlock>
+
+          <SectionBlock icon={ClipboardList} title="Research plan">
+            {protocol.research_steps.length > 0 ? (
+              <ol className="space-y-1.5">
+                {protocol.research_steps.map((step, i) => (
+                  <li key={i} className="flex gap-2 text-[13px] text-gray-800">
+                    <span className="font-medium text-gray-500 shrink-0">Step {i + 1}.</span>
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <div className="text-[13px] text-gray-400">No research steps recorded.</div>
+            )}
+          </SectionBlock>
 
           {Object.entries(protocol.related || {}).map(([listName, rows]) => {
             const Icon = LIST_ICONS[listName] || FileText;

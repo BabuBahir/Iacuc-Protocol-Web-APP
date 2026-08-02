@@ -2,10 +2,11 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
-import DetailPage from "../DetailPage.jsx";
-import { api } from "../../api.js";
+import DetailPage from "../DetailPage";
+import { api as realApi } from "../../api";
+import type { ProtocolDetail } from "../../types";
 
-vi.mock("../../api.js", () => ({
+vi.mock("../../api", () => ({
   api: {
     getProtocol: vi.fn(),
     listSpecies: vi.fn(),
@@ -15,16 +16,26 @@ vi.mock("../../api.js", () => ({
 
 vi.mock("react-router-dom", async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, useNavigate: vi.fn() };
+  return { ...(actual as object), useNavigate: vi.fn() };
 });
 
-const SAMPLE_PROTOCOL = {
+const api = vi.mocked(realApi);
+
+const SAMPLE_PROTOCOL: ProtocolDetail = {
   id: "IACUC-2026-0142",
   title: "Neurobehavioral Effects of Chronic Stress in C57BL/6 Mice",
   pi: "Dr. Elena Marsh",
+  pi_proxy: "Sam Whitfield",
+  ptm_member: "Dr. Harold Kim",
+  protocol_type: "Research",
   species: "Mouse",
   animals: 240,
   pain_category: "Category D",
+  anesthesia_required: 1,
+  housing: "Group-housed, enrichment",
+  disposal: "CO2 euthanasia, incineration",
+  npg: null,
+  research_steps: ["Habituate animals to handling", "Apply chronic stress paradigm"],
   status: "IACUC Review",
   submitted: "2026-06-30",
   expires: null,
@@ -51,7 +62,7 @@ describe("DetailPage", () => {
   });
 
   test("shows a loading state before data resolves", () => {
-    api.getProtocol.mockReturnValue(new Promise(() => {}));
+    api.getProtocol.mockReturnValue(new Promise<ProtocolDetail>(() => {}));
 
     renderDetailPage();
     expect(screen.getByText("Loading…")).toBeInTheDocument();
@@ -98,8 +109,29 @@ describe("DetailPage", () => {
     });
     expect(screen.getByText(SAMPLE_PROTOCOL.title)).toBeInTheDocument();
     expect(screen.getByText("2026-06-30")).toBeInTheDocument();
+    expect(screen.getByText(SAMPLE_PROTOCOL.pi_proxy!)).toBeInTheDocument();
+    expect(screen.getByText(SAMPLE_PROTOCOL.ptm_member!)).toBeInTheDocument();
+    expect(screen.getByText(SAMPLE_PROTOCOL.protocol_type!)).toBeInTheDocument();
     // null expires renders an em dash
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  test("renders the animal care & use and research plan sections", async () => {
+    api.getProtocol.mockResolvedValue(SAMPLE_PROTOCOL);
+
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Animal care & use")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Yes")).toBeInTheDocument();
+    expect(screen.getByText("None")).toBeInTheDocument();
+    expect(screen.getByText("Group-housed, enrichment")).toBeInTheDocument();
+    expect(screen.getByText("CO2 euthanasia, incineration")).toBeInTheDocument();
+
+    expect(screen.getByText("Research plan")).toBeInTheDocument();
+    expect(screen.getByText(/Habituate animals to handling/)).toBeInTheDocument();
+    expect(screen.getByText(/Apply chronic stress paradigm/)).toBeInTheDocument();
   });
 
   test("renders related-item lists with counts", async () => {
@@ -155,12 +187,12 @@ describe("DetailPage", () => {
   });
 
   test("does not set state after unmount (cancelled flag)", async () => {
-    let resolve;
-    api.getProtocol.mockReturnValue(new Promise(r => { resolve = r; }));
+    let resolve: (value: ProtocolDetail) => void;
+    api.getProtocol.mockReturnValue(new Promise<ProtocolDetail>(r => { resolve = r; }));
 
     const { unmount } = renderDetailPage();
     unmount();
-    resolve(SAMPLE_PROTOCOL);
+    resolve!(SAMPLE_PROTOCOL);
   });
 
   test("Edit button opens a pre-filled modal and Cancel closes it without saving", async () => {
@@ -177,12 +209,20 @@ describe("DetailPage", () => {
     await user.click(screen.getByRole("button", { name: "Edit" }));
     expect(screen.getByLabelText("Title")).toHaveValue(SAMPLE_PROTOCOL.title);
     expect(screen.getByLabelText("Principal investigator")).toHaveValue(SAMPLE_PROTOCOL.pi);
+    expect(screen.getByLabelText("PI proxy")).toHaveValue(SAMPLE_PROTOCOL.pi_proxy);
+    expect(screen.getByLabelText("PTM member")).toHaveValue(SAMPLE_PROTOCOL.ptm_member);
+    expect(screen.getByLabelText("Type of IACUC protocol")).toHaveValue(SAMPLE_PROTOCOL.protocol_type);
     expect(screen.getByLabelText("Status")).toHaveValue(SAMPLE_PROTOCOL.status);
     expect(screen.getByLabelText("Species")).toHaveValue(SAMPLE_PROTOCOL.species);
     expect(screen.getByLabelText("Number of animals")).toHaveValue(240);
     expect(screen.getByLabelText("Pain category")).toHaveValue(SAMPLE_PROTOCOL.pain_category);
     expect(screen.getByLabelText("Submitted")).toHaveValue(SAMPLE_PROTOCOL.submitted);
     expect(screen.getByLabelText("Expires")).toHaveValue("");
+
+    // anesthesia: Yes is checked; NPG: No is checked
+    const radios = screen.getAllByRole("radio");
+    expect((radios[0] as HTMLInputElement).checked).toBe(true);
+    expect((radios[3] as HTMLInputElement).checked).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(api.updateProtocol).not.toHaveBeenCalled();

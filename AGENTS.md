@@ -179,11 +179,18 @@ iacuc-app/
       protocol-form.js     Appendix A content: procedures/drugs/animal-use/alternatives
       admin.js             species / roles / personnel (personas) CRUD
       committee.js          FCR voting on protocols in review
-  client/              Vite + React + react-router-dom
-    src/pages/            ListPage, DetailPage, AdminPage, CommitteePage
-    src/components/       StatusBadge (shared)
-    src/api.js             thin fetch wrapper, one function per endpoint
+  client/              Vite + React + TypeScript + react-router-dom
+    src/pages/            ListPage, DetailPage, AdminPage, CommitteePage, CreatePage
+    src/components/       StatusBadge, ProtocolForm (shared)
+    src/api.ts            thin typed fetch wrapper, one function per endpoint
+    src/types.ts          Protocol/Dashboard/Admin/Committee types + shared constants
 ```
+
+The client is TypeScript end-to-end (`.tsx`/`.ts`, no `.jsx` remains). Strict
+mode is on (`client/tsconfig.json`) and `npm run typecheck` (`tsc --noEmit`)
+is part of the workflow — run it after any client change. Vite resolves
+`.js` before `.ts`/`.tsx`, so if you ever reintroduce a plain-`.js` file next
+to a `.ts`/`.tsx` one, imports will silently pick up the wrong file.
 
 ### Database
 
@@ -216,7 +223,7 @@ npm run test:server   # node:test + supertest, coverage via --experimental-test-
 npm run test:client   # vitest + React Testing Library, coverage via v8
 ```
 
-**Backend: 81 tests, 98.56% lines / 89.23% branches / 93.44% functions**
+**Backend: 83 tests, 99.12% lines / 91.12% branches / 93.65% functions**
 (measured on `server/src/`, excluding `test/`). Every route file — protocols,
 protocol-form, admin, committee — has both happy-path and edge-case coverage
 (FK constraint violations, permission checks, duplicate-key conflicts, 404s).
@@ -230,19 +237,19 @@ Two real bugs were caught by writing these tests, not found any other way:
    matches the "E" in the word "Cat**e**gory" itself — every protocol was
    incorrectly flagged as needing AV consultation, not just Category D/E.
    Fixed to check the actual trailing category letter.
-2. `AdminPage.jsx`'s three panels all used `useEffect(load, [])`, passing an
+2. `AdminPage`'s three panels all used `useEffect(load, [])`, passing an
    async-returning function directly as the effect callback. React tries to
    call whatever an effect returns as its cleanup function; since `load()`
    returns a Promise, this threw `destroy is not a function` in a stricter
    test environment. Fixed to `useEffect(() => { load(); }, [])` in all
    three places.
 
-**Frontend: 59 tests, 99.93% lines / 95.69% branches** (see
+**Frontend: 71 tests, 99.55% lines / 93.24% branches** (see
 `vite.config.js`'s `test.coverage.exclude` for what's excluded — currently
-just `main.jsx` and config files, not test files themselves). Every page —
-List, Detail, Admin, Committee — plus `StatusBadge`, `api.js`, and `App.jsx`
-routing is covered; the only sub-100% spots are a handful of branch lines in
-DetailPage (84.61% branch) and CommitteePage (90.24% branch).
+just `src/main.tsx` and config files, not test files themselves). Every page —
+List, Detail, Admin, Committee, Create — plus `StatusBadge`, `api.ts`,
+`ProtocolForm`, and `App.tsx` routing is covered. `npm run typecheck`
+(`tsc --noEmit`) is the gate after any client change.
 
 **E2E: 10 Playwright tests, all passing** (`npm run test:e2e` from the
 repo root). Infra lives in `e2e/`: `playwright.config.mjs`, specs in
@@ -326,8 +333,16 @@ Implemented: core protocol CRUD — a dedicated Create page
 then on success lands on the new protocol's detail page) and an in-UI edit
 modal on the detail page (Edit button opens a form editing title/PI/status/
 species/animals/pain-category/submitted/expires via `PATCH /api/protocols/:id`,
-then refetches). Create and edit share one form component —
-`client/src/components/ProtocolForm.jsx` — which owns field state and the
+then refetches). The form now captures a full IACUC application, not just the
+dashboard columns: PI proxy, PTM member, type of IACUC protocol, number of
+animals, anesthesia yes/no, NPG compounds yes/no + detail textarea, housing
+and disposal narratives, and a **research plan** built from a step list driven
+by a sub-modal (Add/Edit/Remove step) — all stored in the `protocols` table
+(`pi_proxy`, `ptm_member`, `protocol_type`, `anesthesia_required`, `housing`,
+`disposal`, `npg`, `research_steps` as JSON text; the server
+`shape()`/`normalizeResearchSteps()` helpers map between the array and JSON
+representations). Create and edit share one form component —
+`client/src/components/ProtocolForm.tsx` — which owns field state and the
 species lookup; the Create page renders it full-page (protocol-number field
 on), the detail page renders it inside the edit modal (status dropdown +
 submitted/expires dates on). Keep using this component for any future

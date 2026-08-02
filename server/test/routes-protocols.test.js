@@ -121,6 +121,35 @@ describe("POST /api/protocols", () => {
       .send({ id: "TEST-0001", title: "Dup", pi: "Dr. Dup" });
     assert.equal(res.status, 409);
   });
+
+  test("stores the full IACUC application fields and returns research_steps as an array", async () => {
+    const res = await request(app)
+      .post("/api/protocols")
+      .send({
+        id: "NEW-0002",
+        title: "Full study",
+        pi: "Dr. New",
+        pi_proxy: "Sam Whitfield",
+        ptm_member: "Dr. Priya Nair",
+        protocol_type: "Research",
+        species: "Mouse",
+        animals: 100,
+        pain_category: "Category D",
+        anesthesia_required: true,
+        housing: "Group housing in ventilated cages",
+        disposal: "Carbon dioxide euthanasia followed by carcass incineration",
+        npg: "Sigma-Aldrich custom peptide (98% purity)",
+        research_steps: ["Habituate animals for 7 days", "Administer stressor for 21 days"],
+      });
+    assert.equal(res.status, 201);
+    assert.equal(res.body.pi_proxy, "Sam Whitfield");
+    assert.equal(res.body.ptm_member, "Dr. Priya Nair");
+    assert.equal(res.body.protocol_type, "Research");
+    assert.equal(res.body.anesthesia_required, 1);
+    assert.equal(res.body.housing, "Group housing in ventilated cages");
+    assert.equal(res.body.npg, "Sigma-Aldrich custom peptide (98% purity)");
+    assert.deepEqual(res.body.research_steps, ["Habituate animals for 7 days", "Administer stressor for 21 days"]);
+  });
 });
 
 describe("PATCH /api/protocols/:id", () => {
@@ -144,6 +173,25 @@ describe("PATCH /api/protocols/:id", () => {
     assert.equal(res.status, 200);
     assert.equal(res.body.purpose_summary, "Lay purpose text");
     assert.equal(res.body.harm_benefit_analysis, "Harm/benefit text");
+  });
+
+  test("round-trips research_steps and the IACUC application fields through PATCH", async () => {
+    insertProtocol();
+    const res = await request(app)
+      .patch("/api/protocols/TEST-0001")
+      .send({
+        pi_proxy: "Sam Whitfield",
+        protocol_type: "Teaching",
+        anesthesia_required: 1,
+        housing: "Individually ventilated cages",
+        disposal: "Injectable overdose then incineration",
+        npg: "Vendored lot no. 4471",
+        research_steps: ["Pre-test on 2 animals", "Run the procedure"],
+      });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.pi_proxy, "Sam Whitfield");
+    assert.equal(res.body.anesthesia_required, 1);
+    assert.deepEqual(res.body.research_steps, ["Pre-test on 2 animals", "Run the procedure"]);
   });
 
   test(

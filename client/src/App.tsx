@@ -1,10 +1,9 @@
-import React from "react";
 import { Routes, Route } from "react-router-dom";
-import ListPage from "./pages/ListPage.jsx";
-import DetailPage from "./pages/DetailPage.jsx";
-import CreatePage from "./pages/CreatePage.jsx";
-import AdminPage from "./pages/AdminPage.jsx";
-import CommitteePage from "./pages/CommitteePage.jsx";
+import ListPage from "./pages/ListPage";
+import DetailPage from "./pages/DetailPage";
+import CreatePage from "./pages/CreatePage";
+import AdminPage from "./pages/AdminPage";
+import CommitteePage from "./pages/CommitteePage";
 
 export default function App() {
   return (

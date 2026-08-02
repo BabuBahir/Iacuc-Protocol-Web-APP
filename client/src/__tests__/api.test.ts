@@ -1,15 +1,15 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { api } from "../api.js";
+import { api } from "../api";
 
-function mockFetchOnce(status, body, { json = true } = {}) {
-  global.fetch = vi.fn().mockResolvedValue({
+function mockFetchOnce(status: number, body: unknown, { json = true }: { json?: boolean } = {}) {
+  globalThis.fetch = vi.fn().mockResolvedValue({
     ok: status >= 200 && status < 300,
     status,
     json: async () => (json ? body : undefined),
   });
 }
 
-describe("api.js request wrapper", () => {
+describe("api.ts request wrapper", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -63,7 +63,7 @@ describe("api.js request wrapper", () => {
   });
 
   test("a non-ok response with no parseable JSON body falls back to a generic error", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
       json: async () => {
@@ -82,13 +82,13 @@ describe("api.js request wrapper", () => {
 
   test("castVote posts to the correct nested committee endpoint", async () => {
     mockFetchOnce(201, { totalVotes: 1 });
-    await api.castVote("IACUC-2026-0001", { personnel_id: 5, vote: "Approve" });
+    await api.castVote("IACUC-2026-0001", { personnel_id: 5, vote: "Approve", comment: null });
 
     expect(fetch).toHaveBeenCalledWith(
       "/api/committee/protocols/IACUC-2026-0001/votes",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ personnel_id: 5, vote: "Approve" }),
+        body: JSON.stringify({ personnel_id: 5, vote: "Approve", comment: null }),
       })
     );
   });
