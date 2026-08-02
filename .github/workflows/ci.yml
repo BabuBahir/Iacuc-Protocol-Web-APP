@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  server-tests:
+    name: Server tests (Node 22.x)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Run server tests
+        run: |
+          npm run test:server
+        env:
+          CI: true
+
+      - name: Upload server test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-test-artifacts
+          path: |
+            server/coverage
+            server/test-results.xml
+
+  client-tests:
+    name: Client tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Run client tests
+        run: |
+          npm run test:client
+        env:
+          CI: true
+
+      - name: Upload client test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-test-artifacts
+          path: |
+            client/coverage
+            client/test-results.xml
