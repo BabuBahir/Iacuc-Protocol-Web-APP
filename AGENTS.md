@@ -14,6 +14,19 @@ solved once.
 
 ## 1. Domain knowledge (from Cayuse/Loyola/Wright State documentation)
 
+**What an IACUC actually is, and why that constrains this app**: the
+Institutional Animal Care and Use Committee is entrusted with assessing the
+ethics of proposed projects prior to approval of animal research. Its role
+is detailed in legislation and binding rules, which are in turn inspired by
+the Three Rs — Replacement, Reduction, and Refinement. Every workflow rule
+below (the review lifecycle, the procedures checklist, the mandatory
+literature-search-for-alternatives, the Attending Vet consultation gate) is
+downstream of this mandate — they aren't arbitrary form design, they're how
+a legally-accountable ethics review gets implemented in software. Keep this
+in mind before treating any compliance-related field as "just a checkbox":
+a missing or wrong default here isn't a UX nit, it's a gap in an ethics
+review process.
+
 Sources: Cayuse IACUC Researcher Manual, Cayuse Hazard Safety (IBC)
 Instructions, Loyola University Chicago's "Animal Oversight (IACUC) 4-Step
 User Manual: Amendments," and NMSU's Appendix A Research IACUC Application
