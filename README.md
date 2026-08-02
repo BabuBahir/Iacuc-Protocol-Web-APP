@@ -1,6 +1,10 @@
 # IACUC Protocols App
 
-![CI Status](https://github.com/<OWNER>/<REPOSITORY>/actions/workflows/<WORKFLOW_FILE_NAME>.yml/badge.svg)
+# My Project Name
+
+[![CI](https://github.com/BabuBahir/iacuc-protocol-review-case-study/actions/workflows/ci.yml/badge.svg)](https://github.com/BabuBahir/iacuc-protocol-review-case-study/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/BabuBahir/iacuc-protocol-review-case-study/graph/badge.svg)](https://codecov.io/gh/BabuBahir/iacuc-protocol-review-case-study)
+![License](https://img.shields.io/github/license/BabuBahir/iacuc-protocol-review-case-study)
 
 A real two-tier app: an Express + SQLite API, and a Vite + React frontend
 with actual client-side routing (`react-router-dom`). This replaces the
