@@ -5,6 +5,14 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 
+
+## Demo
+
+Access the demo at [demo.iacuc.com](https://iacuc-protocol-review-case-study-cl.vercel.app/).
+
+
+
+
 A real two-tier app: an Express + SQLite API, and a Vite + React frontend
 with actual client-side routing (`react-router-dom`). This replaces the
 single-file prototype with a proper client/server split, managed as an
@@ -18,9 +26,6 @@ iacuc-app/
 ```
 
 
-## Demo
-
-Access the demo at [demo.iacuc.com](https://iacuc-protocol-review-case-study-cl.vercel.app/).
 
 > [!IMPORTANT]
 > This environment is not intended for use in production. It is refreshed daily, and the data entered is accessible to everyone.
