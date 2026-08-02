@@ -19,20 +19,19 @@ export default function ListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = () => {
     setLoading(true);
     Promise.all([api.listProtocols(query), api.getSummary()])
       .then(([rows, summaryData]) => {
-        if (cancelled) return;
         setProtocols(rows);
         setSummary(summaryData);
         setError(null);
       })
-      .catch(err => !cancelled && setError(err.message))
-      .finally(() => !cancelled && setLoading(false));
-    return () => { cancelled = true; };
-  }, [query]);
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, [query]);
 
   return (
     <div>
@@ -53,7 +52,10 @@ export default function ListPage() {
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">IACUC protocol dashboard</h1>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#0176D3] text-white text-[13px] font-medium hover:bg-[#0b5cab]">
+          <button
+            onClick={() => navigate("/protocols/new")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#0176D3] text-white text-[13px] font-medium hover:bg-[#0b5cab]"
+          >
             <Plus size={15} />
             New protocol
           </button>

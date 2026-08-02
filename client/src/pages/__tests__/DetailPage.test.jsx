@@ -6,7 +6,11 @@ import DetailPage from "../DetailPage.jsx";
 import { api } from "../../api.js";
 
 vi.mock("../../api.js", () => ({
-  api: { getProtocol: vi.fn() },
+  api: {
+    getProtocol: vi.fn(),
+    listSpecies: vi.fn(),
+    updateProtocol: vi.fn(),
+  },
 }));
 
 vi.mock("react-router-dom", async (importOriginal) => {
@@ -157,5 +161,99 @@ describe("DetailPage", () => {
     const { unmount } = renderDetailPage();
     unmount();
     resolve(SAMPLE_PROTOCOL);
+  });
+
+  test("Edit button opens a pre-filled modal and Cancel closes it without saving", async () => {
+    api.getProtocol.mockResolvedValue(SAMPLE_PROTOCOL);
+    api.listSpecies.mockResolvedValue([{ id: 1, name: "Mouse" }, { id: 2, name: "Rat" }]);
+    const user = userEvent.setup();
+
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "IACUC-2026-0142" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByLabelText("Title")).toHaveValue(SAMPLE_PROTOCOL.title);
+    expect(screen.getByLabelText("Principal investigator")).toHaveValue(SAMPLE_PROTOCOL.pi);
+    expect(screen.getByLabelText("Status")).toHaveValue(SAMPLE_PROTOCOL.status);
+    expect(screen.getByLabelText("Species")).toHaveValue(SAMPLE_PROTOCOL.species);
+    expect(screen.getByLabelText("Number of animals")).toHaveValue(240);
+    expect(screen.getByLabelText("Pain category")).toHaveValue(SAMPLE_PROTOCOL.pain_category);
+    expect(screen.getByLabelText("Submitted")).toHaveValue(SAMPLE_PROTOCOL.submitted);
+    expect(screen.getByLabelText("Expires")).toHaveValue("");
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(api.updateProtocol).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
+  });
+
+  test("saving edits calls updateProtocol and refreshes the detail view", async () => {
+    const updated = { ...SAMPLE_PROTOCOL, title: "Updated Owl Title", animals: 100 };
+    api.getProtocol.mockResolvedValueOnce(SAMPLE_PROTOCOL).mockResolvedValueOnce(updated);
+    api.listSpecies.mockResolvedValue([{ id: 1, name: "Mouse" }]);
+    api.updateProtocol.mockResolvedValue(updated);
+    const user = userEvent.setup();
+
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "IACUC-2026-0142" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    await user.clear(screen.getByLabelText("Title"));
+    await user.type(screen.getByLabelText("Title"), "Updated Owl Title");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(api.updateProtocol).toHaveBeenCalledWith(
+        "IACUC-2026-0142",
+        expect.objectContaining({ title: "Updated Owl Title" })
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Updated Owl Title")).toBeInTheDocument();
+    });
+    expect(api.getProtocol).toHaveBeenCalledTimes(2);
+    expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
+  });
+
+  test("shows an inline error when saving fails and keeps the modal open", async () => {
+    api.getProtocol.mockResolvedValue(SAMPLE_PROTOCOL);
+    api.listSpecies.mockResolvedValue([]);
+    api.updateProtocol.mockRejectedValue(new Error("Validation failed"));
+    const user = userEvent.setup();
+
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "IACUC-2026-0142" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Validation failed")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("Title")).toBeInTheDocument();
+  });
+
+  test("edit modal keeps a status that isn't in the standard stage list", async () => {
+    const withOddStatus = { ...SAMPLE_PROTOCOL, status: "Expiring soon" };
+    api.getProtocol.mockResolvedValue(withOddStatus);
+    api.listSpecies.mockResolvedValue([]);
+    const user = userEvent.setup();
+
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "IACUC-2026-0142" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByLabelText("Status")).toHaveValue("Expiring soon");
   });
 });

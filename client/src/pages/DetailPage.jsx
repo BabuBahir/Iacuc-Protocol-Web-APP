@@ -1,19 +1,64 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
-  ChevronLeft, Star, Printer, MoreHorizontal, Check,
+  ChevronLeft, Star, Printer, MoreHorizontal, Check, X,
   Users, FileText, Clock, Paperclip, Mail, Phone, Building2,
 } from "lucide-react";
 import StatusBadge from "../components/StatusBadge.jsx";
+import ProtocolForm from "../components/ProtocolForm.jsx";
 import { api } from "../api.js";
 
 const LIST_ICONS = { Personnel: Users, Amendments: FileText, "Approval history": Clock, Attachments: Paperclip };
+
+function EditProtocolModal({ protocol, onClose, onSaved }) {
+  const submit = async (values) => {
+    await api.updateProtocol(protocol.id, {
+      title: values.title,
+      pi: values.pi,
+      species: values.species,
+      animals: values.animals,
+      pain_category: values.pain_category,
+      status: values.status,
+      submitted: values.submitted,
+      expires: values.expires,
+    });
+    onSaved();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="font-semibold text-gray-900 text-sm">Edit protocol</h2>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
+        <ProtocolForm
+          initialValues={protocol}
+          statusOptions={protocol.stages}
+          showDates
+          submitLabel="Save changes"
+          onCancel={onClose}
+          onSubmit={submit}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function DetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [protocol, setProtocol] = useState(null);
   const [error, setError] = useState(null);
+  const [showEdit, setShowEdit] = useState(false);
+
+  const reload = () => {
+    api.getProtocol(id)
+      .then(setProtocol)
+      .catch(err => setError(err.message));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +100,7 @@ export default function DetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <button className="px-3 py-1.5 rounded border border-gray-300 bg-white text-[#0176D3] text-[13px] font-medium hover:bg-gray-50">Edit</button>
+            <button onClick={() => setShowEdit(true)} className="px-3 py-1.5 rounded border border-gray-300 bg-white text-[#0176D3] text-[13px] font-medium hover:bg-gray-50">Edit</button>
             <button className="p-1.5 rounded border border-gray-300 bg-white text-gray-500 hover:bg-gray-50"><Printer size={15} /></button>
             <button className="p-1.5 rounded border border-gray-300 bg-white text-gray-500 hover:bg-gray-50"><MoreHorizontal size={15} /></button>
           </div>
@@ -127,6 +172,14 @@ export default function DetailPage() {
           </div>
         </div>
       </div>
+
+      {showEdit && (
+        <EditProtocolModal
+          protocol={protocol}
+          onClose={() => setShowEdit(false)}
+          onSaved={() => { setShowEdit(false); reload(); }}
+        />
+      )}
     </div>
   );
 }

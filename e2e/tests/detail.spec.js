@@ -31,3 +31,20 @@ test("shows the not-found message for an unknown protocol", async ({ page }) => 
   await page.goto("/protocols/NOPE-9999");
   await expect(page.getByText(/Couldn't load NOPE-9999/)).toBeVisible();
 });
+
+test("edits a protocol from the detail page", async ({ page }) => {
+  // IACUC-2026-0158 is a Draft protocol, so editing its title is safe and
+  // doesn't touch the e2e invariants on 0142 (review) or 0064 (Macaque).
+  await page.goto("/");
+  await page.locator("tbody tr").filter({ hasText: "IACUC-2026-0158" }).click();
+  await expect(page.getByRole("heading", { name: "IACUC-2026-0158" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  const titleInput = page.getByLabel("Title");
+  await expect(titleInput).toHaveValue("Genetic Basis of Spontaneous Seizures in Zebrafish");
+  await titleInput.fill("Genetic Basis of Spontaneous Seizures (edited)");
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(page.getByText("Genetic Basis of Spontaneous Seizures (edited)")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit" })).toBeVisible();
+});
