@@ -1,5 +1,7 @@
 # IACUC Protocols App
 
+![CI Status](https://github.com/<OWNER>/<REPOSITORY>/actions/workflows/<WORKFLOW_FILE_NAME>.yml/badge.svg)
+
 A real two-tier app: an Express + SQLite API, and a Vite + React frontend
 with actual client-side routing (`react-router-dom`). This replaces the
 single-file prototype with a proper client/server split, managed as an
