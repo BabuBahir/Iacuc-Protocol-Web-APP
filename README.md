@@ -20,7 +20,7 @@ iacuc-app/
 
 ## Demo
 
-Access the demo at [demo.iacuc.com]([https://demo.osrd.fr](https://iacuc-protocol-review-case-study-cl.vercel.app/)).
+Access the demo at [demo.iacuc.com](https://iacuc-protocol-review-case-study-cl.vercel.app/).
 
 > [!IMPORTANT]
 > This environment is not intended for use in production. It is refreshed daily, and the data entered is accessible to everyone.
