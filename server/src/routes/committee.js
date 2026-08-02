@@ -7,7 +7,8 @@ const VOTE_OPTIONS = ["Approve", "Request Modifications", "Table", "Withhold App
 
 function tallyFor(protocolId) {
   const votes = db.prepare(`
-    SELECT protocol_votes.vote, personnel.name AS voter_name, roles.name AS role_name, protocol_votes.voted_at
+    SELECT protocol_votes.vote, protocol_votes.comment, personnel.name AS voter_name,
+           roles.name AS role_name, protocol_votes.voted_at
     FROM protocol_votes
     JOIN personnel ON personnel.id = protocol_votes.personnel_id
     JOIN roles ON roles.id = personnel.role_id

@@ -26,6 +26,13 @@ const dbPath =
 export const db = new DatabaseSync(dbPath);
 db.exec("PRAGMA foreign_keys = ON;");
 
+// Explicitly close the connection. Needed by tests that create a temp-file
+// database and want to delete it afterwards (Windows keeps the file locked
+// until the connection is closed).
+export function closeDb() {
+  db.close();
+}
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS protocols (
   id                    TEXT PRIMARY KEY,

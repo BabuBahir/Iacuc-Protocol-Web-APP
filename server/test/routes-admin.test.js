@@ -26,6 +26,11 @@ describe("species", () => {
     assert.equal(res.status, 400);
   });
 
+  test("rejects a missing name field entirely", async () => {
+    const res = await request(app).post("/api/admin/species").send({});
+    assert.equal(res.status, 400);
+  });
+
   test("rejects a duplicate species (unique constraint)", async () => {
     await request(app).post("/api/admin/species").send({ name: "Ferret" });
     const res = await request(app).post("/api/admin/species").send({ name: "Ferret" });
@@ -58,6 +63,11 @@ describe("roles", () => {
   test("defaults is_committee to 0 when omitted", async () => {
     const res = await request(app).post("/api/admin/roles").send({ name: "Lab Technician" });
     assert.equal(res.body.is_committee, 0);
+  });
+
+  test("rejects a missing role name", async () => {
+    const res = await request(app).post("/api/admin/roles").send({});
+    assert.equal(res.status, 400);
   });
 
   test("rejects a duplicate role name (unique constraint)", async () => {

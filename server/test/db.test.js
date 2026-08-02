@@ -57,7 +57,7 @@ describe("db.js schema", () => {
     legacyDb.close();
 
     process.env.DB_PATH = tmpFile;
-    const { db } = await import(`../src/db.js?fresh=${Date.now()}-${Math.random()}`);
+    const { db, closeDb } = await import(`../src/db.js?fresh=${Date.now()}-${Math.random()}`);
 
     const columns = db.prepare("PRAGMA table_info(protocols)").all().map((c) => c.name);
     for (const col of ["purpose_summary", "harm_benefit_analysis", "scientific_summary"]) {
@@ -68,8 +68,20 @@ describe("db.js schema", () => {
     assert.equal(row.title, "legacy protocol");
     assert.equal(row.purpose_summary, null);
 
-    fs.rmSync(tmpFile, { force: true });
-    fs.rmSync(`${tmpFile}-wal`, { force: true });
-    fs.rmSync(`${tmpFile}-shm`, { force: true });
+    // Release the file handle before deletion — on Windows the open SQLite
+    // connection keeps the temp db locked, so rmSync fails with EPERM.
+    closeDb();
+    for (const file of [tmpFile, `${tmpFile}-wal`, `${tmpFile}-shm`]) {
+      // Retry briefly: the OS may not release the lock instantly.
+      for (let attempt = 0; attempt < 10; attempt++) {
+        try {
+          fs.rmSync(file, { force: true });
+          break;
+        } catch (err) {
+          if (attempt === 9) throw err;
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+        }
+      }
+    }
   });
 });

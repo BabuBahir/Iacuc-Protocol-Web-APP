@@ -1,0 +1,44 @@
+import { describe, test, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import App from "../App.jsx";
+
+vi.mock("../pages/ListPage.jsx", () => ({ default: () => <div>ListPage</div> }));
+vi.mock("../pages/DetailPage.jsx", () => ({ default: () => <div>DetailPage</div> }));
+vi.mock("../pages/AdminPage.jsx", () => ({ default: () => <div>AdminPage</div> }));
+vi.mock("../pages/CommitteePage.jsx", () => ({ default: () => <div>CommitteePage</div> }));
+
+function renderAt(path) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <App />
+    </MemoryRouter>
+  );
+}
+
+describe("App routing", () => {
+  test("renders the list page at /", () => {
+    renderAt("/");
+    expect(screen.getByText("ListPage")).toBeInTheDocument();
+  });
+
+  test("renders the detail page at /protocols/:id", () => {
+    renderAt("/protocols/IACUC-2026-0142");
+    expect(screen.getByText("DetailPage")).toBeInTheDocument();
+  });
+
+  test("renders the committee page at /committee", () => {
+    renderAt("/committee");
+    expect(screen.getByText("CommitteePage")).toBeInTheDocument();
+  });
+
+  test("renders the admin page at /admin", () => {
+    renderAt("/admin");
+    expect(screen.getByText("AdminPage")).toBeInTheDocument();
+  });
+
+  test("renders a not-found message for unknown paths", () => {
+    renderAt("/definitely/not/a/route");
+    expect(screen.getByText("Page not found.")).toBeInTheDocument();
+  });
+});

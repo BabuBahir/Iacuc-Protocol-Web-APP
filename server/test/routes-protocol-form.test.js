@@ -74,6 +74,31 @@ describe("procedures checklist", () => {
     assert.equal(res.status, 200);
   });
 
+  test("PUT can uncheck a procedure and store an empty description", async () => {
+    insertProtocol();
+    await request(app)
+      .put("/api/protocols/TEST-0001/procedures")
+      .send({ procedures: [{ procedure_key: "anesthesia", checked: true, description: "Isoflurane" }] });
+
+    const res = await request(app)
+      .put("/api/protocols/TEST-0001/procedures")
+      .send({ procedures: [{ procedure_key: "anesthesia", checked: false }] });
+    assert.equal(res.status, 200);
+
+    const after = await request(app).get("/api/protocols/TEST-0001/procedures");
+    const anesthesia = after.body.find((p) => p.procedure_key === "anesthesia");
+    assert.equal(anesthesia.checked, false);
+    assert.equal(anesthesia.description, "");
+  });
+
+  test("400s when procedures body is not an array", async () => {
+    insertProtocol();
+    const res = await request(app)
+      .put("/api/protocols/TEST-0001/procedures")
+      .send({ procedures: "nope" });
+    assert.equal(res.status, 400);
+  });
+
   test("404s for an unknown protocol", async () => {
     const res = await request(app).get("/api/protocols/NOPE/procedures");
     assert.equal(res.status, 404);
@@ -115,6 +140,35 @@ describe("drug/dosing table", () => {
 
     const del = await request(app).delete(`/api/protocols/TEST-0001/drugs/${add.body.id}`);
     assert.equal(del.status, 204);
+  });
+
+  test("400s patching a drug row with no updatable fields", async () => {
+    insertProtocol();
+    const add = await request(app)
+      .post("/api/protocols/TEST-0001/drugs")
+      .send({ drug: "Ketamine" });
+    const res = await request(app)
+      .patch(`/api/protocols/TEST-0001/drugs/${add.body.id}`)
+      .send({});
+    assert.equal(res.status, 400);
+  });
+
+  test("404s patching and deleting an unknown drug row", async () => {
+    insertProtocol();
+    const patch = await request(app)
+      .patch("/api/protocols/TEST-0001/drugs/9999")
+      .send({ dose: "5mg" });
+    assert.equal(patch.status, 404);
+
+    const del = await request(app).delete("/api/protocols/TEST-0001/drugs/9999");
+    assert.equal(del.status, 404);
+  });
+
+  test("404s for an unknown protocol on drug routes", async () => {
+    const list = await request(app).get("/api/protocols/NOPE/drugs");
+    assert.equal(list.status, 404);
+    const add = await request(app).post("/api/protocols/NOPE/drugs").send({ drug: "Ketamine" });
+    assert.equal(add.status, 404);
   });
 });
 
@@ -188,6 +242,13 @@ describe("animal use table", () => {
     const res = await request(app).delete("/api/protocols/TEST-0001/animal-use/9999");
     assert.equal(res.status, 404);
   });
+
+  test("404s for an unknown protocol on animal-use routes", async () => {
+    const list = await request(app).get("/api/protocols/NOPE/animal-use");
+    assert.equal(list.status, 404);
+    const add = await request(app).post("/api/protocols/NOPE/animal-use").send({ species_strain: "C57BL/6J" });
+    assert.equal(add.status, 404);
+  });
 });
 
 describe("3 Rs / alternatives", () => {
@@ -220,6 +281,29 @@ describe("3 Rs / alternatives", () => {
     insertProtocol({ pain_category: "Category E" });
     const res = await request(app).get("/api/protocols/TEST-0001/alternatives");
     assert.equal(res.body.av_consultation_required, true);
+  });
+
+  test("Attending Vet consultation is NOT required when pain_category is null", async () => {
+    insertProtocol({ pain_category: null });
+    const res = await request(app).get("/api/protocols/TEST-0001/alternatives");
+    assert.equal(res.body.av_consultation_required, false);
+  });
+
+  test("PATCH with no updatable fields is a 400", async () => {
+    insertProtocol();
+    const res = await request(app)
+      .patch("/api/protocols/TEST-0001/alternatives")
+      .send({});
+    assert.equal(res.status, 400);
+  });
+
+  test("404s for an unknown protocol on alternatives routes", async () => {
+    const get = await request(app).get("/api/protocols/NOPE/alternatives");
+    assert.equal(get.status, 404);
+    const patch = await request(app)
+      .patch("/api/protocols/NOPE/alternatives")
+      .send({ replacement_text: "n/a" });
+    assert.equal(patch.status, 404);
   });
 
   test("PATCH updates literature search and 3Rs fields", async () => {

@@ -216,7 +216,7 @@ npm run test:server   # node:test + supertest, coverage via --experimental-test-
 npm run test:client   # vitest + React Testing Library, coverage via v8
 ```
 
-**Backend: 76 tests, 99.46% lines / 87.66% branches / 99.42% functions**
+**Backend: 81 tests, 98.56% lines / 89.23% branches / 93.44% functions**
 (measured on `server/src/`, excluding `test/`). Every route file — protocols,
 protocol-form, admin, committee — has both happy-path and edge-case coverage
 (FK constraint violations, permission checks, duplicate-key conflicts, 404s).
@@ -237,17 +237,32 @@ Two real bugs were caught by writing these tests, not found any other way:
    test environment. Fixed to `useEffect(() => { load(); }, [])` in all
    three places.
 
-**Frontend: 23 tests, 65.63% lines / 94.01% branches** (aggregate; see
+**Frontend: 59 tests, 99.93% lines / 95.69% branches** (see
 `vite.config.js`'s `test.coverage.exclude` for what's excluded — currently
-just `main.jsx` and config files, not test files themselves). Covered:
-`StatusBadge` (100%), `api.js` (100%), `ListPage` (100% lines). Partially
-covered: `AdminPage` (~75% — species/roles/personnel add flows and error
-states tested; delete flows and the personnel-panel role-sync effect are
-not). **Not covered at all: `App.jsx` (routing), `CommitteePage.jsx`
-(voting UI), `DetailPage.jsx`.** These are real gaps, not rounding — if you
-pick up Roadmap item 1 (Appendix A frontend) or touch `DetailPage.jsx` for
-any reason, write its tests as part of that work rather than assuming
-coverage exists.
+just `main.jsx` and config files, not test files themselves). Every page —
+List, Detail, Admin, Committee — plus `StatusBadge`, `api.js`, and `App.jsx`
+routing is covered; the only sub-100% spots are a handful of branch lines in
+DetailPage (84.61% branch) and CommitteePage (90.24% branch).
+
+**E2E: 10 Playwright tests, all passing** (`npm run test:e2e` from the
+repo root). Infra lives in `e2e/`: `playwright.config.mjs`, specs in
+`e2e/tests/`, plus a dedicated API server (`e2e/seed-and-server.mjs`) on
+port 4100 that seeds a throwaway `e2e/e2e.db` and a Vite dev server
+(`client`'s `dev:e2e` script) on port 4173 proxying `/api` → 4100. Notes
+from building it:
+- Root `package.json` has no `"type": "module"`, so the Playwright config
+  must be `.mjs` (a `.js` config throws `Cannot use 'import.meta' outside
+  a module`).
+- `fullyParallel: false` on purpose: all specs share one seeded e2e DB
+  (fresh per run, not per test), and the committee spec asserts an empty
+  vote history before the voting test writes one — parallel execution made
+  that assertion race against the vote-casting test.
+- The e2e vote-comment test caught a real server bug: `tallyFor()` in
+  `committee.js` didn't SELECT the `protocol_votes.comment` column, so
+  comments were stored in the DB but never returned to the UI and never
+  displayed. Fixed by adding `protocol_votes.comment` to the query, with a
+  server regression test ("vote comments round-trip through the list and
+  tally endpoints") alongside the e2e one.
 
 **Test isolation pattern** (see `server/test/helpers.js`): Node's test
 runner isolates each test *file* into its own process by default, so a
@@ -300,7 +315,9 @@ number and assume it works.
 Implemented: core protocol CRUD, dashboard metrics, Appendix A content
 tables (procedures/drugs/animal-use/alternatives — backend only, **no
 frontend UI wired up yet** for these), admin lookup lists (species/roles/
-personnel), FCR committee voting with live tallies.
+personnel), FCR committee voting with live tallies (including vote comments,
+returned by the tally endpoints), and a 10-test Playwright e2e suite covering
+dashboard/detail/committee/admin.
 
 Not implemented (see §1 above for the domain detail on each): conditional/
 dynamic Table of Contents, Continuing Review vs. De Novo Review as

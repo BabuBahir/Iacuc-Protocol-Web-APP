@@ -13,6 +13,10 @@
     "build:client": "npm run build --workspace=client",
     "test:server": "npm run test --workspace=server",
     "test:client": "npm run test --workspace=client",
-    "test": "npm run test:server && npm run test:client"
+    "test": "npm run test:server && npm run test:client",
+    "test:e2e": "playwright test --config e2e/playwright.config.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
   }
 }

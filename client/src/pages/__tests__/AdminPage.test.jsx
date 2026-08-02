@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import AdminPage from "../AdminPage.jsx";
@@ -93,6 +93,21 @@ describe("AdminPage — species panel", () => {
 
     expect(api.createSpecies).not.toHaveBeenCalled();
   });
+
+  test("shows an error message if deleting a species fails", async () => {
+    const user = userEvent.setup();
+    api.deleteSpecies.mockRejectedValue(new Error("Species in use."));
+
+    renderAdminPage();
+    await waitFor(() => expect(screen.getByText("Mouse")).toBeInTheDocument());
+
+    const row = screen.getByText("Mouse").closest(".px-4");
+    await user.click(within(row).getByRole("button"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Species in use.")).toBeInTheDocument();
+    });
+  });
 });
 
 describe("AdminPage — roles panel", () => {
@@ -127,6 +142,220 @@ describe("AdminPage — personnel panel", () => {
     renderAdminPage();
     await waitFor(() => {
       expect(screen.getByRole("option", { name: "Attending Veterinarian" })).toBeInTheDocument();
+    });
+  });
+});
+
+describe("AdminPage — roles panel actions", () => {
+  test("adding a role with the FCR checkbox calls createRole with is_committee true", async () => {
+    const user = userEvent.setup();
+    api.createRole.mockResolvedValue({ id: 2, name: "IACUC Chair", is_committee: 1 });
+
+    renderAdminPage();
+    await waitFor(() => {
+      expect(screen.getAllByText("Principal Investigator").length).toBeGreaterThan(0);
+    });
+
+    const nameInput = screen.getByPlaceholderText("e.g. Attending Veterinarian");
+    await user.type(nameInput, "IACUC Chair");
+    await user.click(screen.getByRole("checkbox"));
+
+    api.listRoles.mockResolvedValue([
+      { id: 1, name: "Principal Investigator", is_committee: 0 },
+      { id: 2, name: "IACUC Chair", is_committee: 1 },
+    ]);
+
+    const addButtons = screen.getAllByRole("button", { name: /add/i });
+    await user.click(addButtons[1]);
+
+    await waitFor(() => {
+      expect(api.createRole).toHaveBeenCalledWith("IACUC Chair", true);
+    });
+  });
+
+  test("shows an error message if creating a role fails", async () => {
+    const user = userEvent.setup();
+    api.createRole.mockRejectedValue(new Error("That role already exists."));
+
+    renderAdminPage();
+    await waitFor(() => {
+      expect(screen.getAllByText("Principal Investigator").length).toBeGreaterThan(0);
+    });
+
+    const nameInput = screen.getByPlaceholderText("e.g. Attending Veterinarian");
+    await user.type(nameInput, "IACUC Chair");
+    const addButtons = screen.getAllByRole("button", { name: /add/i });
+    await user.click(addButtons[1]);
+
+    await waitFor(() => {
+      expect(screen.getByText("That role already exists.")).toBeInTheDocument();
+    });
+  });
+
+  test("deleting a role calls the API and refreshes the list", async () => {
+    const user = userEvent.setup();
+    api.listRoles.mockResolvedValue([
+      { id: 1, name: "Principal Investigator", is_committee: 0 },
+      { id: 2, name: "IACUC Chair", is_committee: 1 },
+    ]);
+    api.deleteRole.mockResolvedValue(null);
+
+    renderAdminPage();
+    await waitFor(() => {
+      expect(screen.getAllByText("IACUC Chair").length).toBeGreaterThan(0);
+    });
+
+    // "IACUC Chair" appears both in the roles list and the personnel role
+    // dropdown; the roles-list row is the first match in DOM order.
+    const row = screen.getAllByText("IACUC Chair")[0].closest(".px-4");
+    await user.click(within(row).getByRole("button"));
+
+    await waitFor(() => {
+      expect(api.deleteRole).toHaveBeenCalledWith(2);
+    });
+  });
+
+  test("shows an error message if deleting a role fails", async () => {
+    const user = userEvent.setup();
+    api.listRoles.mockResolvedValue([
+      { id: 1, name: "IACUC Chair", is_committee: 1 },
+    ]);
+    api.deleteRole.mockRejectedValue(new Error("This role is still assigned to personnel and can't be deleted."));
+
+    renderAdminPage();
+    await waitFor(() => {
+      expect(screen.getAllByText("IACUC Chair").length).toBeGreaterThan(0);
+    });
+
+    const row = screen.getAllByText("IACUC Chair")[0].closest(".px-4");
+    await user.click(within(row).getByRole("button"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/still assigned to personnel/)).toBeInTheDocument();
+    });
+  });
+});
+
+describe("AdminPage — personnel panel actions", () => {
+  test("renders personnel with role, committee badge, and email", async () => {
+    api.listRoles.mockResolvedValue([
+      { id: 1, name: "IACUC Chair", is_committee: 1 },
+    ]);
+    api.listPersonnel.mockResolvedValue([
+      { id: 1, name: "Dr. Harold Kim", email: "h.kim@university.edu", role_name: "IACUC Chair", is_committee: 1 },
+      { id: 2, name: "Sam Whitfield", email: null, role_name: "Lab Technician", is_committee: 0 },
+    ]);
+
+    renderAdminPage();
+
+    await waitFor(() => expect(screen.getByText("Dr. Harold Kim")).toBeInTheDocument());
+    expect(screen.getByText(/· h.kim@university.edu/)).toBeInTheDocument();
+    expect(screen.getByText("Sam Whitfield")).toBeInTheDocument();
+    // Committee badge appears next to committee-eligible roles AND personnel.
+    const committeeBadges = document.querySelectorAll("span.rounded-full");
+    expect(committeeBadges.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("adding personnel calls the API with the selected role and refreshes", async () => {
+    const user = userEvent.setup();
+    api.createPersonnel.mockResolvedValue({});
+
+    renderAdminPage();
+    await waitFor(() => {
+      expect(screen.getByRole("option", { name: "Principal Investigator" })).toBeInTheDocument();
+    });
+
+    const nameInput = screen.getByPlaceholderText("Full name");
+    await user.type(nameInput, "Dr. Priya Nair");
+    await user.type(screen.getByPlaceholderText("Email (optional)"), "p.nair@university.edu");
+
+    const form = nameInput.closest("form");
+    await user.click(within(form).getByRole("button"));
+
+    await waitFor(() => {
+      expect(api.createPersonnel).toHaveBeenCalledWith({
+        name: "Dr. Priya Nair",
+        email: "p.nair@university.edu",
+        role_id: 1,
+      });
+    });
+  });
+
+  test("sends null email when the email field is blank", async () => {
+    const user = userEvent.setup();
+    api.createPersonnel.mockResolvedValue({});
+
+    renderAdminPage();
+    await waitFor(() => {
+      expect(screen.getByRole("option", { name: "Principal Investigator" })).toBeInTheDocument();
+    });
+
+    const nameInput = screen.getByPlaceholderText("Full name");
+    await user.type(nameInput, "Sam Whitfield");
+    const form = nameInput.closest("form");
+    await user.click(within(form).getByRole("button"));
+
+    await waitFor(() => {
+      expect(api.createPersonnel).toHaveBeenCalledWith({
+        name: "Sam Whitfield",
+        email: null,
+        role_id: 1,
+      });
+    });
+  });
+
+  test("shows an error message if creating personnel fails", async () => {
+    const user = userEvent.setup();
+    api.createPersonnel.mockRejectedValue(new Error("Unknown role_id"));
+
+    renderAdminPage();
+    await waitFor(() => {
+      expect(screen.getByRole("option", { name: "Principal Investigator" })).toBeInTheDocument();
+    });
+
+    const nameInput = screen.getByPlaceholderText("Full name");
+    await user.type(nameInput, "Dr. Priya Nair");
+    const form = nameInput.closest("form");
+    await user.click(within(form).getByRole("button"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Unknown role_id")).toBeInTheDocument();
+    });
+  });
+
+  test("deleting personnel calls the API and refreshes", async () => {
+    const user = userEvent.setup();
+    api.listPersonnel.mockResolvedValue([
+      { id: 5, name: "Sam Whitfield", email: null, role_name: "Lab Technician", is_committee: 0 },
+    ]);
+    api.deletePersonnel.mockResolvedValue(null);
+
+    renderAdminPage();
+    await waitFor(() => expect(screen.getByText("Sam Whitfield")).toBeInTheDocument());
+
+    const row = screen.getByText("Sam Whitfield").closest(".px-4");
+    await user.click(within(row).getByRole("button"));
+
+    await waitFor(() => {
+      expect(api.deletePersonnel).toHaveBeenCalledWith(5);
+    });
+  });
+
+  test("shows an error message if deleting personnel fails", async () => {
+    const user = userEvent.setup();
+    api.listPersonnel.mockResolvedValue([
+      { id: 5, name: "Sam Whitfield", email: null, role_name: "Lab Technician", is_committee: 0 },
+    ]);
+    api.deletePersonnel.mockRejectedValue(new Error("Personnel has votes."));
+
+    renderAdminPage();
+    await waitFor(() => expect(screen.getByText("Sam Whitfield")).toBeInTheDocument());
+
+    const row = screen.getByText("Sam Whitfield").closest(".px-4");
+    await user.click(within(row).getByRole("button"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Personnel has votes.")).toBeInTheDocument();
     });
   });
 });

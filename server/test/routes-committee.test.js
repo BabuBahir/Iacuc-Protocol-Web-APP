@@ -192,4 +192,22 @@ describe("POST /api/committee/protocols/:id/votes", () => {
     assert.equal(res.body.totalVotes, 2);
     assert.equal(res.body.counts.Approve, 2);
   });
+
+  test(
+    "regression: vote comments round-trip through the list and tally endpoints " +
+      "(they were previously dropped from the tally query, so the UI could never show them)",
+    async () => {
+      insertProtocol();
+      const voterId = await insertPersonnel("Dr. Commenter", "Committee Member", true);
+      await request(app)
+        .post("/api/committee/protocols/TEST-0001/votes")
+        .send({ personnel_id: voterId, vote: "Approve", comment: "Looks good." });
+
+      const list = await request(app).get("/api/committee/protocols");
+      assert.equal(list.body[0].votes[0].comment, "Looks good.");
+
+      const detail = await request(app).get("/api/committee/protocols/TEST-0001/votes");
+      assert.equal(detail.body.votes[0].comment, "Looks good.");
+    }
+  );
 });
