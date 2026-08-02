@@ -1,0 +1,23 @@
+{
+  "name": "iacuc-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "seed": "node src/seed.js",
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "test": "node --test --experimental-test-coverage \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0"
+  }
+}
