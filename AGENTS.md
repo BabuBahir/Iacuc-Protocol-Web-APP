@@ -263,6 +263,15 @@ from building it:
   displayed. Fixed by adding `protocol_votes.comment` to the query, with a
   server regression test ("vote comments round-trip through the list and
   tally endpoints") alongside the e2e one.
+- `seed.js` now seeds 12 protocols (up from 6) plus Appendix A content
+  (procedures/drugs/animal-use/alternatives) and FCR votes for the two
+  non-0142 review protocols. Two invariants the e2e suite depends on:
+  (1) `IACUC-2026-0142` must stay the **latest-submitted** review protocol
+  so it sorts first on the Committee page (the vote-casting test drives its
+  form), and must stay **vote-free** so "No votes cast yet." renders; and
+  (2) `IACUC-2025-0064` must stay a Macaque so the "Mouse" search test
+  keeps filtering it out. If you add review protocols, give them submitted
+  dates earlier than 2026-06-30 and don't seed votes for 0142.
 
 **Test isolation pattern** (see `server/test/helpers.js`): Node's test
 runner isolates each test *file* into its own process by default, so a
@@ -312,11 +321,22 @@ number and assume it works.
 
 ### What's implemented vs. not (as of this file's writing)
 
-Implemented: core protocol CRUD, dashboard metrics, Appendix A content
+Implemented: core protocol CRUD — a dedicated Create page
+(`/protocols/new` — the dashboard's "New protocol" button navigates there,
+then on success lands on the new protocol's detail page) and an in-UI edit
+modal on the detail page (Edit button opens a form editing title/PI/status/
+species/animals/pain-category/submitted/expires via `PATCH /api/protocols/:id`,
+then refetches). Create and edit share one form component —
+`client/src/components/ProtocolForm.jsx` — which owns field state and the
+species lookup; the Create page renders it full-page (protocol-number field
+on), the detail page renders it inside the edit modal (status dropdown +
+submitted/expires dates on). Keep using this component for any future
+protocol form rather than duplicating fields. Also implemented: dashboard
+metrics, Appendix A content
 tables (procedures/drugs/animal-use/alternatives — backend only, **no
 frontend UI wired up yet** for these), admin lookup lists (species/roles/
 personnel), FCR committee voting with live tallies (including vote comments,
-returned by the tally endpoints), and a 10-test Playwright e2e suite covering
+returned by the tally endpoints), and an 11-test Playwright e2e suite covering
 dashboard/detail/committee/admin.
 
 Not implemented (see §1 above for the domain detail on each): conditional/

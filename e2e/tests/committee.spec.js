@@ -10,17 +10,21 @@ test("committee page lists protocols in review with no votes yet", async ({ page
 
 test("casting a vote updates the tally and vote history", async ({ page }) => {
   await page.goto("/committee");
-  await expect(page.getByText("IACUC-2026-0142")).toBeVisible();
 
-  const selects = page.getByRole("combobox");
+  // The committee page lists every protocol in review; scope all interactions
+  // to the IACUC-2026-0142 card.
+  const card = page.locator(".rounded-lg").filter({ hasText: "IACUC-2026-0142" });
+  await expect(card).toBeVisible();
+
+  const selects = card.getByRole("combobox");
   // First select is the voter picker (voters sorted by name); index 1 is a
   // committee-eligible voter other than the default.
   await selects.first().selectOption({ index: 1 });
   await selects.nth(1).selectOption("Approve");
-  await page.getByPlaceholder("Comment (optional)").fill("Looks good.");
-  await page.getByRole("button", { name: "Cast vote" }).click();
+  await card.getByPlaceholder("Comment (optional)").fill("Looks good.");
+  await card.getByRole("button", { name: "Cast vote" }).click();
 
-  await expect(page.getByText(/voted Approve/)).toBeVisible();
-  await expect(page.getByText(/Looks good/)).toBeVisible();
-  await expect(page.getByText("No votes cast yet.")).not.toBeVisible();
+  await expect(card.getByText(/voted Approve/)).toBeVisible();
+  await expect(card.getByText(/Looks good/)).toBeVisible();
+  await expect(card.getByText("No votes cast yet.")).not.toBeVisible();
 });

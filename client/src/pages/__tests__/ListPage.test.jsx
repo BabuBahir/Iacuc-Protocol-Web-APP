@@ -1,7 +1,7 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import ListPage from "../ListPage.jsx";
 import { api } from "../../api.js";
 
@@ -11,6 +11,11 @@ vi.mock("../../api.js", () => ({
     getSummary: vi.fn(),
   },
 }));
+
+vi.mock("react-router-dom", async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, useNavigate: vi.fn() };
+});
 
 function renderListPage() {
   return render(
@@ -90,5 +95,19 @@ describe("ListPage", () => {
     await waitFor(() => {
       expect(api.listProtocols).toHaveBeenLastCalledWith("mouse");
     });
+  });
+
+  test("New protocol button navigates to the create page", async () => {
+    api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
+    api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
+    const navigate = vi.fn();
+    vi.mocked(useNavigate).mockReturnValue(navigate);
+    const user = userEvent.setup();
+
+    renderListPage();
+    await waitFor(() => expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "New protocol" }));
+    expect(navigate).toHaveBeenCalledWith("/protocols/new");
   });
 });
