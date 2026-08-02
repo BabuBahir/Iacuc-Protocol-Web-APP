@@ -17,6 +17,15 @@ iacuc-app/
   client/        Vite + React frontend           (package: iacuc-client)
 ```
 
+
+## Demo
+
+Access the demo at [demo.iacuc.com]([https://demo.osrd.fr](https://iacuc-protocol-review-case-study-cl.vercel.app/)).
+
+> [!IMPORTANT]
+> This environment is not intended for use in production. It is refreshed daily, and the data entered is accessible to everyone.
+
+
 ## 1. Install everything (one command, from the repo root)
 
 ```bash
