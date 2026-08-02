@@ -12,6 +12,10 @@ Access the demo at [demo.iacuc.com](https://iacuc-protocol-review-case-study-cl.
 
 
 
+> [!IMPORTANT]
+> This environment is not intended for use in production. It is refreshed daily, and the data entered is accessible to everyone.
+
+
 
 A real two-tier app: an Express + SQLite API, and a Vite + React frontend
 with actual client-side routing (`react-router-dom`). This replaces the
@@ -25,10 +29,6 @@ iacuc-app/
   client/        Vite + React frontend           (package: iacuc-client)
 ```
 
-
-
-> [!IMPORTANT]
-> This environment is not intended for use in production. It is refreshed daily, and the data entered is accessible to everyone.
 
 
 ## 1. Install everything (one command, from the repo root)
