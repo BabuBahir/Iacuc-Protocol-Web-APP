@@ -264,7 +264,7 @@ List, Detail, Admin, Committee, Create — plus `StatusBadge`, `api.ts`,
 `ProtocolForm`, and `App.tsx` routing is covered. `npm run typecheck`
 (`tsc --noEmit`) is the gate after any client change.
 
-**E2E: 12 Playwright tests, all passing** (`npm run test:e2e` from the
+**E2E: 16 Playwright tests, all passing** (`npm run test:e2e` from the
 repo root). Infra lives in `e2e/`: `playwright.config.mjs`, specs in
 `e2e/tests/`, plus a dedicated API server (`e2e/seed-and-server.mjs`) on
 port 4100 that seeds a throwaway `e2e/e2e.db` and a Vite dev server
@@ -292,13 +292,30 @@ from building it:
   covers the Appendix A page read-only against 0142's seeded content.
 - `seed.js` now seeds 12 protocols (up from 6) plus Appendix A content
   (procedures/drugs/animal-use/alternatives) and FCR votes for the two
-  non-0142 review protocols. Two invariants the e2e suite depends on:
+  non-0142 review protocols. Six protocols (0142, 0139, 0150, 0147, 0155,
+  0158) are seeded with *every* application field filled — summaries,
+  PI proxy, PTM member, protocol type, anesthesia flag, housing, disposal,
+  NPG, research steps — plus their procedures/drugs/animal-use/alternatives
+  rows; the other six are intentionally sparse. Master data: 17 species,
+  12 roles, 13 personnel. Two invariants the e2e suite depends on:
   (1) `IACUC-2026-0142` must stay the **latest-submitted** review protocol
   so it sorts first on the Committee page (the vote-casting test drives its
   form), and must stay **vote-free** so "No votes cast yet." renders; and
   (2) `IACUC-2025-0064` must stay a Macaque so the "Mouse" search test
   keeps filtering it out. If you add review protocols, give them submitted
-  dates earlier than 2026-06-30 and don't seed votes for 0142.
+  dates earlier than 2026-06-30 and don't seed votes for 0142. Don't add
+  committee-eligible personnel (is_committee = 1) casually — the committee
+  vote-casting test selects voters by index and assumes the sorted voter
+  list.
+- `e2e/tests/css.spec.js` (4 tests) guards against the CSS bundle going
+  empty/regressing: it asserts computed styles for the dark header bar
+  (`#032D60` bg + white text on dashboard/committee/admin), the primary
+  button (`#0176D3`), the detail-page breadcrumb (white bg + gray border),
+  and sums all injected `<style>` rules to prove the Tailwind CSS is
+  non-empty. Vite dev injects CSS as `<style>` tags, so don't switch these
+  checks to `<link>` stylesheets — there are none in dev mode. Note there
+  is **no footer** anywhere in the app, so the "footer" check doesn't
+  exist; extend `css.spec.js` if one is ever added.
 
 **Test isolation pattern** (see `server/test/helpers.js`): Node's test
 runner isolates each test *file* into its own process by default, so a
@@ -369,7 +386,7 @@ submitted/expires dates on). Keep using this component for any future
 protocol form rather than duplicating fields. Also implemented: dashboard
 metrics, admin lookup lists (species/roles/personnel), FCR committee voting
 with live tallies (including vote comments, returned by the tally endpoints),
-and an 12-test Playwright e2e suite covering dashboard/detail/committee/admin.
+and a 16-test Playwright e2e suite covering dashboard/detail/committee/admin/css.
 
 **Appendix A application page** (`client/src/pages/ApplicationPage.tsx`, route
 `/protocols/:id/application`, reachable via the detail page's "Edit

@@ -2,17 +2,17 @@ import "dotenv/config";
 import { db } from "./db.js";
 
 const protocols = [
-  { id: "IACUC-2026-0142", title: "Neurobehavioral Effects of Chronic Stress in C57BL/6 Mice", pi: "Dr. Elena Marsh", species: "Mouse", status: "IACUC Review", animals: 240, pain_category: "Category D", submitted: "2026-06-30", expires: null, pi_proxy: "Sam Whitfield", ptm_member: "Dr. Priya Nair", protocol_type: "Research", anesthesia_required: 1, housing: "Group-housed 5/cage in ventilated cages on a 12:12 light cycle.", disposal: "Carbon dioxide euthanasia; carcasses incinerated per SOP.", npg: "None", research_steps: ["Habituate mice to handling for 7 days.", "Deliver corticosterone in drinking water for 21 days with daily restraint sessions.", "Collect brains and adrenals after euthanasia for histology and qPCR."] },
-  { id: "IACUC-2026-0139", title: "Cardiac Regeneration Following Induced Myocardial Infarction", pi: "Dr. Raj Patel", species: "Rat", status: "Approved", animals: 80, pain_category: "Category C", submitted: "2026-06-12", expires: "2029-06-12" },
+  { id: "IACUC-2026-0142", title: "Neurobehavioral Effects of Chronic Stress in C57BL/6 Mice", pi: "Dr. Elena Marsh", species: "Mouse", status: "IACUC Review", animals: 240, pain_category: "Category D", submitted: "2026-06-30", expires: null, pi_proxy: "Sam Whitfield", ptm_member: "Dr. Priya Nair", protocol_type: "Research", anesthesia_required: 1, housing: "Group-housed 5/cage in ventilated cages on a 12:12 light cycle.", disposal: "Carbon dioxide euthanasia; carcasses incinerated per SOP.", npg: "None", research_steps: ["Habituate mice to handling for 7 days.", "Deliver corticosterone in drinking water for 21 days with daily restraint sessions.", "Collect brains and adrenals after euthanasia for histology and qPCR."], purpose_summary: "Study how chronic psychological stress changes the brain circuits that control anxiety and memory, using mice as a model to guide better treatments for stress-related psychiatric illness.", harm_benefit_analysis: "Animals undergo 21 days of daily restraint and corticosterone exposure — mild, reversible distress. The benefit is identifying stress-driven neuroendocrine mechanisms that could lead to new psychiatric interventions, which justifies the discomfort over current alternatives.", scientific_summary: "Characterize the neurobehavioral consequences of chronic stress in adult male C57BL/6 mice. Specific aims: (1) quantify anxiety-like behavior and spatial memory after 21 days of restraint plus corticosterone; (2) measure HPA-axis output via corticosterone and adrenal mass; (3) correlate hippocampal gene expression by qPCR with behavioral outcomes." },
+  { id: "IACUC-2026-0139", title: "Cardiac Regeneration Following Induced Myocardial Infarction", pi: "Dr. Raj Patel", species: "Rat", status: "Approved", animals: 80, pain_category: "Category C", submitted: "2026-06-12", expires: "2029-06-12", pi_proxy: "Sam Whitfield", ptm_member: "Dr. Harold Kim", protocol_type: "Research", anesthesia_required: 1, housing: "Standard rat housing, 2/cage, corncob bedding, 12:12 light cycle, environmental enrichment provided.", disposal: "Sodium pentobarbital overdose followed by necropsy; carcasses incinerated per institutional SOP.", npg: "None", research_steps: ["Induce myocardial infarction by permanent LAD ligation under isoflurane anesthesia.", "Monitor animals with telemetry and echocardiography at 1, 4, and 8 weeks.", "Harvest hearts for histology and gene expression analysis."], purpose_summary: "Test whether the adult mammalian heart can regenerate after a heart attack when treated with candidate regenerative therapies.", harm_benefit_analysis: "Survival cardiac surgery with analgesia causes transient post-operative discomfort. The benefit is evaluating cardiac regeneration strategies that could reduce disability and death after human heart attacks.", scientific_summary: "Assess cardiac regeneration after permanent coronary ligation in rats. Aims: (1) quantify infarct size and scar remodeling by histology; (2) measure ejection fraction by echocardiography; (3) profile cell-cycle gene expression in border-zone myocardium." },
   { id: "IACUC-2025-0098", title: "Vaccine Efficacy Trial for Avian Influenza Strains", pi: "Dr. Wen Liu", species: "Chicken", status: "Active", animals: 150, pain_category: "Category B", submitted: "2025-01-08", expires: "2026-08-04" },
   { id: "IACUC-2025-0091", title: "Longitudinal Study of Diet-Induced Obesity in Zebrafish", pi: "Dr. Sofia Ramos", species: "Zebrafish", status: "Expiring soon", animals: 500, pain_category: "Category B", submitted: "2025-02-02", expires: "2026-09-01" },
   { id: "IACUC-2026-0021", title: "Wound Healing Comparison Across Rabbit Breeds", pi: "Dr. Marcus Chen", species: "Rabbit", status: "Draft", animals: 60, pain_category: "Category C", submitted: null, expires: null },
   { id: "IACUC-2025-0064", title: "Behavioral Enrichment Impact on Non-Human Primate Welfare", pi: "Dr. Amara Osei", species: "Macaque", status: "Active", animals: 24, pain_category: "Category B", submitted: "2025-11-20", expires: "2027-11-20" },
-  { id: "IACUC-2026-0150", title: "Deep Brain Stimulation in a Rat Model of Parkinson's Disease", pi: "Dr. Priya Nair", species: "Rat", status: "IACUC Review", animals: 120, pain_category: "Category D", submitted: "2026-05-10", expires: null },
-  { id: "IACUC-2026-0147", title: "Adoptive Cell Therapy Against Murine Melanoma", pi: "Dr. Harold Kim", species: "Mouse", status: "Veterinary Review", animals: 200, pain_category: "Category D", submitted: "2026-06-01", expires: null },
+  { id: "IACUC-2026-0150", title: "Deep Brain Stimulation in a Rat Model of Parkinson's Disease", pi: "Dr. Priya Nair", species: "Rat", status: "IACUC Review", animals: 120, pain_category: "Category D", submitted: "2026-05-10", expires: null, pi_proxy: "Dr. Elena Marsh", ptm_member: "Dr. Harold Kim", protocol_type: "Research", anesthesia_required: 1, housing: "Rat housing, 2/cage, enriched with nesting material and a red hut.", disposal: "Pentobarbital overdose, tissue harvested for histology, remaining carcass incinerated.", npg: "None", research_steps: ["Stereotaxically implant bilateral DBS electrodes into the subthalamic nucleus.", "Deliver 4 weeks of high-frequency stimulation with weekly motor scoring.", "Assess dopamine neuron survival and gliosis by immunohistochemistry."], purpose_summary: "Determine whether deep brain stimulation improves motor symptoms and slows disease progression in a rat model of Parkinson's disease.", harm_benefit_analysis: "Animals undergo survival stereotaxic surgery and brief restraint during stimulation sessions. The study informs DBS target refinement that could improve quality of life for Parkinson's patients.", scientific_summary: "Model Parkinsonian motor impairment via 6-OHDA lesion and test continuous DBS of the subthalamic nucleus. Aims: (1) motor function on cylinder and rotarod tests; (2) TH+ cell survival in the substantia nigra; (3) electrode-evoked field responses. Data will refine clinical DBS parameter selection." },
+  { id: "IACUC-2026-0147", title: "Adoptive Cell Therapy Against Murine Melanoma", pi: "Dr. Harold Kim", species: "Mouse", status: "Veterinary Review", animals: 200, pain_category: "Category D", submitted: "2026-06-01", expires: null, pi_proxy: "Sam Whitfield", ptm_member: "Dr. Priya Nair", protocol_type: "Research", anesthesia_required: 1, housing: "Immunodeficient mice housed in sterile ventilated cages with autoclaved feed and bedding.", disposal: "CO2 euthanasia followed by cervical dislocation; carcasses incinerated.", npg: "None", research_steps: ["Inject B16-F10 melanoma cells subcutaneously and allow tumors to establish.", "Administer CAR-T cells intravenously in the treatment arm.", "Monitor tumor burden by caliper and ultrasound; collect tumors and spleen for flow cytometry."], purpose_summary: "Test whether engineered immune cells (CAR-T) can eliminate established melanoma tumors in a mouse model of the disease.", harm_benefit_analysis: "Tumor-bearing mice experience the disease burden inherent to a cancer model, with humane endpoints capping tumor size. The benefit is informing next-generation adoptive cell therapies for melanoma patients.", scientific_summary: "Evaluate CAR-T cell efficacy against established subcutaneous B16-F10 melanoma in NOD scid gamma mice. Aims: (1) tumor growth kinetics; (2) CAR-T persistence and infiltration by flow cytometry; (3) survival analysis. Positive results would support progression to syngeneic models." },
   { id: "IACUC-2025-0102", title: "Environmental Enrichment and Social Behavior in Domestic Pigs", pi: "Dr. Marcus Chen", species: "Pig", status: "Active", animals: 36, pain_category: "Category C", submitted: "2025-03-15", expires: "2028-03-15" },
-  { id: "IACUC-2026-0155", title: "Corneal Transplantation Techniques in Rabbits", pi: "Dr. Wen Liu", species: "Rabbit", status: "Submitted", animals: 60, pain_category: "Category C", submitted: "2026-07-20", expires: null },
-  { id: "IACUC-2026-0158", title: "Genetic Basis of Spontaneous Seizures in Zebrafish", pi: "Dr. Amara Osei", species: "Zebrafish", status: "Draft", animals: 800, pain_category: "Category B", submitted: null, expires: null, protocol_type: "Breeding", anesthesia_required: 0, housing: "Recirculating aquatic system, 28°C, density ≤5 fish/L.", disposal: "Tricaine overdose followed by incineration.", npg: "None", research_steps: ["Maintain mutant and wild-type lines.", "Score seizure behavior from video recordings.", "Genotype offspring via fin-clip PCR."] },
+  { id: "IACUC-2026-0155", title: "Corneal Transplantation Techniques in Rabbits", pi: "Dr. Wen Liu", species: "Rabbit", status: "Submitted", animals: 60, pain_category: "Category C", submitted: "2026-07-20", expires: null, pi_proxy: "Dr. Amara Osei", ptm_member: "Dr. Harold Kim", protocol_type: "Research", anesthesia_required: 1, housing: "Rabbits individually housed in standard caging with ad libitum food and water, enriched with chew toys.", disposal: "Euthanized with pentobarbital; corneas harvested, carcasses incinerated.", npg: "None", research_steps: ["Perform penetrating keratoplasty with donor corneal grafts.", "Score graft clarity, vascularization, and rejection weekly for 8 weeks.", "Collect corneas for histologic assessment of graft survival."], purpose_summary: "Compare corneal graft survival between standard and modified transplantation techniques to reduce graft rejection in humans.", harm_benefit_analysis: "Animals undergo survival corneal surgery under anesthesia with post-operative analgesia. The benefit is improving corneal transplant outcomes, which restore sight in thousands of patients each year.", scientific_summary: "Penetrating keratoplasty in New Zealand White rabbits comparing suture versus sutureless graft apposition. Aims: (1) graft clarity score; (2) corneal neovascularization index; (3) histologic graft rejection at 8 weeks." },
+  { id: "IACUC-2026-0158", title: "Genetic Basis of Spontaneous Seizures in Zebrafish", pi: "Dr. Amara Osei", species: "Zebrafish", status: "Draft", animals: 800, pain_category: "Category B", submitted: null, expires: null, pi_proxy: "Dr. Wen Liu", ptm_member: "Dr. Priya Nair", protocol_type: "Breeding", anesthesia_required: 0, housing: "Recirculating aquatic system, 28°C, density ≤5 fish/L.", disposal: "Tricaine overdose followed by incineration.", npg: "None", research_steps: ["Maintain mutant and wild-type lines.", "Score seizure behavior from video recordings.", "Genotype offspring via fin-clip PCR."], purpose_summary: "Identify the genetic mutations that cause spontaneous seizures in a zebrafish line, providing a screening platform for epilepsy therapies.", harm_benefit_analysis: "Zebrafish are a high-throughput vertebrate model; larval seizure scoring is non-invasive. The benefit is a rapid pre-clinical screen for antiseizure compounds.", scientific_summary: "Characterize spontaneous seizure phenotypes in a novel zebrafish mutant line. Aims: (1) confirm heritability by cross and fin-clip genotyping; (2) score seizure-like behavior from video; (3) localize candidate genes by whole-exome sequencing." },
   { id: "IACUC-2024-0023", title: "Toxicological Screening of Novel Compounds in Sprague-Dawley Rats", pi: "Dr. Raj Patel", species: "Rat", status: "Active", animals: 150, pain_category: "Category E", submitted: "2024-09-10", expires: "2027-09-10" },
 ];
 
@@ -94,6 +94,7 @@ const relatedItems = [
 const species = [
   "Mouse", "Rat", "Rabbit", "Guinea pig", "Zebrafish", "Chicken",
   "Macaque", "Sheep", "Pig", "Dog", "Cat", "Ferret", "Goat", "Hamster",
+  "Xenopus", "Gerbil", "Bovine",
 ];
 
 // is_committee = 1 means this role is eligible to cast an FCR vote
@@ -101,6 +102,9 @@ const roles = [
   { name: "Principal Investigator", is_committee: 0 },
   { name: "Co-Investigator", is_committee: 0 },
   { name: "Lab Technician", is_committee: 0 },
+  { name: "Research Assistant", is_committee: 0 },
+  { name: "Postdoctoral Fellow", is_committee: 0 },
+  { name: "Veterinary Technician", is_committee: 0 },
   { name: "Attending Veterinarian", is_committee: 1 },
   { name: "IACUC Chair", is_committee: 1 },
   { name: "Committee Member", is_committee: 1 },
@@ -119,6 +123,10 @@ const personnel = [
   { name: "Dr. Marcus Chen", email: "m.chen@university.edu", role: "Committee Member" },
   { name: "Jordan Blake", email: "j.blake@community.org", role: "Non-Affiliated Member" },
   { name: "Dr. Amara Osei", email: "a.osei@university.edu", role: "Non-Scientist Member" },
+  { name: "Dr. Hana Sato", email: "h.sato@university.edu", role: "Postdoctoral Fellow" },
+  { name: "Tom Nguyen", email: "t.nguyen@university.edu", role: "Research Assistant" },
+  { name: "Ben Foster", email: "b.foster@university.edu", role: "Veterinary Technician" },
+  { name: "Maya Patel", email: "maya.patel@university.edu", role: "IACUC Coordinator" },
 ];
 
 // ---- Appendix A content tables (procedures / drugs / animal use / alternatives) ----
@@ -228,6 +236,10 @@ const drugsSeed = {
   "IACUC-2026-0155": [
     { reason_for_use: "Anesthesia", drug: "Ketamine/Dexmedetomidine", dose: "30/0.05 mg/kg", route: "IM", duration: "60 min" },
     { reason_for_use: "Analgesia", drug: "Buprenorphine", dose: "0.05 mg/kg", route: "SC", duration: "q12h × 72h" },
+  ],
+  "IACUC-2026-0158": [
+    { reason_for_use: "Anesthesia", drug: "Tricaine methanesulfonate (MS-222)", dose: "100 mg/L", route: "Bath immersion", duration: "5 min" },
+    { reason_for_use: "Euthanasia", drug: "Tricaine methanesulfonate (MS-222)", dose: "250 mg/L", route: "Bath immersion", duration: "Until opercular movement ceases" },
   ],
   "IACUC-2024-0023": [
     { reason_for_use: "Test compound dosing", drug: "Novel compounds 1–12", dose: "10–100 mg/kg", route: "PO", duration: "Daily × 28 days" },
@@ -365,6 +377,36 @@ const alternativesSeed = {
     colleague_notes: "Approved tumor size endpoint of 2000 mm3.",
     av_consult_date: "2026-05-29",
   },
+  "IACUC-2026-0155": {
+    replacement_text: "Ex-vivo corneal culture and computer simulation used for preliminary technique screening.",
+    refinement_text: "Post-operative analgesia and topical antibiotics minimize discomfort and infection risk.",
+    reduction_text: "Bilateral study design halves the number of recipient rabbits required.",
+    lit_databases: "PubMed, Embase",
+    lit_years_from: "2019",
+    lit_years_to: "2026",
+    lit_search_date: "2026-07-10",
+    lit_keywords: "penetrating keratoplasty, corneal graft rejection, rabbit",
+    lit_summary: "Rabbit model remains the accepted standard for corneal transplant research; no alternative reproduces graft-host biology.",
+    colleague_name: null,
+    colleague_date: null,
+    colleague_notes: null,
+    av_consult_date: null,
+  },
+  "IACUC-2026-0158": {
+    replacement_text: "Cell-based seizure assays (in-vitro neuronal cultures) used to triage candidate genes before line generation.",
+    refinement_text: "Larval video scoring is non-invasive and avoids handling stress in adults.",
+    reduction_text: "Single breeding cohorts supply both experimental and control larvae, minimizing total fish used.",
+    lit_databases: "PubMed, ZFIN",
+    lit_years_from: "2018",
+    lit_years_to: "2026",
+    lit_search_date: "2026-03-15",
+    lit_keywords: "zebrafish, seizure, epilepsy genetics, high-throughput screen",
+    lit_summary: "Zebrafish chosen as the most humane high-throughput vertebrate model for genetic epilepsy screening.",
+    colleague_name: null,
+    colleague_date: null,
+    colleague_notes: null,
+    av_consult_date: null,
+  },
   "IACUC-2024-0023": {
     replacement_text: "In-vitro toxicity panels (HepG2) pre-screen compounds before in-vivo dosing.",
     refinement_text: "Feeding tube gavage under brief restraint; blood drawn from warmed tail vein.",
@@ -395,11 +437,13 @@ const votesSeed = [
 const insertProtocol = db.prepare(`
   INSERT INTO protocols (
     id, title, pi, species, status, animals, pain_category, submitted, expires,
-    pi_proxy, ptm_member, protocol_type, anesthesia_required, housing, disposal, npg, research_steps
+    pi_proxy, ptm_member, protocol_type, anesthesia_required, housing, disposal, npg, research_steps,
+    purpose_summary, harm_benefit_analysis, scientific_summary
   )
   VALUES (
     @id, @title, @pi, @species, @status, @animals, @pain_category, @submitted, @expires,
-    @pi_proxy, @ptm_member, @protocol_type, @anesthesia_required, @housing, @disposal, @npg, @research_steps
+    @pi_proxy, @ptm_member, @protocol_type, @anesthesia_required, @housing, @disposal, @npg, @research_steps,
+    @purpose_summary, @harm_benefit_analysis, @scientific_summary
   )
 `);
 
@@ -467,6 +511,9 @@ try {
       disposal: p.disposal ?? null,
       npg: p.npg ?? null,
       research_steps: p.research_steps ? JSON.stringify(p.research_steps) : null,
+      purpose_summary: p.purpose_summary ?? null,
+      harm_benefit_analysis: p.harm_benefit_analysis ?? null,
+      scientific_summary: p.scientific_summary ?? null,
     });
   }
   for (const r of relatedItems) insertRelated.run(r.protocol_id, r.list_name, r.label);
