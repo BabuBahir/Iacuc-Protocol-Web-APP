@@ -22,6 +22,8 @@ describe("db.js schema", () => {
       "roles",
       "personnel",
       "protocol_votes",
+      "protocol_review_assignments",
+      "protocol_review_comments",
       "protocol_procedures",
       "protocol_drugs",
       "protocol_animal_use",
@@ -63,7 +65,7 @@ describe("db.js schema", () => {
     const { db, closeDb } = await import(`../src/db.js?fresh=${Date.now()}-${Math.random()}`);
 
     const columns = db.prepare("PRAGMA table_info(protocols)").all().map((c) => c.name);
-    for (const col of ["purpose_summary", "harm_benefit_analysis", "scientific_summary"]) {
+    for (const col of ["purpose_summary", "harm_benefit_analysis", "scientific_summary", "review_method"]) {
       assert.ok(columns.includes(col), `expected migrated column "${col}"`);
     }
 

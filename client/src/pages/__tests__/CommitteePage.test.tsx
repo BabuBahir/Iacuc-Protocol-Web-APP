@@ -4,13 +4,23 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import CommitteePage from "../CommitteePage";
 import { api as realApi } from "../../api";
-import type { CommitteeProtocol, CommitteeTally, Voter } from "../../types";
+import type {
+  CommitteeProtocol,
+  CommitteeTally,
+  Protocol,
+  ReviewComment,
+  ReviewerAssignment,
+  Voter,
+} from "../../types";
 
 vi.mock("../../api", () => ({
   api: {
     listCommitteeProtocols: vi.fn(),
     listVoters: vi.fn(),
     castVote: vi.fn(),
+    setReviewMethod: vi.fn(),
+    assignReviewer: vi.fn(),
+    postComment: vi.fn(),
   },
 }));
 
@@ -22,11 +32,14 @@ const SAMPLE_PROTOCOL: CommitteeProtocol = {
   pi: "Dr. Elena Marsh",
   species: "Mouse",
   status: "IACUC Review",
+  review_method: "DMR",
   counts: { Approve: 1, "Request Modifications": 0, Table: 0, "Withhold Approval": 0 },
   totalVotes: 1,
   votes: [
     { voter_name: "Dr. Priya Nair", role_name: "Attending Veterinarian", vote: "Approve", comment: null },
   ],
+  assignments: [],
+  comments: [],
 };
 
 const SAMPLE_VOTERS: Voter[] = [
@@ -130,9 +143,9 @@ describe("CommitteePage", () => {
     renderCommitteePage();
     await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
 
-    const voterSelect = screen.getAllByRole("combobox")[0];
+    const voterSelect = screen.getAllByRole("combobox")[1];
     await user.selectOptions(voterSelect, "2");
-    const voteSelect = screen.getAllByRole("combobox")[1];
+    const voteSelect = screen.getAllByRole("combobox")[2];
     await user.selectOptions(voteSelect, "Withhold Approval");
     await user.type(screen.getByPlaceholderText("Comment (optional)"), "Concern about endpoints");
     await user.click(screen.getByRole("button", { name: "Cast vote" }));
@@ -159,7 +172,7 @@ describe("CommitteePage", () => {
     await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
 
     const selects = screen.getAllByRole("combobox");
-    await user.selectOptions(selects[0], "1");
+    await user.selectOptions(selects[1], "1");
     await user.type(screen.getByPlaceholderText("Comment (optional)"), "   ");
     await user.click(screen.getByRole("button", { name: "Cast vote" }));
 
@@ -195,7 +208,7 @@ describe("CommitteePage", () => {
     renderCommitteePage();
 
     await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
-    expect(screen.getByText("No committee-eligible personnel")).toBeInTheDocument();
+    expect(screen.getAllByText("No committee-eligible personnel").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Cast vote" })).toBeDisabled();
   });
 
@@ -208,9 +221,171 @@ describe("CommitteePage", () => {
     await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
 
     const selects = screen.getAllByRole("combobox");
-    await user.selectOptions(selects[0], "");
+    await user.selectOptions(selects[1], "");
     await user.click(screen.getByRole("button", { name: "Cast vote" }));
 
     expect(api.castVote).not.toHaveBeenCalled();
+  });
+
+  test("shows the review-method selector with FCR and DMR options", async () => {
+    api.listCommitteeProtocols.mockResolvedValue([SAMPLE_PROTOCOL]);
+    api.listVoters.mockResolvedValue(SAMPLE_VOTERS);
+
+    renderCommitteePage();
+    await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
+
+    const method = screen.getByLabelText("Review method");
+    expect(method).toHaveValue("DMR");
+    expect(screen.getByRole("option", { name: "FCR" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "DMR" })).toBeInTheDocument();
+  });
+
+  test("changing the review method calls setReviewMethod and reloads", async () => {
+    const user = userEvent.setup();
+    api.listCommitteeProtocols.mockResolvedValue([SAMPLE_PROTOCOL]);
+    api.listVoters.mockResolvedValue(SAMPLE_VOTERS);
+    api.setReviewMethod.mockResolvedValue({} as Protocol);
+
+    renderCommitteePage();
+    await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
+
+    await user.selectOptions(screen.getByLabelText("Review method"), "FCR");
+
+    await waitFor(() => {
+      expect(api.setReviewMethod).toHaveBeenCalledWith("IACUC-2026-0142", "FCR");
+    });
+    expect(api.listCommitteeProtocols).toHaveBeenCalled();
+  });
+
+  test("renders seeded reviewer assignments and section comments", async () => {
+    api.listCommitteeProtocols.mockResolvedValue([
+      {
+        ...SAMPLE_PROTOCOL,
+        assignments: [
+          { personnel_id: 2, reviewer_name: "Dr. Harold Kim", role: "Primary Reviewer", assigned_at: "2026-07-01" },
+        ],
+        comments: [
+          { id: 1, personnel_id: 2, commenter_name: "Dr. Harold Kim", section: "procedures", comment: "Add a scoring rubric.", created_at: "2026-07-01" },
+        ],
+      },
+    ]);
+    api.listVoters.mockResolvedValue(SAMPLE_VOTERS);
+
+    renderCommitteePage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Dr. Harold Kim")).toBeInTheDocument();
+    });
+    const assignment = screen.getByText("Dr. Harold Kim").closest("li");
+    expect(assignment).not.toBeNull();
+    expect(assignment!.textContent).toContain("Primary Reviewer");
+    expect(screen.getByText(/Add a scoring rubric/)).toBeInTheDocument();
+  });
+
+  test("assigns a reviewer through the assign form", async () => {
+    const user = userEvent.setup();
+    api.listCommitteeProtocols.mockResolvedValue([SAMPLE_PROTOCOL]);
+    api.listVoters.mockResolvedValue(SAMPLE_VOTERS);
+    api.assignReviewer.mockResolvedValue({} as ReviewerAssignment);
+
+    renderCommitteePage();
+    await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
+
+    await user.selectOptions(screen.getByLabelText("Assignee"), "2");
+    await user.selectOptions(screen.getByLabelText("Assignment role"), "Designated Member");
+    await user.click(screen.getByRole("button", { name: "Assign" }));
+
+    await waitFor(() => {
+      expect(api.assignReviewer).toHaveBeenCalledWith("IACUC-2026-0142", {
+        personnel_id: 2,
+        role: "Designated Member",
+      });
+    });
+  });
+
+  test("posts a section-specific comment through the comments form", async () => {
+    const user = userEvent.setup();
+    api.listCommitteeProtocols.mockResolvedValue([SAMPLE_PROTOCOL]);
+    api.listVoters.mockResolvedValue(SAMPLE_VOTERS);
+    api.postComment.mockResolvedValue({} as ReviewComment);
+
+    renderCommitteePage();
+    await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
+
+    await user.selectOptions(screen.getByLabelText("Commenter"), "2");
+    await user.selectOptions(screen.getByLabelText("Comment section"), "procedures");
+    await user.type(screen.getByPlaceholderText("Add section feedback…"), "Add a scoring rubric.");
+    await user.click(screen.getByRole("button", { name: "Add comment" }));
+
+    await waitFor(() => {
+      expect(api.postComment).toHaveBeenCalledWith("IACUC-2026-0142", {
+        personnel_id: 2,
+        section: "procedures",
+        comment: "Add a scoring rubric.",
+      });
+    });
+  });
+
+  test("shows an error when assigning fails", async () => {
+    const user = userEvent.setup();
+    api.listCommitteeProtocols.mockResolvedValue([SAMPLE_PROTOCOL]);
+    api.listVoters.mockResolvedValue(SAMPLE_VOTERS);
+    api.assignReviewer.mockRejectedValue(new Error("Role already taken."));
+
+    renderCommitteePage();
+    await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Assign" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Role already taken.")).toBeInTheDocument();
+    });
+  });
+
+  test("shows an error when posting a comment fails", async () => {
+    const user = userEvent.setup();
+    api.listCommitteeProtocols.mockResolvedValue([SAMPLE_PROTOCOL]);
+    api.listVoters.mockResolvedValue(SAMPLE_VOTERS);
+    api.postComment.mockRejectedValue(new Error("That section is closed."));
+
+    renderCommitteePage();
+    await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
+
+    await user.type(screen.getByPlaceholderText("Add section feedback…"), "needs work");
+    await user.click(screen.getByRole("button", { name: "Add comment" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("That section is closed.")).toBeInTheDocument();
+    });
+  });
+
+  test("shows an error when changing the review method fails", async () => {
+    const user = userEvent.setup();
+    api.listCommitteeProtocols.mockResolvedValue([SAMPLE_PROTOCOL]);
+    api.listVoters.mockResolvedValue(SAMPLE_VOTERS);
+    api.setReviewMethod.mockRejectedValue(new Error("Invalid review method."));
+
+    renderCommitteePage();
+    await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
+
+    await user.selectOptions(screen.getByLabelText("Review method"), "FCR");
+
+    await waitFor(() => {
+      expect(screen.getByText("Invalid review method.")).toBeInTheDocument();
+    });
+  });
+
+  test("disables the Add comment button until comment text is present", async () => {
+    const user = userEvent.setup();
+    api.listCommitteeProtocols.mockResolvedValue([SAMPLE_PROTOCOL]);
+    api.listVoters.mockResolvedValue(SAMPLE_VOTERS);
+
+    renderCommitteePage();
+    await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
+
+    expect(screen.getByRole("button", { name: "Add comment" })).toBeDisabled();
+
+    await user.type(screen.getByPlaceholderText("Add section feedback…"), "please expand");
+    expect(screen.getByRole("button", { name: "Add comment" })).toBeEnabled();
   });
 });

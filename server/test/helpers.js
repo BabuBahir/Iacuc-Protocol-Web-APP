@@ -9,6 +9,8 @@
 // FK-safe order: children before parents.
 const TABLES_IN_DELETE_ORDER = [
   "protocol_votes",
+  "protocol_review_comments",
+  "protocol_review_assignments",
   "protocol_procedures",
   "protocol_drugs",
   "protocol_animal_use",

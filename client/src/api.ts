@@ -7,6 +7,7 @@ import type {
   AnimalUseInput,
   AnimalUseRow,
   CommitteeProtocol,
+  CommitteeReview,
   CommitteeTally,
   DrugInput,
   DrugRow,
@@ -21,6 +22,11 @@ import type {
   ProtocolInput,
   ProtocolUpdateInput,
   ProtocolVotesResponse,
+  ReviewAssignmentInput,
+  ReviewComment,
+  ReviewCommentInput,
+  ReviewMethod,
+  ReviewerAssignment,
   Role,
   RrrInput,
   RrrEntry,
@@ -81,13 +87,26 @@ export const api = {
     request("/admin/personnel", { method: "POST", body: JSON.stringify(data) }),
   deletePersonnel: (id: number): Promise<null> => request(`/admin/personnel/${id}`, { method: "DELETE" }),
 
-  // committee: FCR voting
+  // committee: FCR voting + review workflow
   listCommitteeProtocols: (): Promise<CommitteeProtocol[]> => request("/committee/protocols"),
   listVoters: (): Promise<Voter[]> => request("/committee/voters"),
   getProtocolVotes: (id: string): Promise<ProtocolVotesResponse> =>
     request(`/committee/protocols/${id}/votes`),
   castVote: (id: string, data: VoteInput): Promise<CommitteeTally> =>
     request(`/committee/protocols/${id}/votes`, { method: "POST", body: JSON.stringify(data) }),
+  getReviews: (id: string): Promise<CommitteeReview> =>
+    request(`/committee/protocols/${id}/reviews`),
+  postReview: (id: string, data: VoteInput): Promise<CommitteeReview> =>
+    request(`/committee/protocols/${id}/reviews`, { method: "POST", body: JSON.stringify(data) }),
+  postComment: (id: string, data: ReviewCommentInput): Promise<ReviewComment> =>
+    request(`/committee/protocols/${id}/comments`, { method: "POST", body: JSON.stringify(data) }),
+  assignReviewer: (id: string, data: ReviewAssignmentInput): Promise<ReviewerAssignment> =>
+    request(`/committee/protocols/${id}/assign`, { method: "PATCH", body: JSON.stringify(data) }),
+  setReviewMethod: (id: string, review_method: ReviewMethod): Promise<Protocol> =>
+    request(`/committee/protocols/${id}/review-method`, {
+      method: "PATCH",
+      body: JSON.stringify({ review_method }),
+    }),
 
   // Appendix A application content
   listProcedures: (id: string): Promise<Procedure[]> => request(`/protocols/${id}/procedures`),

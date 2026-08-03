@@ -75,15 +75,86 @@ export interface CommitteeTally {
   totalVotes: number;
 }
 
+export type ReviewMethod = "FCR" | "DMR";
+
+export const REVIEW_METHODS: ReviewMethod[] = ["FCR", "DMR"];
+
+export type AssignmentRole =
+  | "Primary Reviewer"
+  | "Secondary Reviewer"
+  | "Designated Member";
+
+export const ASSIGNMENT_ROLES: AssignmentRole[] = [
+  "Primary Reviewer",
+  "Secondary Reviewer",
+  "Designated Member",
+];
+
+export type ReviewSection =
+  | "overall"
+  | "summaries"
+  | "procedures"
+  | "drugs"
+  | "animal_use"
+  | "experiments"
+  | "alternatives";
+
+export const REVIEW_SECTIONS: ReviewSection[] = [
+  "overall",
+  "summaries",
+  "procedures",
+  "drugs",
+  "animal_use",
+  "experiments",
+  "alternatives",
+];
+
+export const REVIEW_SECTION_LABELS: Record<ReviewSection, string> = {
+  overall: "Overall",
+  summaries: "Summaries",
+  procedures: "Procedures",
+  drugs: "Drugs",
+  animal_use: "Animal Use",
+  experiments: "Experiments",
+  alternatives: "Alternatives",
+};
+
+export interface ReviewerAssignment {
+  personnel_id: number;
+  reviewer_name: string;
+  role: AssignmentRole;
+  assigned_at: string;
+}
+
+export interface ReviewComment {
+  id: number;
+  personnel_id: number;
+  commenter_name: string;
+  section: ReviewSection;
+  comment: string;
+  created_at: string;
+}
+
 export interface CommitteeProtocol extends CommitteeTally {
   id: string;
   title: string;
   pi: string;
   species: string | null;
   status: string;
+  review_method: ReviewMethod | null;
+  assignments: ReviewerAssignment[];
+  comments: ReviewComment[];
 }
 
-export interface ProtocolVotesResponse extends Protocol, CommitteeTally {}
+export interface ProtocolVotesResponse extends Protocol, CommitteeTally {
+  assignments: ReviewerAssignment[];
+  comments: ReviewComment[];
+}
+
+export interface CommitteeReview extends Protocol, CommitteeTally {
+  assignments: ReviewerAssignment[];
+  comments: ReviewComment[];
+}
 
 // ---- payloads the client sends ----
 
@@ -143,6 +214,17 @@ export interface VoteInput {
   personnel_id: number;
   vote: string;
   comment: string | null;
+}
+
+export interface ReviewCommentInput {
+  personnel_id: number;
+  section: ReviewSection;
+  comment: string;
+}
+
+export interface ReviewAssignmentInput {
+  personnel_id: number;
+  role: AssignmentRole;
 }
 
 // ---- Appendix A application content ----

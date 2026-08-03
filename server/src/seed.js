@@ -2,14 +2,14 @@ import "dotenv/config";
 import { db } from "./db.js";
 
 const protocols = [
-  { id: "IACUC-2026-0142", title: "Neurobehavioral Effects of Chronic Stress in C57BL/6 Mice", pi: "Dr. Elena Marsh", species: "Mouse", status: "IACUC Review", animals: 240, pain_category: "Category D", submitted: "2026-06-30", expires: null, pi_proxy: "Sam Whitfield", ptm_member: "Dr. Priya Nair", protocol_type: "Research", anesthesia_required: 1, housing: "Group-housed 5/cage in ventilated cages on a 12:12 light cycle.", disposal: "Carbon dioxide euthanasia; carcasses incinerated per SOP.", npg: "None", research_steps: ["Habituate mice to handling for 7 days.", "Deliver corticosterone in drinking water for 21 days with daily restraint sessions.", "Collect brains and adrenals after euthanasia for histology and qPCR."], purpose_summary: "Study how chronic psychological stress changes the brain circuits that control anxiety and memory, using mice as a model to guide better treatments for stress-related psychiatric illness.", harm_benefit_analysis: "Animals undergo 21 days of daily restraint and corticosterone exposure — mild, reversible distress. The benefit is identifying stress-driven neuroendocrine mechanisms that could lead to new psychiatric interventions, which justifies the discomfort over current alternatives.", scientific_summary: "Characterize the neurobehavioral consequences of chronic stress in adult male C57BL/6 mice. Specific aims: (1) quantify anxiety-like behavior and spatial memory after 21 days of restraint plus corticosterone; (2) measure HPA-axis output via corticosterone and adrenal mass; (3) correlate hippocampal gene expression by qPCR with behavioral outcomes." },
+  { id: "IACUC-2026-0142", title: "Neurobehavioral Effects of Chronic Stress in C57BL/6 Mice", pi: "Dr. Elena Marsh", species: "Mouse", status: "IACUC Review", animals: 240, pain_category: "Category D", submitted: "2026-06-30", expires: null, review_method: "DMR", pi_proxy: "Sam Whitfield", ptm_member: "Dr. Priya Nair", protocol_type: "Research", anesthesia_required: 1, housing: "Group-housed 5/cage in ventilated cages on a 12:12 light cycle.", disposal: "Carbon dioxide euthanasia; carcasses incinerated per SOP.", npg: "None", research_steps: ["Habituate mice to handling for 7 days.", "Deliver corticosterone in drinking water for 21 days with daily restraint sessions.", "Collect brains and adrenals after euthanasia for histology and qPCR."], purpose_summary: "Study how chronic psychological stress changes the brain circuits that control anxiety and memory, using mice as a model to guide better treatments for stress-related psychiatric illness.", harm_benefit_analysis: "Animals undergo 21 days of daily restraint and corticosterone exposure — mild, reversible distress. The benefit is identifying stress-driven neuroendocrine mechanisms that could lead to new psychiatric interventions, which justifies the discomfort over current alternatives.", scientific_summary: "Characterize the neurobehavioral consequences of chronic stress in adult male C57BL/6 mice. Specific aims: (1) quantify anxiety-like behavior and spatial memory after 21 days of restraint plus corticosterone; (2) measure HPA-axis output via corticosterone and adrenal mass; (3) correlate hippocampal gene expression by qPCR with behavioral outcomes." },
   { id: "IACUC-2026-0139", title: "Cardiac Regeneration Following Induced Myocardial Infarction", pi: "Dr. Raj Patel", species: "Rat", status: "Approved", animals: 80, pain_category: "Category C", submitted: "2026-06-12", expires: "2029-06-12", pi_proxy: "Sam Whitfield", ptm_member: "Dr. Harold Kim", protocol_type: "Research", anesthesia_required: 1, housing: "Standard rat housing, 2/cage, corncob bedding, 12:12 light cycle, environmental enrichment provided.", disposal: "Sodium pentobarbital overdose followed by necropsy; carcasses incinerated per institutional SOP.", npg: "None", research_steps: ["Induce myocardial infarction by permanent LAD ligation under isoflurane anesthesia.", "Monitor animals with telemetry and echocardiography at 1, 4, and 8 weeks.", "Harvest hearts for histology and gene expression analysis."], purpose_summary: "Test whether the adult mammalian heart can regenerate after a heart attack when treated with candidate regenerative therapies.", harm_benefit_analysis: "Survival cardiac surgery with analgesia causes transient post-operative discomfort. The benefit is evaluating cardiac regeneration strategies that could reduce disability and death after human heart attacks.", scientific_summary: "Assess cardiac regeneration after permanent coronary ligation in rats. Aims: (1) quantify infarct size and scar remodeling by histology; (2) measure ejection fraction by echocardiography; (3) profile cell-cycle gene expression in border-zone myocardium." },
   { id: "IACUC-2025-0098", title: "Vaccine Efficacy Trial for Avian Influenza Strains", pi: "Dr. Wen Liu", species: "Chicken", status: "Active", animals: 150, pain_category: "Category B", submitted: "2025-01-08", expires: "2026-08-04" },
   { id: "IACUC-2025-0091", title: "Longitudinal Study of Diet-Induced Obesity in Zebrafish", pi: "Dr. Sofia Ramos", species: "Zebrafish", status: "Expiring soon", animals: 500, pain_category: "Category B", submitted: "2025-02-02", expires: "2026-09-01" },
   { id: "IACUC-2026-0021", title: "Wound Healing Comparison Across Rabbit Breeds", pi: "Dr. Marcus Chen", species: "Rabbit", status: "Draft", animals: 60, pain_category: "Category C", submitted: null, expires: null },
   { id: "IACUC-2025-0064", title: "Behavioral Enrichment Impact on Non-Human Primate Welfare", pi: "Dr. Amara Osei", species: "Macaque", status: "Active", animals: 24, pain_category: "Category B", submitted: "2025-11-20", expires: "2027-11-20" },
-  { id: "IACUC-2026-0150", title: "Deep Brain Stimulation in a Rat Model of Parkinson's Disease", pi: "Dr. Priya Nair", species: "Rat", status: "IACUC Review", animals: 120, pain_category: "Category D", submitted: "2026-05-10", expires: null, pi_proxy: "Dr. Elena Marsh", ptm_member: "Dr. Harold Kim", protocol_type: "Research", anesthesia_required: 1, housing: "Rat housing, 2/cage, enriched with nesting material and a red hut.", disposal: "Pentobarbital overdose, tissue harvested for histology, remaining carcass incinerated.", npg: "None", research_steps: ["Stereotaxically implant bilateral DBS electrodes into the subthalamic nucleus.", "Deliver 4 weeks of high-frequency stimulation with weekly motor scoring.", "Assess dopamine neuron survival and gliosis by immunohistochemistry."], purpose_summary: "Determine whether deep brain stimulation improves motor symptoms and slows disease progression in a rat model of Parkinson's disease.", harm_benefit_analysis: "Animals undergo survival stereotaxic surgery and brief restraint during stimulation sessions. The study informs DBS target refinement that could improve quality of life for Parkinson's patients.", scientific_summary: "Model Parkinsonian motor impairment via 6-OHDA lesion and test continuous DBS of the subthalamic nucleus. Aims: (1) motor function on cylinder and rotarod tests; (2) TH+ cell survival in the substantia nigra; (3) electrode-evoked field responses. Data will refine clinical DBS parameter selection." },
-  { id: "IACUC-2026-0147", title: "Adoptive Cell Therapy Against Murine Melanoma", pi: "Dr. Harold Kim", species: "Mouse", status: "Veterinary Review", animals: 200, pain_category: "Category D", submitted: "2026-06-01", expires: null, pi_proxy: "Sam Whitfield", ptm_member: "Dr. Priya Nair", protocol_type: "Research", anesthesia_required: 1, housing: "Immunodeficient mice housed in sterile ventilated cages with autoclaved feed and bedding.", disposal: "CO2 euthanasia followed by cervical dislocation; carcasses incinerated.", npg: "None", research_steps: ["Inject B16-F10 melanoma cells subcutaneously and allow tumors to establish.", "Administer CAR-T cells intravenously in the treatment arm.", "Monitor tumor burden by caliper and ultrasound; collect tumors and spleen for flow cytometry."], purpose_summary: "Test whether engineered immune cells (CAR-T) can eliminate established melanoma tumors in a mouse model of the disease.", harm_benefit_analysis: "Tumor-bearing mice experience the disease burden inherent to a cancer model, with humane endpoints capping tumor size. The benefit is informing next-generation adoptive cell therapies for melanoma patients.", scientific_summary: "Evaluate CAR-T cell efficacy against established subcutaneous B16-F10 melanoma in NOD scid gamma mice. Aims: (1) tumor growth kinetics; (2) CAR-T persistence and infiltration by flow cytometry; (3) survival analysis. Positive results would support progression to syngeneic models." },
+  { id: "IACUC-2026-0150", title: "Deep Brain Stimulation in a Rat Model of Parkinson's Disease", pi: "Dr. Priya Nair", species: "Rat", status: "IACUC Review", animals: 120, pain_category: "Category D", submitted: "2026-05-10", expires: null, review_method: "FCR", pi_proxy: "Dr. Elena Marsh", ptm_member: "Dr. Harold Kim", protocol_type: "Research", anesthesia_required: 1, housing: "Rat housing, 2/cage, enriched with nesting material and a red hut.", disposal: "Pentobarbital overdose, tissue harvested for histology, remaining carcass incinerated.", npg: "None", research_steps: ["Stereotaxically implant bilateral DBS electrodes into the subthalamic nucleus.", "Deliver 4 weeks of high-frequency stimulation with weekly motor scoring.", "Assess dopamine neuron survival and gliosis by immunohistochemistry."], purpose_summary: "Determine whether deep brain stimulation improves motor symptoms and slows disease progression in a rat model of Parkinson's disease.", harm_benefit_analysis: "Animals undergo survival stereotaxic surgery and brief restraint during stimulation sessions. The study informs DBS target refinement that could improve quality of life for Parkinson's patients.", scientific_summary: "Model Parkinsonian motor impairment via 6-OHDA lesion and test continuous DBS of the subthalamic nucleus. Aims: (1) motor function on cylinder and rotarod tests; (2) TH+ cell survival in the substantia nigra; (3) electrode-evoked field responses. Data will refine clinical DBS parameter selection." },
+  { id: "IACUC-2026-0147", title: "Adoptive Cell Therapy Against Murine Melanoma", pi: "Dr. Harold Kim", species: "Mouse", status: "Veterinary Review", animals: 200, pain_category: "Category D", submitted: "2026-06-01", expires: null, review_method: "FCR", pi_proxy: "Sam Whitfield", ptm_member: "Dr. Priya Nair", protocol_type: "Research", anesthesia_required: 1, housing: "Immunodeficient mice housed in sterile ventilated cages with autoclaved feed and bedding.", disposal: "CO2 euthanasia followed by cervical dislocation; carcasses incinerated.", npg: "None", research_steps: ["Inject B16-F10 melanoma cells subcutaneously and allow tumors to establish.", "Administer CAR-T cells intravenously in the treatment arm.", "Monitor tumor burden by caliper and ultrasound; collect tumors and spleen for flow cytometry."], purpose_summary: "Test whether engineered immune cells (CAR-T) can eliminate established melanoma tumors in a mouse model of the disease.", harm_benefit_analysis: "Tumor-bearing mice experience the disease burden inherent to a cancer model, with humane endpoints capping tumor size. The benefit is informing next-generation adoptive cell therapies for melanoma patients.", scientific_summary: "Evaluate CAR-T cell efficacy against established subcutaneous B16-F10 melanoma in NOD scid gamma mice. Aims: (1) tumor growth kinetics; (2) CAR-T persistence and infiltration by flow cytometry; (3) survival analysis. Positive results would support progression to syngeneic models." },
   { id: "IACUC-2025-0102", title: "Environmental Enrichment and Social Behavior in Domestic Pigs", pi: "Dr. Marcus Chen", species: "Pig", status: "Active", animals: 36, pain_category: "Category C", submitted: "2025-03-15", expires: "2028-03-15" },
   { id: "IACUC-2026-0155", title: "Corneal Transplantation Techniques in Rabbits", pi: "Dr. Wen Liu", species: "Rabbit", status: "Submitted", animals: 60, pain_category: "Category C", submitted: "2026-07-20", expires: null, pi_proxy: "Dr. Amara Osei", ptm_member: "Dr. Harold Kim", protocol_type: "Research", anesthesia_required: 1, housing: "Rabbits individually housed in standard caging with ad libitum food and water, enriched with chew toys.", disposal: "Euthanized with pentobarbital; corneas harvested, carcasses incinerated.", npg: "None", research_steps: ["Perform penetrating keratoplasty with donor corneal grafts.", "Score graft clarity, vascularization, and rejection weekly for 8 weeks.", "Collect corneas for histologic assessment of graft survival."], purpose_summary: "Compare corneal graft survival between standard and modified transplantation techniques to reduce graft rejection in humans.", harm_benefit_analysis: "Animals undergo survival corneal surgery under anesthesia with post-operative analgesia. The benefit is improving corneal transplant outcomes, which restore sight in thousands of patients each year.", scientific_summary: "Penetrating keratoplasty in New Zealand White rabbits comparing suture versus sutureless graft apposition. Aims: (1) graft clarity score; (2) corneal neovascularization index; (3) histologic graft rejection at 8 weeks." },
   { id: "IACUC-2026-0158", title: "Genetic Basis of Spontaneous Seizures in Zebrafish", pi: "Dr. Amara Osei", species: "Zebrafish", status: "Draft", animals: 800, pain_category: "Category B", submitted: null, expires: null, pi_proxy: "Dr. Wen Liu", ptm_member: "Dr. Priya Nair", protocol_type: "Breeding", anesthesia_required: 0, housing: "Recirculating aquatic system, 28°C, density ≤5 fish/L.", disposal: "Tricaine overdose followed by incineration.", npg: "None", research_steps: ["Maintain mutant and wild-type lines.", "Score seizure behavior from video recordings.", "Genotype offspring via fin-clip PCR."], purpose_summary: "Identify the genetic mutations that cause spontaneous seizures in a zebrafish line, providing a screening platform for epilepsy therapies.", harm_benefit_analysis: "Zebrafish are a high-throughput vertebrate model; larval seizure scoring is non-invasive. The benefit is a rapid pre-clinical screen for antiseizure compounds.", scientific_summary: "Characterize spontaneous seizure phenotypes in a novel zebrafish mutant line. Aims: (1) confirm heritability by cross and fin-clip genotyping; (2) score seizure-like behavior from video; (3) localize candidate genes by whole-exome sequencing." },
@@ -536,16 +536,49 @@ const votesSeed = [
   { protocol_id: "IACUC-2026-0147", voter: "Dr. Amara Osei", vote: "Approve", comment: "Enrichment plan looks strong.", voted_at: "2026-06-16 10:45:00" },
 ];
 
+// Reviewer assignments per protocol. 0142 is the DMR protocol (a single
+// designated member); 0150/0147 are FCR with primary/secondary reviewers.
+// Assignments are NOT votes, so 0142 stays vote-free for the e2e committee spec.
+const assignmentsSeed = {
+  "IACUC-2026-0142": [
+    { reviewer: "Dr. Sofia Ramos", role: "Designated Member" },
+  ],
+  "IACUC-2026-0150": [
+    { reviewer: "Dr. Harold Kim", role: "Primary Reviewer" },
+    { reviewer: "Dr. Priya Nair", role: "Secondary Reviewer" },
+  ],
+  "IACUC-2026-0147": [
+    { reviewer: "Dr. Marcus Chen", role: "Primary Reviewer" },
+    { reviewer: "Jordan Blake", role: "Secondary Reviewer" },
+  ],
+};
+
+// Section-specific inline review comments (distinct from vote comments).
+const commentsSeed = {
+  "IACUC-2026-0142": [
+    { commenter: "Dr. Sofia Ramos", section: "procedures", comment: "Please confirm the daily restraint duration is capped at 2 h." },
+    { commenter: "Dr. Priya Nair", section: "overall", comment: "AV consult date is still missing for this Category D protocol." },
+  ],
+  "IACUC-2026-0150": [
+    { commenter: "Dr. Harold Kim", section: "procedures", comment: "Add a fall-back targeting coordinate if the primary DBS lead placement is missed." },
+    { commenter: "Dr. Marcus Chen", section: "drugs", comment: "Confirm buprenorphine dosing interval for the first 48 h post-op." },
+  ],
+  "IACUC-2026-0147": [
+    { commenter: "Jordan Blake", section: "alternatives", comment: "The literature search should include a second database." },
+    { commenter: "Dr. Amara Osei", section: "animal_use", comment: "Justify the 200-mouse cohort size with the power calculation." },
+  ],
+};
+
 const insertProtocol = db.prepare(`
   INSERT INTO protocols (
     id, title, pi, species, status, animals, pain_category, submitted, expires,
     pi_proxy, ptm_member, protocol_type, anesthesia_required, housing, disposal, npg, research_steps,
-    purpose_summary, harm_benefit_analysis, scientific_summary
+    purpose_summary, harm_benefit_analysis, scientific_summary, review_method
   )
   VALUES (
     @id, @title, @pi, @species, @status, @animals, @pain_category, @submitted, @expires,
     @pi_proxy, @ptm_member, @protocol_type, @anesthesia_required, @housing, @disposal, @npg, @research_steps,
-    @purpose_summary, @harm_benefit_analysis, @scientific_summary
+    @purpose_summary, @harm_benefit_analysis, @scientific_summary, @review_method
   )
 `);
 
@@ -609,8 +642,16 @@ const insertUsage = db.prepare(`
     (protocol_id, transaction_date, species_strain, pain_level, quantity, type, procedure_key, notes)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `);
+const insertAssignment = db.prepare(`
+  INSERT INTO protocol_review_assignments (protocol_id, personnel_id, role)
+  VALUES (?, ?, ?)
+`);
+const insertComment = db.prepare(`
+  INSERT INTO protocol_review_comments (protocol_id, personnel_id, section, comment)
+  VALUES (?, ?, ?, ?)
+`);
 
-let procCount = 0, drugCount = 0, animalUseCount = 0, alternativesCount = 0, experimentCount = 0, rrrCount = 0, usageCount = 0;
+let procCount = 0, drugCount = 0, animalUseCount = 0, alternativesCount = 0, experimentCount = 0, rrrCount = 0, usageCount = 0, assignmentCount = 0, commentCount = 0;
 
 db.exec("BEGIN");
 try {
@@ -618,6 +659,7 @@ try {
   db.exec("DELETE FROM protocol_animal_use; DELETE FROM protocol_alternatives;");
   db.exec("DELETE FROM protocol_experiments; DELETE FROM protocol_rrr_entries;");
   db.exec("DELETE FROM animal_usage_transactions;");
+  db.exec("DELETE FROM protocol_review_comments; DELETE FROM protocol_review_assignments;");
   db.exec("DELETE FROM personnel; DELETE FROM roles; DELETE FROM species;");
   db.exec("DELETE FROM related_items; DELETE FROM protocols;");
 
@@ -643,6 +685,7 @@ try {
       purpose_summary: p.purpose_summary ?? null,
       harm_benefit_analysis: p.harm_benefit_analysis ?? null,
       scientific_summary: p.scientific_summary ?? null,
+      review_method: p.review_method ?? null,
     });
   }
   for (const r of relatedItems) insertRelated.run(r.protocol_id, r.list_name, r.label);
@@ -708,6 +751,20 @@ try {
     const voter = getPersonnelId.get(v.voter);
     insertVote.run(v.protocol_id, voter.id, v.vote, v.comment, v.voted_at);
   }
+  for (const [protocolId, rows] of Object.entries(assignmentsSeed)) {
+    for (const r of rows) {
+      const reviewer = getPersonnelId.get(r.reviewer);
+      insertAssignment.run(protocolId, reviewer.id, r.role);
+      assignmentCount++;
+    }
+  }
+  for (const [protocolId, rows] of Object.entries(commentsSeed)) {
+    for (const r of rows) {
+      const commenter = getPersonnelId.get(r.commenter);
+      insertComment.run(protocolId, commenter.id, r.section, r.comment);
+      commentCount++;
+    }
+  }
   for (const [protocolId, rows] of Object.entries(animalUsageSeed)) {
     for (const r of rows) {
       insertUsage.run(
@@ -728,5 +785,5 @@ console.log(
   `Seeded ${protocols.length} protocols, ${relatedItems.length} related items, ` +
   `${species.length} species, ${roles.length} roles, ${personnel.length} personnel, ` +
   `${procCount} procedures, ${drugCount} drugs, ${animalUseCount} animal-use rows, ` +
-  `${experimentCount} experiments, ${alternativesCount} alternatives rows, ${rrrCount} 3Rs entries, ${votesSeed.length} votes, ${usageCount} usage transactions.`
+  `${experimentCount} experiments, ${alternativesCount} alternatives rows, ${rrrCount} 3Rs entries, ${votesSeed.length} votes, ${usageCount} usage transactions, ${assignmentCount} assignments, ${commentCount} review comments.`
 );

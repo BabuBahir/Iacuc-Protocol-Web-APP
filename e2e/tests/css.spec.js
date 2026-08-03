@@ -12,6 +12,8 @@ const EMERALD_TEXT = "rgb(4, 120, 87)";     // text-emerald-700
 const EMERALD_BG = "rgb(236, 253, 245)";    // bg-emerald-50
 const RED_TEXT = "rgb(185, 28, 28)";        // text-red-700
 const RED_BG = "rgb(254, 242, 242)";        // bg-red-50
+const DMR_BG = "rgb(235, 245, 252)";        // bg-[#EBF5FC] designated-member badge
+const FCR_BG = "rgb(243, 244, 246)";        // bg-[#F3F4F6] full-committee badge
 const MIN_HEADER_HEIGHT = 25; // py-2 + brand row
 
 // The "IACUC Protocols" brand label is the first item inside the dark header
@@ -94,4 +96,21 @@ test("the animal usage register styles within- and over-allowance states distinc
   await expect(over).toBeVisible();
   await expect(over).toHaveCSS("color", RED_TEXT);
   await expect(over).toHaveCSS("background-color", RED_BG);
+});
+
+test("the review-method badge visually distinguishes DMR and FCR protocols", async ({ page }) => {
+  await page.goto("/committee");
+
+  // 0142 is seeded as a designated-member review -> blue badge.
+  const dmrCard = page.locator(".rounded-lg").filter({ hasText: "IACUC-2026-0142" });
+  const dmr = dmrCard.getByLabel("Review method");
+  await expect(dmr).toBeVisible();
+  await expect(dmr).toHaveCSS("background-color", DMR_BG);
+  await expect(dmr).toHaveCSS("color", BRAND_BLUE);
+
+  // 0150 is seeded as a full-committee review -> gray badge.
+  const fcrCard = page.locator(".rounded-lg").filter({ hasText: "IACUC-2026-0150" });
+  const fcr = fcrCard.getByLabel("Review method");
+  await expect(fcr).toBeVisible();
+  await expect(fcr).toHaveCSS("background-color", FCR_BG);
 });
