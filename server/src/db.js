@@ -171,6 +171,23 @@ CREATE TABLE IF NOT EXISTS protocol_rrr_entries (
   method      TEXT NOT NULL, -- the strategy/approach taken
   explanation TEXT           -- why it applies to this protocol
 );
+
+-- Animal usage register (AGENTS.md §1.4): a ledger of *actual* ordering/usage
+-- transactions against a protocol's approved allowance. The approved allowance
+-- is the sum of protocol_animal_use.max_count per species; these rows are the
+-- actual orders/uses (the two stay distinct by design).
+CREATE TABLE IF NOT EXISTS animal_usage_transactions (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  protocol_id      TEXT NOT NULL REFERENCES protocols(id) ON DELETE CASCADE,
+  transaction_date TEXT NOT NULL,
+  species_strain   TEXT NOT NULL,
+  pain_level       TEXT,             -- USDA pain category: B, C, D, E
+  quantity         INTEGER NOT NULL CHECK (quantity > 0),
+  type             TEXT NOT NULL DEFAULT 'use', -- 'order' | 'use'
+  procedure_key    TEXT,             -- optional PROCEDURE_KEYS entry
+  notes            TEXT,
+  created_at       TEXT DEFAULT (datetime('now'))
+);
 `);
 
 // ---- lightweight migration for databases created before these columns existed ----

@@ -68,7 +68,8 @@ test("opens the Appendix A application page pre-filled from seeded data", async 
 
   // Seeded drug row renders in the dosing table.
   await expect(page.getByRole("cell", { name: "Isoflurane", exact: true })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Mouse / C57BL/6", exact: true })).toBeVisible();
+  // .first(): the register card's summary/transaction rows also render this species.
+  await expect(page.getByRole("cell", { name: "Mouse / C57BL/6", exact: true }).first()).toBeVisible();
 
   // Seeded experiment row renders with its detail fields.
   await expect(page.getByText("Experiments").first()).toBeVisible();
@@ -121,6 +122,64 @@ test("shows seeded surgical detail fields for a surgery protocol", async ({ page
   await expect(page.getByRole("checkbox", { name: "Non-survival surgery", exact: true })).toBeChecked();
   await expect(page.getByLabel("Non-survival surgery analgesia level", { exact: true })).toHaveValue("None");
   await expect(page.getByLabel("Non-survival surgery post-operative care", { exact: true })).not.toBeVisible();
+});
+
+test("shows the animal usage register with seeded tallies and transactions", async ({ page }) => {
+  // IACUC-2026-0142 is seeded under its Mouse allowance (60 ordered + 55 used
+  // of 240). This test only reads, so it can't disturb the committee invariant.
+  await page.goto("/");
+  await page.locator("tbody tr").filter({ hasText: "IACUC-2026-0142" }).click();
+  await expect(page.getByRole("heading", { name: "IACUC-2026-0142" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit application" }).click();
+  await expect(page.getByText("Animal usage register")).toBeVisible();
+
+  // Per-species tally row: allowance, ordered, used, remaining.
+  const speciesRow = page.getByTestId("usage-species-summary").filter({ hasText: "Mouse / C57BL/6" });
+  await expect(speciesRow).toContainText("240");
+  await expect(speciesRow).toContainText("60");
+  await expect(speciesRow).toContainText("55");
+  await expect(page.getByText("Within allowance")).toBeVisible();
+
+  // Transactions list renders both the order and the use row.
+  await expect(page.getByText("First cohort ordering")).toBeVisible();
+  await expect(page.getByText("Cohort 1 on study")).toBeVisible();
+});
+
+test("flags a protocol whose usage exceeds its allowance", async ({ page }) => {
+  // IACUC-2026-0021 is seeded over its Rabbit allowance (30 ordered + 40 used
+  // of 60). This test only reads.
+  await page.goto("/");
+  await page.locator("tbody tr").filter({ hasText: "IACUC-2026-0021" }).click();
+  await expect(page.getByRole("heading", { name: "IACUC-2026-0021" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit application" }).click();
+  await expect(page.getByText("Animal usage register")).toBeVisible();
+
+  await expect(page.getByText("Over allowance")).toBeVisible();
+  await expect(page.getByText("Exceeds 60 allowance by 10")).toBeVisible();
+});
+
+test("logs a usage transaction on a draft protocol from the application page", async ({ page }) => {
+  // IACUC-2026-0158 is a Draft protocol; logging usage against it is safe and
+  // doesn't touch the e2e invariants on 0142 (review, vote-free) or 0064.
+  await page.goto("/");
+  await page.locator("tbody tr").filter({ hasText: "IACUC-2026-0158" }).click();
+  await expect(page.getByRole("heading", { name: "IACUC-2026-0158" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit application" }).click();
+  await expect(page.getByText("Animal usage register")).toBeVisible();
+
+  await page.getByRole("button", { name: "Log usage" }).click();
+  await page.getByLabel("Species / strain").fill("Zebrafish / mutant line");
+  await page.getByLabel("Quantity").fill("25");
+  await page.locator("#usage-notes").fill("Larval cohort A");
+  await page.getByRole("button", { name: "Save usage" }).click();
+
+  // The modal closes and the new transaction appears in the list (its note is
+  // unique, so asserting it avoids colliding with the register's summary cells).
+  await expect(page.getByLabel("Quantity")).not.toBeVisible();
+  await expect(page.getByText("Larval cohort A")).toBeVisible();
 });
 
 test("adds an experiment to a draft protocol from the application page", async ({ page }) => {

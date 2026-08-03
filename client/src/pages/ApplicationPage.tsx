@@ -7,10 +7,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { api } from "../api";
-import { ANALGESIA_LEVELS, RRR_LABELS, RRR_TYPES, SURGERY_PROCEDURE_KEYS } from "../types";
+import { ANALGESIA_LEVELS, PROCEDURE_KEYS, RRR_LABELS, RRR_TYPES, SURGERY_PROCEDURE_KEYS, USDA_PAIN_LEVELS } from "../types";
 import type {
   Alternatives,
   AlternativesInput,
+  AnimalUsageLedger,
   AnimalUseInput,
   AnimalUseRow,
   DrugInput,
@@ -21,6 +22,7 @@ import type {
   RrrEntry,
   RrrInput,
   RrrType,
+  UsageType,
   ValidationResult,
 } from "../types";
 
@@ -184,6 +186,93 @@ function AnimalUseModal({ initial, onClose, onSave }: { initial: AnimalDraft; on
   );
 }
 
+interface UsageDraft {
+  transaction_date: string;
+  species_strain: string;
+  pain_level: string;
+  quantity: string;
+  type: UsageType;
+  procedure_key: string;
+  notes: string;
+}
+
+const BLANK_USAGE: UsageDraft = {
+  transaction_date: new Date().toISOString().slice(0, 10),
+  species_strain: "",
+  pain_level: "B",
+  quantity: "",
+  type: "use",
+  procedure_key: "",
+  notes: "",
+};
+
+function UsageModal({ initial, onClose, onSave }: { initial: UsageDraft; onClose: () => void; onSave: (d: UsageDraft) => void }) {
+  const [draft, setDraft] = useState<UsageDraft>(initial);
+  const set = (field: keyof UsageDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setDraft({ ...draft, [field]: e.target.value });
+  return (
+    <Modal title="Log animal usage" onClose={onClose}>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="usage-date" className={LABEL_CLASS}>Transaction date</label>
+            <input id="usage-date" value={draft.transaction_date} onChange={set("transaction_date")} type="date" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label htmlFor="usage-type" className={LABEL_CLASS}>Type</label>
+            <select id="usage-type" value={draft.type} onChange={set("type")} className={INPUT_CLASS}>
+              <option value="use">Use</option>
+              <option value="order">Order</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="usage-species" className={LABEL_CLASS}>Species / strain</label>
+          <input id="usage-species" value={draft.species_strain} onChange={set("species_strain")} placeholder="e.g. C57BL/6 mouse" className={INPUT_CLASS} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="usage-quantity" className={LABEL_CLASS}>Quantity</label>
+            <input id="usage-quantity" value={draft.quantity} onChange={set("quantity")} type="number" min="1" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label htmlFor="usage-pain" className={LABEL_CLASS}>Pain level (USDA)</label>
+            <select id="usage-pain" value={draft.pain_level} onChange={set("pain_level")} className={INPUT_CLASS}>
+              {USDA_PAIN_LEVELS.map((lvl) => (
+                <option key={lvl} value={lvl}>{lvl}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="usage-procedure" className={LABEL_CLASS}>Procedure (optional)</label>
+          <select id="usage-procedure" value={draft.procedure_key} onChange={set("procedure_key")} className={INPUT_CLASS}>
+            <option value="">— None —</option>
+            {PROCEDURE_KEYS.map((key) => (
+              <option key={key} value={key}>{key.replace(/_/g, " ")}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="usage-notes" className={LABEL_CLASS}>Notes</label>
+          <textarea id="usage-notes" value={draft.notes} onChange={set("notes")} rows={2} className={INPUT_CLASS} />
+        </div>
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 rounded border border-gray-300 bg-white text-gray-600 text-[13px] font-medium hover:bg-gray-50">Cancel</button>
+          <button
+            type="button"
+            aria-label="Save usage"
+            onClick={() => onSave(draft)}
+            className="px-3 py-1.5 rounded bg-[#0176D3] text-white text-[13px] font-medium hover:bg-[#0b5cab]"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 interface ExperimentDraft {
   name: string;
   description: string;
@@ -334,6 +423,7 @@ export default function ApplicationPage() {
   const [experiments, setExperiments] = useState<ExperimentRow[]>([]);
   const [alternatives, setAlternatives] = useState<Alternatives | null>(null);
   const [rrrEntries, setRrrEntries] = useState<RrrEntry[]>([]);
+  const [usageLedger, setUsageLedger] = useState<AnimalUsageLedger | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [status, setStatus] = useState("");
 
@@ -341,6 +431,7 @@ export default function ApplicationPage() {
   const [animalModal, setAnimalModal] = useState<{ open: boolean; editing: AnimalUseRow | null }>({ open: false, editing: null });
   const [expModal, setExpModal] = useState<{ open: boolean; editing: ExperimentRow | null }>({ open: false, editing: null });
   const [rrrModal, setRrrModal] = useState<{ open: boolean; editing: RrrDraft | null }>({ open: false, editing: null });
+  const [usageModalOpen, setUsageModalOpen] = useState(false);
 
   const [summaryStatus, setSummaryStatus] = useState<string | null>(null);
   const [summarySaving, setSummarySaving] = useState(false);
@@ -364,9 +455,10 @@ export default function ApplicationPage() {
       api.listExperiments(id),
       api.getAlternatives(id),
       api.listRrrEntries(id),
+      api.listAnimalUsage(id),
       api.getValidation(id),
     ])
-      .then(([p, procs, dr, au, exps, alt, rrr, v]) => {
+      .then(([p, procs, dr, au, exps, alt, rrr, usage, v]) => {
         if (cancelled) return;
         setPurpose(p.purpose_summary ?? "");
         setHarmBenefit(p.harm_benefit_analysis ?? "");
@@ -378,6 +470,7 @@ export default function ApplicationPage() {
         setExperiments(exps);
         setAlternatives(alt);
         setRrrEntries(rrr);
+        setUsageLedger(usage);
         setValidation(v);
         setLoading(false);
       })
@@ -456,7 +549,25 @@ export default function ApplicationPage() {
     if (id) setAnimalUse(await api.listAnimalUse(id));
     if (id) setExperiments(await api.listExperiments(id));
     if (id) setRrrEntries(await api.listRrrEntries(id));
+    if (id) setUsageLedger(await api.listAnimalUsage(id));
     await refreshValidation();
+  };
+
+  const saveUsage = async (draft: UsageDraft) => {
+    if (!id) return;
+    const quantity = Number(draft.quantity);
+    await runTableAction(async () => {
+      await api.createAnimalUsage(id, {
+        transaction_date: draft.transaction_date,
+        species_strain: draft.species_strain,
+        pain_level: draft.pain_level || null,
+        quantity,
+        type: draft.type,
+        procedure_key: draft.procedure_key || null,
+        notes: draft.notes.trim() || null,
+      });
+    });
+    setUsageModalOpen(false);
   };
 
   const runTableAction = async (fn: () => Promise<unknown>) => {
@@ -960,6 +1071,94 @@ export default function ApplicationPage() {
           )}
         </Card>
 
+        <Card icon={ClipboardList} title="Animal usage register">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] text-gray-500">Actual orders/uses against the approved allowance</span>
+            <button
+              type="button"
+              onClick={() => setUsageModalOpen(true)}
+              className="flex items-center gap-1 text-[#0176D3] text-[13px] font-medium hover:underline"
+            >
+              <Plus size={14} />Log usage
+            </button>
+          </div>
+          {usageLedger && usageLedger.by_species.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="text-left text-[11px] uppercase text-gray-500 border-b border-gray-100">
+                    <th className="py-1.5 pr-2 font-medium">Species / strain</th>
+                    <th className="py-1.5 pr-2 font-medium">Allowance</th>
+                    <th className="py-1.5 pr-2 font-medium">Ordered</th>
+                    <th className="py-1.5 pr-2 font-medium">Used</th>
+                    <th className="py-1.5 pr-2 font-medium">Remaining</th>
+                    <th className="py-1.5 font-medium" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {usageLedger.by_species.map(s => (
+                    <tr key={s.species_strain} data-testid="usage-species-summary">
+                      <td className="py-1.5 pr-2 font-medium">{s.species_strain}</td>
+                      <td className="py-1.5 pr-2">{s.allowance}</td>
+                      <td className="py-1.5 pr-2">{s.ordered}</td>
+                      <td className="py-1.5 pr-2">{s.used}</td>
+                      <td className={`py-1.5 pr-2 font-medium ${s.over_allowance ? "text-red-600" : "text-emerald-600"}`}>
+                        {s.remaining}
+                      </td>
+                      <td className="py-1.5">
+                        {s.over_allowance ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-700 bg-red-50 px-1.5 py-0.5 rounded">
+                            <AlertTriangle size={11} />Over allowance
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                            <CheckCircle2 size={11} />Within allowance
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-[13px] text-gray-400">No usage transactions recorded.</div>
+          )}
+          {usageLedger && usageLedger.transactions.length > 0 && (
+            <div className="mt-4">
+              <div className="text-[12px] uppercase text-gray-500 font-medium mb-1.5">Transactions</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase text-gray-500 border-b border-gray-100">
+                      <th className="py-1.5 pr-2 font-medium">Date</th>
+                      <th className="py-1.5 pr-2 font-medium">Type</th>
+                      <th className="py-1.5 pr-2 font-medium">Species / strain</th>
+                      <th className="py-1.5 pr-2 font-medium">Qty</th>
+                      <th className="py-1.5 pr-2 font-medium">Pain</th>
+                      <th className="py-1.5 pr-2 font-medium">Procedure</th>
+                      <th className="py-1.5 font-medium">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {usageLedger.transactions.map(t => (
+                      <tr key={t.id} data-testid="usage-transaction">
+                        <td className="py-1.5 pr-2">{t.transaction_date}</td>
+                        <td className="py-1.5 pr-2 uppercase text-[11px] font-medium text-gray-500">{t.type}</td>
+                        <td className="py-1.5 pr-2 font-medium">{t.species_strain}</td>
+                        <td className="py-1.5 pr-2">{t.quantity}</td>
+                        <td className="py-1.5 pr-2">{t.pain_level || "—"}</td>
+                        <td className="py-1.5 pr-2">{t.procedure_key ? t.procedure_key.replace(/_/g, " ") : "—"}</td>
+                        <td className="py-1.5">{t.notes || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </Card>
+
         <Card icon={Microscope} title="Experiments">
           <div className="flex items-center justify-between">
             <span className="text-[12px] text-gray-500">Experimental procedures and surgical events per study</span>
@@ -1208,6 +1407,13 @@ export default function ApplicationPage() {
           initial={rrrModal.editing ?? BLANK_RRR}
           onClose={() => setRrrModal({ open: false, editing: null })}
           onSave={saveRrrEntry}
+        />
+      )}
+      {usageModalOpen && (
+        <UsageModal
+          initial={BLANK_USAGE}
+          onClose={() => setUsageModalOpen(false)}
+          onSave={saveUsage}
         />
       )}
     </div>

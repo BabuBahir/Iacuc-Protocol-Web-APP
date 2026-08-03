@@ -192,3 +192,163 @@ Every item ships with tests, added in the same PR, not after:
   dev injects CSS as `<style>` tags.
 - **Gates**: `npm run typecheck`, `npm test` (server + client suites),
   `npm run test:e2e`, then build before any PR.
+
+---
+
+## Full-featured IACUC administration endpoints (user-provided spec, documented for review)
+
+Status: **documented only — nothing here is implemented yet.** This section
+records a spec the user supplied for a full-featured IACUC administration
+platform, organized into six domains. It extends (and overlaps with) items
+1–5 above; where an endpoint already exists or partially exists, that's
+flagged so we don't rebuild it. Per the user, add these to the plan for
+review before any implementation.
+
+Cross-cutting notes that apply to all six domains:
+
+- **Schema**: most domains need new tables. Follow the existing conventions —
+  `node:sqlite` with named params only for referenced keys, `PRAGMA
+  foreign_keys = ON` (already set in `db.js`), `ON DELETE CASCADE` for
+  protocol-owned child rows, and the `PRAGMA table_info` migration guard for
+  any column added to an *existing* table. New tables just go in the
+  `CREATE TABLE IF NOT EXISTS` block.
+- **No auth/roles yet** (AGENTS.md §1.5, Roadmap item 4): review assignments,
+  personnel compliance, and incident/CAPA fields imply "who can do what,"
+  which this app can't enforce yet. Design the schema and endpoints so they
+  still work single-persona, and add an `assigned_to`/`reported_by`
+  `personnel_id` column up front so RBAC can be layered on later without a
+  migration.
+- **E2E invariants to preserve** (AGENTS.md §2): `IACUC-2026-0142` must stay
+  latest-submitted + vote-free; `IACUC-2025-0064` must stay a Macaque. New
+  review/comment endpoints must not write votes for 0142. Any new seeds that
+  reference the committee voter list must not add committee-eligible
+  personnel casually.
+- **PII guardrails** (AGENTS.md §3): training/clearance endpoints touch
+  `personnel.name`/`personnel.email` — PII. Fine in-app, but minimize what
+  any future AI feature receives and never log free-text notes upstream.
+  Animal data is not PHI; no human-subjects fields exist, so no BAA gate.
+
+### A. Review & Approval Workflow
+
+Endpoints: `POST /:id/reviews` (submit a review/vote/committee recommendation:
+Approved / Modifications Required / Tabled), `GET /:id/reviews` (history,
+assignments, comments), `POST /:id/comments` (inline/section-specific
+feedback), `PATCH /:id/assign` (designated/primary reviewer).
+
+- **Already exists (partial)**: `committee.js` implements FCR voting on
+  protocols in review — one vote per `(protocol, personnel)` in
+  `protocol_votes`, live tallies with comments. That's the "review" core.
+- **Gap**: no DMR (designated-member review) vs. FCR distinction, no
+  `review_method` field, no "Approved/Modifications Required/Tabled" outcome
+  vocabulary beyond the current vote enum, no reviewer *assignment*, and no
+  inline/section-specific comments. This is plan item 4's review-method depth
+  (FCR/DMR/Admin/VVC, RMTSA). Recommended: extend `protocol_votes` /
+  `committee.js` rather than a parallel `reviews` table, and introduce a
+  `review_method` column on `protocols` (migration guard). Assignments likely
+  need a `protocol_review_assignments` (or `protocol_reviewers`) 1:N table.
+
+### B. Amendments & Annual Renewals
+
+Endpoints: `POST /:id/amendments`, `GET /:id/amendments`, `POST /:id/renewals`.
+
+- **Domain rules** (AGENTS.md §1.1): amendments are *versioned documents* —
+  one in-flight per protocol, requires a "Reason for Change," live diff views
+  (Live Changes / Previous Version / Changes), approved amendments produce a
+  new protocol **version** (0001, 0002, ...) with its own approval/expiration
+  dates. Continuing Review ≠ De Novo Review (lightweight annual check-in vs.
+  full 3-year resubmission referencing the prior protocol number). Transfer
+  Ownership is its own approval workflow.
+- **Already exists**: none. Not implemented per AGENTS.md §1.1.
+- **Recommended**: `amendments` 1:N table (`protocol_id`, `reason`,
+  `status`, `created_at`) + an `amendment_changes`/version snapshot mechanism,
+  and a `protocol_versions` table for the versioned lineage (Version, Approved
+  date, Expiration date, Version date, Source: New/Amendment/De Novo). Renewals
+  can reuse the same submission-gating machinery as 1c (`validateCompleteness`)
+  but as a *new* review event, not a status flip. Largest domain — split into
+  its own PR(s).
+
+### C. Personnel, CITI Training & OHSP Compliance
+
+Endpoints: `GET /api/personnel/:id/training`, `POST /api/personnel/:id/ohsp-clearance`,
+`GET /api/protocols/:id/personnel` (verify all listed personnel meet active
+compliance).
+
+- **Already exists**: `admin.js` personnel CRUD (name, email, role). The
+  detail page lists personnel per protocol via `related_items`/`personnel`
+  joins ("Personnel (3)"). No compliance data.
+- **Gap**: `citi_training` records (course, completed date, expiration,
+  status) and `ohsp_clearance` status per person. `GET /:id/personnel` is a
+  computed check (all personnel active & cleared) — read-only over the
+  training/clearance tables, so it can be built after the data tables exist.
+- **Recommended**: `personnel_training` 1:N table + an `ohsp` row (or columns
+  on `personnel` via migration guard). Wire the "active compliance" check into
+  the detail page's personnel panel as an amber/green status per person.
+
+### D. Animal Census & Usage Tracking (the "Register" ledger)
+
+> **Status: DONE.** `animal_usage_transactions` table + `GET/POST
+> /:id/animal-usage` (`server/src/routes/animal-usage.js`) + a "Animal usage
+> register" card on the application page with per-species tallies, an
+> over-allowance flag, and a "Log usage" modal. Seeded transactions include an
+> over-allowance fixture (`IACUC-2026-0021`, Rabbit 30 ordered + 40 used of
+> 60). See AGENTS.md "Animal usage register".
+
+Endpoints: `GET /:id/animal-usage` (tallies by species, USDA pain category
+B/C/D/E, procedure), `POST /:id/animal-usage` (log ordering/usage against the
+approved allowance).
+
+- **Already exists (partial)**: `protocol_animal_use` is the *planned*
+  count table (species/strain, sex, age, max_count) — the approved allowance.
+- **Gap**: this is AGENTS.md §1.4's **Register** — a ledger of *actual*
+  ordering/usage transactions (species, pain level, transaction date) against
+  the approved protocol. Explicitly marked **not implemented**. The two must
+  stay distinct: allowance is read from `protocol_animal_use`; the ledger is
+  an append-only transactions table. Overshoot detection (sum(ledger) >
+  allowance per species) is the "prevent over-use" value and a natural server
+  rule to test.
+- **Recommended**: `animal_usage_transactions` 1:N table + a tally query; the
+  GET endpoint is read-only aggregation, POST is a logged transaction. Ties
+  into plan item 4 / AGENTS.md §1.4.
+
+### E. Post-Approval Monitoring (PAM) & Incident Reporting
+
+Endpoints: `POST /api/incidents` (adverse event/deviation), `GET /:id/pam-audits`
+(PAM history + site-visit reports), `PATCH /api/incidents/:id` (log CAPA,
+close out).
+
+- **Already exists**: none. Not implemented anywhere in the current schema.
+- **Recommended**: `incidents` 1:N table (`protocol_id`, type, description,
+  severity, status, corrective_action/CAPA, closed_at, reported_by
+  `personnel_id`), and `pam_audits` 1:N (`protocol_id`, audit date, site
+  visits, findings, report). Status lifecycle (Open → CAPA → Closed) is
+  straightforward server logic; tie `PATCH` CAPA into the incident status
+  transition so closing requires a CAPA recorded.
+- Note: this is where compliance/inspections data starts to look like audit
+  trail material — see AGENTS.md §3.3 (audit logging not yet implemented).
+
+### F. Facility & Semi-Annual Inspections
+
+Endpoints: `GET /api/facilities`, `POST /api/inspections`, `GET /api/inspections/:id/deficiencies`.
+
+- **Already exists**: none. Not implemented.
+- **Recommended**: `facilities` table (name, type: housing room / lab /
+  surgical suite, species housed), `inspections` 1:N (`facility_id`, date,
+  report, result), `inspection_deficiencies` 1:N (`inspection_id`, severity
+  minor/major, description, remediation deadline, remediated_at). The
+  deficiencies endpoint is a filtered read; remediation deadlines feed the
+  "due/remediation overdue" dashboards. Semi-annual cadence is a computation,
+  not stored state.
+
+### Suggested ordering
+
+Independent of items 1–5 above; smallest-to-largest surface area:
+
+1. **D — Animal Census & Usage** (leverages existing `protocol_animal_use`,
+   self-contained ledger + tally, clear test story for overshoot).
+2. **A — Review workflow depth** (extends existing `committee.js`; plan item 4).
+3. **C — Personnel compliance** (two data tables + read-only verification).
+4. **F — Facilities & inspections** (three standalone tables, no protocol deps).
+5. **E — PAM & incidents** (two tables + status/CAPA lifecycle).
+6. **B — Amendments & renewals** (largest; versioned documents + diffs;
+   depends on items 2/tabs for the version-comparison UI).
+

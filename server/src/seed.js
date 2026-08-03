@@ -301,6 +301,24 @@ const animalUseSeed = {
   ],
 };
 
+// Animal usage register (the ledger of *actual* orders/uses against the
+// approved allowance above). 0142 and 0158 stay under their allowance; 0021
+// is deliberately seeded over its Rabbit allowance so the over-allowance flag
+// has a fixture for tests.
+const animalUsageSeed = {
+  "IACUC-2026-0142": [
+    { transaction_date: "2026-05-12", species_strain: "Mouse / C57BL/6", pain_level: "C", quantity: 60, type: "order", procedure_key: "injections", notes: "First cohort ordering" },
+    { transaction_date: "2026-06-20", species_strain: "Mouse / C57BL/6", pain_level: "C", quantity: 55, type: "use", procedure_key: "injections", notes: "Cohort 1 on study" },
+  ],
+  "IACUC-2026-0158": [
+    { transaction_date: "2026-07-02", species_strain: "Zebrafish / mutant line", pain_level: "B", quantity: 100, type: "order", procedure_key: null, notes: null },
+  ],
+  "IACUC-2026-0021": [
+    { transaction_date: "2026-06-10", species_strain: "Rabbit / New Zealand White", pain_level: "D", quantity: 30, type: "order", procedure_key: "survival_surgery", notes: "Dressing change cohort" },
+    { transaction_date: "2026-07-15", species_strain: "Rabbit / New Zealand White", pain_level: "D", quantity: 40, type: "use", procedure_key: "survival_surgery", notes: "Exceeds 60 allowance by 10" },
+  ],
+};
+
 const experimentsSeed = {
   "IACUC-2026-0142": [
     {
@@ -586,14 +604,20 @@ const insertVote = db.prepare(`
   INSERT INTO protocol_votes (protocol_id, personnel_id, vote, comment, voted_at)
   VALUES (?, ?, ?, ?, ?)
 `);
+const insertUsage = db.prepare(`
+  INSERT INTO animal_usage_transactions
+    (protocol_id, transaction_date, species_strain, pain_level, quantity, type, procedure_key, notes)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+`);
 
-let procCount = 0, drugCount = 0, animalUseCount = 0, alternativesCount = 0, experimentCount = 0, rrrCount = 0;
+let procCount = 0, drugCount = 0, animalUseCount = 0, alternativesCount = 0, experimentCount = 0, rrrCount = 0, usageCount = 0;
 
 db.exec("BEGIN");
 try {
   db.exec("DELETE FROM protocol_votes; DELETE FROM protocol_procedures; DELETE FROM protocol_drugs;");
   db.exec("DELETE FROM protocol_animal_use; DELETE FROM protocol_alternatives;");
   db.exec("DELETE FROM protocol_experiments; DELETE FROM protocol_rrr_entries;");
+  db.exec("DELETE FROM animal_usage_transactions;");
   db.exec("DELETE FROM personnel; DELETE FROM roles; DELETE FROM species;");
   db.exec("DELETE FROM related_items; DELETE FROM protocols;");
 
@@ -684,6 +708,15 @@ try {
     const voter = getPersonnelId.get(v.voter);
     insertVote.run(v.protocol_id, voter.id, v.vote, v.comment, v.voted_at);
   }
+  for (const [protocolId, rows] of Object.entries(animalUsageSeed)) {
+    for (const r of rows) {
+      insertUsage.run(
+        protocolId, r.transaction_date, r.species_strain, r.pain_level,
+        r.quantity, r.type, r.procedure_key, r.notes,
+      );
+      usageCount++;
+    }
+  }
 
   db.exec("COMMIT");
 } catch (err) {
@@ -695,5 +728,5 @@ console.log(
   `Seeded ${protocols.length} protocols, ${relatedItems.length} related items, ` +
   `${species.length} species, ${roles.length} roles, ${personnel.length} personnel, ` +
   `${procCount} procedures, ${drugCount} drugs, ${animalUseCount} animal-use rows, ` +
-  `${experimentCount} experiments, ${alternativesCount} alternatives rows, ${rrrCount} 3Rs entries, ${votesSeed.length} votes.`
+  `${experimentCount} experiments, ${alternativesCount} alternatives rows, ${rrrCount} 3Rs entries, ${votesSeed.length} votes, ${usageCount} usage transactions.`
 );

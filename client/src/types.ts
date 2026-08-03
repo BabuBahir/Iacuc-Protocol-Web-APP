@@ -202,6 +202,51 @@ export interface AnimalUseInput {
   max_count?: number | null;
 }
 
+// ---- animal usage register (actual orders/uses against the approved allowance) ----
+
+export type UsageType = "order" | "use";
+
+export const USDA_PAIN_LEVELS = ["B", "C", "D", "E"];
+
+export interface AnimalUsageTransaction {
+  id: number;
+  protocol_id: string;
+  transaction_date: string;
+  species_strain: string;
+  pain_level: string | null;
+  quantity: number;
+  type: UsageType;
+  procedure_key: string | null;
+  notes: string | null;
+  created_at: string | null;
+}
+
+export interface AnimalUsageInput {
+  transaction_date: string;
+  species_strain: string;
+  pain_level?: string | null;
+  quantity: number;
+  type?: UsageType;
+  procedure_key?: string | null;
+  notes?: string | null;
+}
+
+export interface AnimalUsageSpeciesSummary {
+  species_strain: string;
+  allowance: number;
+  ordered: number;
+  used: number;
+  remaining: number;
+  over_allowance: boolean;
+}
+
+export interface AnimalUsageLedger {
+  transactions: AnimalUsageTransaction[];
+  by_species: AnimalUsageSpeciesSummary[];
+  by_pain_category: { pain_level: string; count: number }[];
+  by_procedure: { procedure_key: string; count: number }[];
+}
+
 export interface ExperimentRow {
   id: number;
   protocol_id: string;
@@ -254,6 +299,26 @@ export const RRR_LABELS: Record<RrrType, string> = {
 
 // Surgery procedures get an expanded detail block on the application page.
 export const SURGERY_PROCEDURE_KEYS = ["survival_surgery", "non_survival_surgery"];
+
+// Full procedure checklist keys (mirrors server PROCEDURE_KEYS), used to label
+// usage-register transactions.
+export const PROCEDURE_KEYS = [
+  "breeding",
+  "animal_id_methods",
+  "anesthesia",
+  "blood_collection",
+  "injections",
+  "experimental_substance_exposure",
+  "non_pharma_grade_compounds",
+  "prolonged_restraint_devices",
+  "animal_pain_distress",
+  "non_survival_surgery",
+  "tissue_collection_after_euthanasia",
+  "survival_surgery",
+  "illness_disease_endpoint",
+  "special_diets_food_water_restriction",
+  "offsite_work",
+];
 
 export const ANALGESIA_LEVELS = ["None", "Mild", "Moderate", "Profound"];
 

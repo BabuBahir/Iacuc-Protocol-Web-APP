@@ -28,6 +28,7 @@ describe("db.js schema", () => {
       "protocol_experiments",
       "protocol_rrr_entries",
       "protocol_alternatives",
+      "animal_usage_transactions",
     ]) {
       assert.ok(tables.includes(expected), `expected table "${expected}" to exist`);
     }

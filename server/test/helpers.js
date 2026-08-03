@@ -15,6 +15,7 @@ const TABLES_IN_DELETE_ORDER = [
   "protocol_experiments",
   "protocol_rrr_entries",
   "protocol_alternatives",
+  "animal_usage_transactions",
   "related_items",
   "personnel",
   "roles",
