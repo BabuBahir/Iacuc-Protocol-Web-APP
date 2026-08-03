@@ -17,6 +17,9 @@ export interface Protocol {
   disposal: string | null;
   npg: string | null;
   research_steps: string[];
+  purpose_summary: string | null;
+  harm_benefit_analysis: string | null;
+  scientific_summary: string | null;
   submitted: string | null;
   expires: string | null;
 }
@@ -99,6 +102,9 @@ export interface ProtocolInput {
   disposal: string | null;
   npg: string | null;
   research_steps: string[];
+  purpose_summary: string | null;
+  harm_benefit_analysis: string | null;
+  scientific_summary: string | null;
 }
 
 export interface ProtocolUpdateInput {
@@ -115,6 +121,9 @@ export interface ProtocolUpdateInput {
   disposal: string | null;
   npg: string | null;
   research_steps: string[];
+  purpose_summary: string | null;
+  harm_benefit_analysis: string | null;
+  scientific_summary: string | null;
   status: string | null;
   submitted: string | null;
   expires: string | null;
@@ -135,6 +144,77 @@ export interface VoteInput {
   vote: string;
   comment: string | null;
 }
+
+// ---- Appendix A application content ----
+
+export interface Procedure {
+  procedure_key: string;
+  label: string;
+  checked: boolean;
+  description: string;
+}
+
+export interface ProcedureInput {
+  procedure_key: string;
+  checked: boolean;
+  description: string;
+}
+
+export interface DrugRow {
+  id: number;
+  protocol_id: string;
+  reason_for_use: string | null;
+  drug: string;
+  dose: string | null;
+  route: string | null;
+  duration: string | null;
+}
+
+export interface DrugInput {
+  reason_for_use?: string | null;
+  drug: string;
+  dose?: string | null;
+  route?: string | null;
+  duration?: string | null;
+}
+
+export interface AnimalUseRow {
+  id: number;
+  protocol_id: string;
+  species_strain: string;
+  sex: string | null;
+  approx_age: string | null;
+  max_count: number | null;
+}
+
+export interface AnimalUseInput {
+  species_strain: string;
+  sex?: string | null;
+  approx_age?: string | null;
+  max_count?: number | null;
+}
+
+export interface Alternatives {
+  protocol_id: string;
+  replacement_text: string | null;
+  refinement_text: string | null;
+  reduction_text: string | null;
+  lit_databases: string | null;
+  lit_years_from: string | null;
+  lit_years_to: string | null;
+  lit_search_date: string | null;
+  lit_keywords: string | null;
+  lit_summary: string | null;
+  colleague_name: string | null;
+  colleague_date: string | null;
+  colleague_notes: string | null;
+  av_consult_date: string | null;
+  av_consultation_required: boolean;
+}
+
+export type AlternativesInput = Partial<
+  Omit<Alternatives, "protocol_id" | "av_consultation_required">
+>;
 
 // ---- constants shared across the UI ----
 

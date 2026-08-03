@@ -150,6 +150,23 @@ describe("POST /api/protocols", () => {
     assert.equal(res.body.npg, "Sigma-Aldrich custom peptide (98% purity)");
     assert.deepEqual(res.body.research_steps, ["Habituate animals for 7 days", "Administer stressor for 21 days"]);
   });
+
+  test("stores the Appendix A summary fields on create", async () => {
+    const res = await request(app)
+      .post("/api/protocols")
+      .send({
+        id: "NEW-0003",
+        title: "Summary study",
+        pi: "Dr. New",
+        purpose_summary: "Lay-language purpose",
+        harm_benefit_analysis: "Harm vs. benefit",
+        scientific_summary: "Scientific summary of aims",
+      });
+    assert.equal(res.status, 201);
+    assert.equal(res.body.purpose_summary, "Lay-language purpose");
+    assert.equal(res.body.harm_benefit_analysis, "Harm vs. benefit");
+    assert.equal(res.body.scientific_summary, "Scientific summary of aims");
+  });
 });
 
 describe("PATCH /api/protocols/:id", () => {

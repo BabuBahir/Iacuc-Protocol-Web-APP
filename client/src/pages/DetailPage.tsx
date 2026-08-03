@@ -125,6 +125,7 @@ export default function DetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 mt-1">
+            <button onClick={() => navigate(`/protocols/${protocol.id}/application`)} className="px-3 py-1.5 rounded border border-gray-300 bg-white text-[#0176D3] text-[13px] font-medium hover:bg-gray-50">Edit application</button>
             <button onClick={() => setShowEdit(true)} className="px-3 py-1.5 rounded border border-gray-300 bg-white text-[#0176D3] text-[13px] font-medium hover:bg-gray-50">Edit</button>
             <button className="p-1.5 rounded border border-gray-300 bg-white text-gray-500 hover:bg-gray-50"><Printer size={15} /></button>
             <button className="p-1.5 rounded border border-gray-300 bg-white text-gray-500 hover:bg-gray-50"><MoreHorizontal size={15} /></button>
@@ -167,6 +168,12 @@ export default function DetailPage() {
               <InfoRow label="Submitted" value={protocol.submitted || "—"} />
               <InfoRow label="Expires" value={protocol.expires || "—"} />
             </div>
+          </SectionBlock>
+
+          <SectionBlock icon={ClipboardList} title="Purpose & summary">
+            <InfoRow label="Lay purpose" value={protocol.purpose_summary || "—"} />
+            <InfoRow label="Harm–benefit analysis" value={protocol.harm_benefit_analysis || "—"} />
+            <InfoRow label="Scientific summary" value={protocol.scientific_summary || "—"} />
           </SectionBlock>
 
           <SectionBlock icon={Syringe} title="Animal care & use">

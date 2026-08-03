@@ -1,8 +1,16 @@
 import type {
+  Alternatives,
+  AlternativesInput,
+  AnimalUseInput,
+  AnimalUseRow,
   CommitteeProtocol,
   CommitteeTally,
+  DrugInput,
+  DrugRow,
   Personnel,
   PersonnelInput,
+  Procedure,
+  ProcedureInput,
   Protocol,
   ProtocolDetail,
   ProtocolInput,
@@ -43,7 +51,7 @@ export const api = {
   getProtocol: (id: string): Promise<ProtocolDetail> => request(`/protocols/${id}`),
   createProtocol: (data: ProtocolInput): Promise<Protocol> =>
     request("/protocols", { method: "POST", body: JSON.stringify(data) }),
-  updateProtocol: (id: string, data: ProtocolUpdateInput): Promise<Protocol> =>
+  updateProtocol: (id: string, data: Partial<ProtocolUpdateInput>): Promise<Protocol> =>
     request(`/protocols/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteProtocol: (id: string): Promise<null> => request(`/protocols/${id}`, { method: "DELETE" }),
 
@@ -72,4 +80,26 @@ export const api = {
     request(`/committee/protocols/${id}/votes`),
   castVote: (id: string, data: VoteInput): Promise<CommitteeTally> =>
     request(`/committee/protocols/${id}/votes`, { method: "POST", body: JSON.stringify(data) }),
+
+  // Appendix A application content
+  listProcedures: (id: string): Promise<Procedure[]> => request(`/protocols/${id}/procedures`),
+  updateProcedures: (id: string, procedures: ProcedureInput[]): Promise<{ ok: boolean }> =>
+    request(`/protocols/${id}/procedures`, { method: "PUT", body: JSON.stringify({ procedures }) }),
+  listDrugs: (id: string): Promise<DrugRow[]> => request(`/protocols/${id}/drugs`),
+  createDrug: (id: string, data: DrugInput): Promise<DrugRow> =>
+    request(`/protocols/${id}/drugs`, { method: "POST", body: JSON.stringify(data) }),
+  updateDrug: (id: string, drugId: number, data: Partial<DrugInput>): Promise<DrugRow> =>
+    request(`/protocols/${id}/drugs/${drugId}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteDrug: (id: string, drugId: number): Promise<null> =>
+    request(`/protocols/${id}/drugs/${drugId}`, { method: "DELETE" }),
+  listAnimalUse: (id: string): Promise<AnimalUseRow[]> => request(`/protocols/${id}/animal-use`),
+  createAnimalUse: (id: string, data: AnimalUseInput): Promise<AnimalUseRow> =>
+    request(`/protocols/${id}/animal-use`, { method: "POST", body: JSON.stringify(data) }),
+  updateAnimalUse: (id: string, rowId: number, data: Partial<AnimalUseInput>): Promise<AnimalUseRow> =>
+    request(`/protocols/${id}/animal-use/${rowId}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteAnimalUse: (id: string, rowId: number): Promise<null> =>
+    request(`/protocols/${id}/animal-use/${rowId}`, { method: "DELETE" }),
+  getAlternatives: (id: string): Promise<Alternatives> => request(`/protocols/${id}/alternatives`),
+  updateAlternatives: (id: string, data: AlternativesInput): Promise<Alternatives> =>
+    request(`/protocols/${id}/alternatives`, { method: "PATCH", body: JSON.stringify(data) }),
 };

@@ -43,6 +43,9 @@ interface FormState {
   disposal: string;
   npg: string;
   npg_detail: string;
+  purpose_summary: string;
+  harm_benefit_analysis: string;
+  scientific_summary: string;
   status: string;
   submitted: string;
   expires: string;
@@ -135,6 +138,9 @@ export default function ProtocolForm({
     disposal: initialValues.disposal ?? "",
     npg: initialValues.npg ? "true" : "false",
     npg_detail: initialValues.npg ?? "",
+    purpose_summary: initialValues.purpose_summary ?? "",
+    harm_benefit_analysis: initialValues.harm_benefit_analysis ?? "",
+    scientific_summary: initialValues.scientific_summary ?? "",
     status: initialValues.status ?? "",
     submitted: initialValues.submitted ?? "",
     expires: initialValues.expires ?? "",
@@ -200,6 +206,9 @@ export default function ProtocolForm({
         disposal: form.disposal.trim() || null,
         npg: form.npg === "true" ? (form.npg_detail.trim() || null) : null,
         research_steps: researchSteps.map(s => s.trim()).filter(Boolean),
+        purpose_summary: form.purpose_summary.trim() || null,
+        harm_benefit_analysis: form.harm_benefit_analysis.trim() || null,
+        scientific_summary: form.scientific_summary.trim() || null,
         status: form.status || null,
         submitted: form.submitted || null,
         expires: form.expires || null,
@@ -231,6 +240,41 @@ export default function ProtocolForm({
           value={form.title}
           onChange={set("title")}
           placeholder="e.g. Effects of X on Y"
+          className={INPUT_CLASS}
+        />
+      </div>
+
+      <SectionTitle>Purpose &amp; summary</SectionTitle>
+      <div>
+        <label htmlFor="protocol-form-purpose" className={LABEL_CLASS}>Lay purpose</label>
+        <textarea
+          id="protocol-form-purpose"
+          value={form.purpose_summary}
+          onChange={set("purpose_summary")}
+          placeholder="Plain-language statement of why the study is being done..."
+          rows={2}
+          className={INPUT_CLASS}
+        />
+      </div>
+      <div>
+        <label htmlFor="protocol-form-harm-benefit" className={LABEL_CLASS}>Harm–benefit analysis</label>
+        <textarea
+          id="protocol-form-harm-benefit"
+          value={form.harm_benefit_analysis}
+          onChange={set("harm_benefit_analysis")}
+          placeholder="Short comparison of potential harm to animals vs. expected benefit..."
+          rows={2}
+          className={INPUT_CLASS}
+        />
+      </div>
+      <div>
+        <label htmlFor="protocol-form-scientific" className={LABEL_CLASS}>Scientific summary</label>
+        <textarea
+          id="protocol-form-scientific"
+          value={form.scientific_summary}
+          onChange={set("scientific_summary")}
+          placeholder="Scientific-language summary of the project and aims..."
+          rows={2}
           className={INPUT_CLASS}
         />
       </div>

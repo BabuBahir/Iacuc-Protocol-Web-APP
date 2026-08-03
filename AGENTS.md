@@ -251,7 +251,7 @@ List, Detail, Admin, Committee, Create — plus `StatusBadge`, `api.ts`,
 `ProtocolForm`, and `App.tsx` routing is covered. `npm run typecheck`
 (`tsc --noEmit`) is the gate after any client change.
 
-**E2E: 10 Playwright tests, all passing** (`npm run test:e2e` from the
+**E2E: 12 Playwright tests, all passing** (`npm run test:e2e` from the
 repo root). Infra lives in `e2e/`: `playwright.config.mjs`, specs in
 `e2e/tests/`, plus a dedicated API server (`e2e/seed-and-server.mjs`) on
 port 4100 that seeds a throwaway `e2e/e2e.db` and a Vite dev server
@@ -270,6 +270,13 @@ from building it:
   displayed. Fixed by adding `protocol_votes.comment` to the query, with a
   server regression test ("vote comments round-trip through the list and
   tally endpoints") alongside the e2e one.
+- Adding the detail page's "Edit application" button broke the existing
+  "edits a protocol from the detail page" spec: Playwright's strict mode
+  rejected `getByRole("button", { name: "Edit" })` because it resolved to
+  both "Edit" and "Edit application". Fixed with `exact: true` — a reminder
+  that any new button whose label is a prefix of an existing one will trip
+  strict mode. An application.spec-style test (in `detail.spec.js`) now
+  covers the Appendix A page read-only against 0142's seeded content.
 - `seed.js` now seeds 12 protocols (up from 6) plus Appendix A content
   (procedures/drugs/animal-use/alternatives) and FCR votes for the two
   non-0142 review protocols. Two invariants the e2e suite depends on:
@@ -347,12 +354,24 @@ species lookup; the Create page renders it full-page (protocol-number field
 on), the detail page renders it inside the edit modal (status dropdown +
 submitted/expires dates on). Keep using this component for any future
 protocol form rather than duplicating fields. Also implemented: dashboard
-metrics, Appendix A content
-tables (procedures/drugs/animal-use/alternatives — backend only, **no
-frontend UI wired up yet** for these), admin lookup lists (species/roles/
-personnel), FCR committee voting with live tallies (including vote comments,
-returned by the tally endpoints), and an 11-test Playwright e2e suite covering
-dashboard/detail/committee/admin.
+metrics, admin lookup lists (species/roles/personnel), FCR committee voting
+with live tallies (including vote comments, returned by the tally endpoints),
+and an 12-test Playwright e2e suite covering dashboard/detail/committee/admin.
+
+**Appendix A application page** (`client/src/pages/ApplicationPage.tsx`, route
+`/protocols/:id/application`, reachable via the detail page's "Edit
+application" button): purpose/harm-benefit/scientific summaries (stored on
+`protocols` via `PATCH /api/protocols/:id`), the 15-item procedures checklist
+(`PUT /api/protocols/:id/procedures`), the drug/dosing table
+(`POST`/`PATCH`/`DELETE /api/protocols/:id/drugs[/:drugId]`), the animal-use
+table (`/api/protocols/:id/animal-use`), and the 3 Rs & alternatives card
+(`PATCH /api/protocols/:id/alternatives`) — including the derived
+`av_consultation_required` amber banner. The three summary textareas also live
+in the shared `ProtocolForm.tsx` (ids `protocol-form-purpose`,
+`protocol-form-harm-benefit`, `protocol-form-scientific`), and the server's
+`POST /api/protocols` create handler stores them too, so summaries can be
+entered at create time and edited later on the application page. All client
+Appendix A calls go through the ~12 typed wrappers in `client/src/api.ts`.
 
 Not implemented (see §1 above for the domain detail on each): conditional/
 dynamic Table of Contents, Continuing Review vs. De Novo Review as

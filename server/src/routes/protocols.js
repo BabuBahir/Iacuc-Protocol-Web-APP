@@ -67,11 +67,13 @@ router.post("/", (req, res) => {
     db.prepare(`
       INSERT INTO protocols (
         id, title, pi, pi_proxy, ptm_member, protocol_type, species, status, animals,
-        pain_category, anesthesia_required, housing, disposal, npg, research_steps
+        pain_category, anesthesia_required, housing, disposal, npg, research_steps,
+        purpose_summary, harm_benefit_analysis, scientific_summary
       )
       VALUES (
         @id, @title, @pi, @pi_proxy, @ptm_member, @protocol_type, @species, 'Draft', @animals,
-        @pain_category, @anesthesia_required, @housing, @disposal, @npg, @research_steps
+        @pain_category, @anesthesia_required, @housing, @disposal, @npg, @research_steps,
+        @purpose_summary, @harm_benefit_analysis, @scientific_summary
       )
     `).run({
       id,
@@ -88,6 +90,9 @@ router.post("/", (req, res) => {
       disposal: req.body.disposal ?? null,
       npg: req.body.npg ?? null,
       research_steps: normalizeResearchSteps(req.body.research_steps) ?? null,
+      purpose_summary: req.body.purpose_summary ?? null,
+      harm_benefit_analysis: req.body.harm_benefit_analysis ?? null,
+      scientific_summary: req.body.scientific_summary ?? null,
     });
     res.status(201).json(shape(db.prepare("SELECT * FROM protocols WHERE id = ?").get(id)));
   } catch (err) {

@@ -6,6 +6,7 @@ import App from "../App";
 vi.mock("../pages/ListPage", () => ({ default: () => <div>ListPage</div> }));
 vi.mock("../pages/DetailPage", () => ({ default: () => <div>DetailPage</div> }));
 vi.mock("../pages/CreatePage", () => ({ default: () => <div>CreatePage</div> }));
+vi.mock("../pages/ApplicationPage", () => ({ default: () => <div>ApplicationPage</div> }));
 vi.mock("../pages/AdminPage", () => ({ default: () => <div>AdminPage</div> }));
 vi.mock("../pages/CommitteePage", () => ({ default: () => <div>CommitteePage</div> }));
 
@@ -31,6 +32,11 @@ describe("App routing", () => {
   test("renders the create page at /protocols/new", () => {
     renderAt("/protocols/new");
     expect(screen.getByText("CreatePage")).toBeInTheDocument();
+  });
+
+  test("renders the application page at /protocols/:id/application", () => {
+    renderAt("/protocols/IACUC-2026-0142/application");
+    expect(screen.getByText("ApplicationPage")).toBeInTheDocument();
   });
 
   test("renders the committee page at /committee", () => {

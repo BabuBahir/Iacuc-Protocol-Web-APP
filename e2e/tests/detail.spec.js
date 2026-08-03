@@ -39,12 +39,40 @@ test("edits a protocol from the detail page", async ({ page }) => {
   await page.locator("tbody tr").filter({ hasText: "IACUC-2026-0158" }).click();
   await expect(page.getByRole("heading", { name: "IACUC-2026-0158" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   const titleInput = page.getByLabel("Title");
   await expect(titleInput).toHaveValue("Genetic Basis of Spontaneous Seizures in Zebrafish");
   await titleInput.fill("Genetic Basis of Spontaneous Seizures (edited)");
   await page.getByRole("button", { name: "Save changes" }).click();
 
   await expect(page.getByText("Genetic Basis of Spontaneous Seizures (edited)")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Edit" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
+});
+
+test("opens the Appendix A application page pre-filled from seeded data", async ({ page }) => {
+  // IACUC-2026-0142 has full seeded Appendix A content (procedures, drugs,
+  // animal use, alternatives). This test only reads, so it can't disturb the
+  // committee invariant that 0142 stays vote-free.
+  await page.goto("/");
+  await page.locator("tbody tr").filter({ hasText: "IACUC-2026-0142" }).click();
+  await expect(page.getByRole("heading", { name: "IACUC-2026-0142" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit application" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Application details — IACUC-2026-0142" })
+  ).toBeVisible();
+
+  // Seeded procedure checklist with a checked item.
+  await expect(page.getByText("Procedures applied to animals")).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Breeding" })).toBeChecked();
+
+  // Seeded drug row renders in the dosing table.
+  await expect(page.getByRole("cell", { name: "Isoflurane", exact: true })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Mouse / C57BL/6", exact: true })).toBeVisible();
+
+  // Seeded 3 Rs literature search content.
+  await expect(page.getByText("3 Rs & alternatives")).toBeVisible();
+  await expect(
+    page.getByText("Review of 3R alternatives confirmed no non-animal model reproduces the neuroendocrine phenotype.")
+  ).toBeVisible();
 });
