@@ -71,9 +71,36 @@ const PROTOCOL: ProtocolDetail = {
 };
 
 const PROCEDURES: Procedure[] = [
-  { procedure_key: "anesthesia", label: "Anesthesia", checked: true, description: "Isoflurane" },
-  { procedure_key: "breeding", label: "Breeding", checked: false, description: "" },
-  { procedure_key: "survival_surgery", label: "Survival surgery", checked: false, description: "" },
+  {
+    procedure_key: "anesthesia",
+    label: "Anesthesia",
+    checked: true,
+    description: "Isoflurane",
+    surgical_description: "",
+    aseptic_preparation: "",
+    analgesia_level: "",
+    postop_care: "",
+  },
+  {
+    procedure_key: "breeding",
+    label: "Breeding",
+    checked: false,
+    description: "",
+    surgical_description: "",
+    aseptic_preparation: "",
+    analgesia_level: "",
+    postop_care: "",
+  },
+  {
+    procedure_key: "survival_surgery",
+    label: "Survival surgery",
+    checked: true,
+    description: "Coronary artery ligation",
+    surgical_description: "LAD ligation via thoracotomy",
+    aseptic_preparation: "Clipped, chlorhexidine prep, sterile instruments",
+    analgesia_level: "Moderate",
+    postop_care: "Monitored twice daily for 72 h",
+  },
 ];
 
 const DRUGS: DrugRow[] = [
@@ -256,6 +283,44 @@ describe("ApplicationPage", () => {
       );
     });
     expect(screen.getByText("Saved procedures")).toBeInTheDocument();
+  });
+
+  test("shows surgical detail fields for a checked surgery procedure and Save sends them", async () => {
+    const user = userEvent.setup();
+    renderApplicationPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("checkbox", { name: /Survival surgery/ })).toBeInTheDocument();
+    });
+
+    // the checked surgery procedure shows its expanded detail block
+    const surgicalDesc = screen.getByLabelText("Survival surgery surgical description");
+    expect(surgicalDesc).toHaveValue("LAD ligation via thoracotomy");
+    expect(screen.getByLabelText("Survival surgery aseptic preparation")).toHaveValue(
+      "Clipped, chlorhexidine prep, sterile instruments"
+    );
+    expect(screen.getByLabelText("Survival surgery analgesia level")).toHaveValue("Moderate");
+    expect(screen.getByLabelText("Survival surgery post-operative care")).toHaveValue(
+      "Monitored twice daily for 72 h"
+    );
+
+    // survival surgery is the only surgery key that shows post-op care
+    await user.click(screen.getByRole("button", { name: "Save procedures" }));
+
+    await waitFor(() => {
+      expect(api.updateProcedures).toHaveBeenCalledWith(
+        "IACUC-2026-0142",
+        expect.arrayContaining([
+          expect.objectContaining({
+            procedure_key: "survival_surgery",
+            surgical_description: "LAD ligation via thoracotomy",
+            aseptic_preparation: "Clipped, chlorhexidine prep, sterile instruments",
+            analgesia_level: "Moderate",
+            postop_care: "Monitored twice daily for 72 h",
+          }),
+        ])
+      );
+    });
   });
 
   test("adding a drug calls createDrug and refreshes the table", async () => {

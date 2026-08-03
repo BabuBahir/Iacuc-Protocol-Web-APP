@@ -22,6 +22,13 @@ export const PROCEDURE_KEYS = [
   { key: "offsite_work", label: "Animal work done at another institution" },
 ];
 
+// Surgery procedures get an expanded detail block (RAP pp. 7-8): detailed
+// surgical description, aseptic preparation, analgesia level, and (for
+// survival surgery only) post-operative care & monitoring.
+export const SURGERY_KEYS = ["survival_surgery", "non_survival_surgery"];
+
+export const ANALGESIA_LEVELS = ["None", "Mild", "Moderate", "Profound"];
+
 function requireProtocol(req, res) {
   const protocol = db.prepare("SELECT * FROM protocols WHERE id = ?").get(req.params.id);
   if (!protocol) {
@@ -44,7 +51,9 @@ router.get("/:id/procedures", (req, res) => {
   for (const { key } of PROCEDURE_KEYS) insertDefault.run(req.params.id, key);
 
   const rows = db.prepare(`
-    SELECT procedure_key, checked, description FROM protocol_procedures WHERE protocol_id = ?
+    SELECT procedure_key, checked, description,
+      surgical_description, aseptic_preparation, analgesia_level, postop_care
+    FROM protocol_procedures WHERE protocol_id = ?
   `).all(req.params.id);
 
   const byKey = Object.fromEntries(rows.map(r => [r.procedure_key, r]));
@@ -53,10 +62,15 @@ router.get("/:id/procedures", (req, res) => {
     label,
     checked: !!(byKey[key]?.checked),
     description: byKey[key]?.description ?? "",
+    surgical_description: byKey[key]?.surgical_description ?? "",
+    aseptic_preparation: byKey[key]?.aseptic_preparation ?? "",
+    analgesia_level: byKey[key]?.analgesia_level ?? "",
+    postop_care: byKey[key]?.postop_care ?? "",
   })));
 });
 
-// body: { procedures: [{ procedure_key, checked, description }, ...] }
+// body: { procedures: [{ procedure_key, checked, description,
+//   surgical_description, aseptic_preparation, analgesia_level, postop_care }, ...] }
 router.put("/:id/procedures", (req, res) => {
   if (!requireProtocol(req, res)) return;
   const { procedures } = req.body;
@@ -64,10 +78,16 @@ router.put("/:id/procedures", (req, res) => {
 
   const validKeys = new Set(PROCEDURE_KEYS.map(p => p.key));
   const upsert = db.prepare(`
-    INSERT INTO protocol_procedures (protocol_id, procedure_key, checked, description)
-    VALUES (@protocol_id, @procedure_key, @checked, @description)
+    INSERT INTO protocol_procedures (protocol_id, procedure_key, checked, description,
+      surgical_description, aseptic_preparation, analgesia_level, postop_care)
+    VALUES (@protocol_id, @procedure_key, @checked, @description,
+      @surgical_description, @aseptic_preparation, @analgesia_level, @postop_care)
     ON CONFLICT(protocol_id, procedure_key) DO UPDATE SET
-      checked = excluded.checked, description = excluded.description
+      checked = excluded.checked, description = excluded.description,
+      surgical_description = excluded.surgical_description,
+      aseptic_preparation = excluded.aseptic_preparation,
+      analgesia_level = excluded.analgesia_level,
+      postop_care = excluded.postop_care
   `);
 
   db.exec("BEGIN");
@@ -79,6 +99,10 @@ router.put("/:id/procedures", (req, res) => {
         procedure_key: p.procedure_key,
         checked: p.checked ? 1 : 0,
         description: p.description || null,
+        surgical_description: p.surgical_description || null,
+        aseptic_preparation: p.aseptic_preparation || null,
+        analgesia_level: p.analgesia_level || null,
+        postop_care: p.postop_care || null,
       });
     }
     db.exec("COMMIT");
@@ -401,10 +425,21 @@ export function validateCompleteness(protocolId) {
   `);
   for (const { key } of PROCEDURE_KEYS) insertDefault.run(protocolId, key);
   const labelByKey = Object.fromEntries(PROCEDURE_KEYS.map(p => [p.key, p.label]));
+  const surgeryKeys = new Set(SURGERY_KEYS);
   const proceduresMissing = [];
   for (const r of db.prepare("SELECT * FROM protocol_procedures WHERE protocol_id = ?").all(protocolId)) {
-    if (r.checked && !hasText(r.description)) {
-      proceduresMissing.push(`Narrative for “${labelByKey[r.procedure_key] || r.procedure_key}”`);
+    if (!r.checked) continue;
+    const label = labelByKey[r.procedure_key] || r.procedure_key;
+    if (!hasText(r.description)) {
+      proceduresMissing.push(`Narrative for “${label}”`);
+    }
+    if (surgeryKeys.has(r.procedure_key)) {
+      if (!hasText(r.surgical_description)) proceduresMissing.push(`Surgical description for “${label}”`);
+      if (!hasText(r.aseptic_preparation)) proceduresMissing.push(`Aseptic preparation for “${label}”`);
+      if (!hasText(r.analgesia_level)) proceduresMissing.push(`Analgesia level for “${label}”`);
+      if (r.procedure_key === "survival_surgery" && !hasText(r.postop_care)) {
+        proceduresMissing.push(`Post-operative care for “${label}”`);
+      }
     }
   }
 

@@ -61,6 +61,16 @@ which is the whole point of the mandate.
 
 ### 1. Deepen the research/application page (ApplicationPage.tsx + protocol-form.js)
 
+> **Status: DONE (1a, 1b, 1c).** Experiments (1a) landed as a `protocol_experiments`
+> 1:N table with an experiments card on the application page (see AGENTS.md
+> "Appendix A application page"); surgery-specific procedure details (1b) as
+> four columns on `protocol_procedures` with a surgical-detail block and
+> submit gating (see AGENTS.md "Surgery-specific procedure details"); 3 Rs
+> enforcement + structure (1c) as `protocol_rrr_entries` + `GET /:id/validation`
+> + server-enforced submit gating (see AGENTS.md "Structured 3 Rs
+> justifications + submission enforcement"). The `protocol_experiment_procedures`
+> join table was cut — experiments carry their own procedure questions instead.
+
 The current page already has purpose/harm-benefit/scientific summaries,
 the 15-item procedures checklist, drug table, animal-use table, and 3 Rs.
 The "too basic" gap is mostly **structure and required-ness**, from the RAP

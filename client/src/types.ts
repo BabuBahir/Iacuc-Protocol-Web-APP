@@ -152,12 +152,20 @@ export interface Procedure {
   label: string;
   checked: boolean;
   description: string;
+  surgical_description: string;
+  aseptic_preparation: string;
+  analgesia_level: string;
+  postop_care: string;
 }
 
 export interface ProcedureInput {
   procedure_key: string;
   checked: boolean;
   description: string;
+  surgical_description?: string;
+  aseptic_preparation?: string;
+  analgesia_level?: string;
+  postop_care?: string;
 }
 
 export interface DrugRow {
@@ -243,6 +251,11 @@ export const RRR_LABELS: Record<RrrType, string> = {
   refinement: "Refinement",
   reduction: "Reduction",
 };
+
+// Surgery procedures get an expanded detail block on the application page.
+export const SURGERY_PROCEDURE_KEYS = ["survival_surgery", "non_survival_surgery"];
+
+export const ANALGESIA_LEVELS = ["None", "Mild", "Moderate", "Profound"];
 
 export interface RrrEntry {
   id: number;

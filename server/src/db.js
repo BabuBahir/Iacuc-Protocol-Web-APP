@@ -195,3 +195,18 @@ for (const [col, type] of [
   }
 }
 
+// ---- migration for databases created before the procedure surgery-detail columns existed ----
+const procedureColumns = new Set(
+  db.prepare("PRAGMA table_info(protocol_procedures)").all().map(c => c.name)
+);
+for (const [col, type] of [
+  ["surgical_description", "TEXT"],
+  ["aseptic_preparation", "TEXT"],
+  ["analgesia_level", "TEXT"],
+  ["postop_care", "TEXT"],
+]) {
+  if (!procedureColumns.has(col)) {
+    db.exec(`ALTER TABLE protocol_procedures ADD COLUMN ${col} ${type}`);
+  }
+}
+

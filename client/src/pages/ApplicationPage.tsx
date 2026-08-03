@@ -7,7 +7,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { api } from "../api";
-import { RRR_LABELS, RRR_TYPES } from "../types";
+import { ANALGESIA_LEVELS, RRR_LABELS, RRR_TYPES, SURGERY_PROCEDURE_KEYS } from "../types";
 import type {
   Alternatives,
   AlternativesInput,
@@ -418,15 +418,28 @@ export default function ApplicationPage() {
     setProceduresStatus(null);
   };
 
+  const setProcedureSurgeryField = (
+    i: number,
+    field: "surgical_description" | "aseptic_preparation" | "analgesia_level" | "postop_care",
+    value: string,
+  ) => {
+    setProcedures(prev => prev.map((p, idx) => idx === i ? { ...p, [field]: value } : p));
+    setProceduresStatus(null);
+  };
+
   const saveProcedures = async () => {
     if (!id) return;
     setProceduresSaving(true);
     setProceduresStatus(null);
     try {
-      await api.updateProcedures(id, procedures.map(({ procedure_key, checked, description }) => ({
-        procedure_key,
-        checked,
-        description,
+      await api.updateProcedures(id, procedures.map((p) => ({
+        procedure_key: p.procedure_key,
+        checked: p.checked,
+        description: p.description,
+        surgical_description: p.surgical_description,
+        aseptic_preparation: p.aseptic_preparation,
+        analgesia_level: p.analgesia_level,
+        postop_care: p.postop_care,
       })));
       await refreshValidation();
       setProceduresStatus("Saved procedures");
@@ -750,14 +763,72 @@ export default function ApplicationPage() {
                   <span className="font-medium">{p.label}</span>
                 </label>
                 {p.checked && (
-                  <textarea
-                    aria-label={`${p.label} description`}
-                    value={p.description}
-                    onChange={e => setProcedureDescription(i, e.target.value)}
-                    placeholder="Describe this procedure and why it is needed..."
-                    rows={2}
-                    className={`${INPUT_CLASS} mt-2`}
-                  />
+                  <div className="mt-2 space-y-2">
+                    <textarea
+                      aria-label={`${p.label} description`}
+                      value={p.description}
+                      onChange={e => setProcedureDescription(i, e.target.value)}
+                      placeholder="Describe this procedure and why it is needed..."
+                      rows={2}
+                      className={INPUT_CLASS}
+                    />
+                    {SURGERY_PROCEDURE_KEYS.includes(p.procedure_key) && (
+                      <div className="space-y-2 border-t border-gray-200 pt-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Surgical details</p>
+                        <div>
+                          <label htmlFor={`surgical-desc-${p.procedure_key}`} className={LABEL_CLASS}>Detailed surgical description</label>
+                          <textarea
+                            id={`surgical-desc-${p.procedure_key}`}
+                            aria-label={`${p.label} surgical description`}
+                            value={p.surgical_description}
+                            onChange={e => setProcedureSurgeryField(i, "surgical_description", e.target.value)}
+                            rows={2}
+                            className={INPUT_CLASS}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor={`aseptic-${p.procedure_key}`} className={LABEL_CLASS}>Aseptic preparation of animal, surgeon, and instruments</label>
+                          <textarea
+                            id={`aseptic-${p.procedure_key}`}
+                            aria-label={`${p.label} aseptic preparation`}
+                            value={p.aseptic_preparation}
+                            onChange={e => setProcedureSurgeryField(i, "aseptic_preparation", e.target.value)}
+                            rows={2}
+                            className={INPUT_CLASS}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor={`analgesia-${p.procedure_key}`} className={LABEL_CLASS}>Analgesia level</label>
+                          <select
+                            id={`analgesia-${p.procedure_key}`}
+                            aria-label={`${p.label} analgesia level`}
+                            value={p.analgesia_level}
+                            onChange={e => setProcedureSurgeryField(i, "analgesia_level", e.target.value)}
+                            className={INPUT_CLASS}
+                          >
+                            <option value="">Select…</option>
+                            {ANALGESIA_LEVELS.map(level => (
+                              <option key={level} value={level}>{level}</option>
+                            ))}
+                          </select>
+                        </div>
+                        {p.procedure_key === "survival_surgery" && (
+                          <div>
+                            <label htmlFor={`postop-${p.procedure_key}`} className={LABEL_CLASS}>Post-operative care & monitoring</label>
+                            <textarea
+                              id={`postop-${p.procedure_key}`}
+                              aria-label={`${p.label} post-operative care`}
+                              value={p.postop_care}
+                              onChange={e => setProcedureSurgeryField(i, "postop_care", e.target.value)}
+                              placeholder="How often animals are monitored and what care they receive after recovery..."
+                              rows={2}
+                              className={INPUT_CLASS}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             ))}

@@ -99,6 +99,51 @@ describe("procedures checklist", () => {
     assert.equal(res.status, 400);
   });
 
+  test("GET returns empty surgery-detail fields for a fresh surgery procedure", async () => {
+    insertProtocol();
+    const res = await request(app).get("/api/protocols/TEST-0001/procedures");
+    assert.equal(res.status, 200);
+    const surgery = res.body.find(p => p.procedure_key === "survival_surgery");
+    assert.equal(surgery.surgical_description, "");
+    assert.equal(surgery.aseptic_preparation, "");
+    assert.equal(surgery.analgesia_level, "");
+    assert.equal(surgery.postop_care, "");
+  });
+
+  test("PUT persists the surgery-detail fields and GET returns them", async () => {
+    insertProtocol();
+    const res = await request(app)
+      .put("/api/protocols/TEST-0001/procedures")
+      .send({
+        procedures: [{
+          procedure_key: "survival_surgery",
+          checked: true,
+          description: "LAD ligation",
+          surgical_description: "LAD ligation via thoracotomy",
+          aseptic_preparation: "Chlorhexidine prep, sterile instruments",
+          analgesia_level: "Moderate",
+          postop_care: "Monitored twice daily for 72 h",
+        }],
+      });
+    assert.equal(res.status, 200);
+
+    const after = await request(app).get("/api/protocols/TEST-0001/procedures");
+    const surgery = after.body.find(p => p.procedure_key === "survival_surgery");
+    assert.equal(surgery.checked, true);
+    assert.equal(surgery.surgical_description, "LAD ligation via thoracotomy");
+    assert.equal(surgery.aseptic_preparation, "Chlorhexidine prep, sterile instruments");
+    assert.equal(surgery.analgesia_level, "Moderate");
+    assert.equal(surgery.postop_care, "Monitored twice daily for 72 h");
+  });
+
+  test("PUT without surgery fields leaves them empty rather than erroring", async () => {
+    insertProtocol();
+    const res = await request(app)
+      .put("/api/protocols/TEST-0001/procedures")
+      .send({ procedures: [{ procedure_key: "breeding", checked: true, description: "Colony maintenance" }] });
+    assert.equal(res.status, 200);
+  });
+
   test("404s for an unknown protocol", async () => {
     const res = await request(app).get("/api/protocols/NOPE/procedures");
     assert.equal(res.status, 404);
@@ -586,6 +631,48 @@ describe("submission-readiness validation", () => {
     const res = await request(app).get("/api/protocols/TEST-0001/validation");
     assert.equal(res.body.sections.procedures.complete, false);
     assert.deepEqual(res.body.sections.procedures.missing, ["Narrative for “Anesthesia”"]);
+  });
+
+  test("a checked surgery procedure without its detail fields keeps procedures incomplete", async () => {
+    insertProtocol();
+    db.prepare(`
+      INSERT INTO protocol_procedures (protocol_id, procedure_key, checked, description)
+      VALUES ('TEST-0001', 'survival_surgery', 1, 'LAD ligation')
+    `).run();
+    const res = await request(app).get("/api/protocols/TEST-0001/validation");
+    assert.equal(res.body.sections.procedures.complete, false);
+    assert.deepEqual(res.body.sections.procedures.missing, [
+      "Surgical description for “Survival surgery”",
+      "Aseptic preparation for “Survival surgery”",
+      "Analgesia level for “Survival surgery”",
+      "Post-operative care for “Survival surgery”",
+    ]);
+  });
+
+  test("a completed non-survival surgery row needs surgical fields but not post-op care", async () => {
+    insertProtocol();
+    db.prepare(`
+      INSERT INTO protocol_procedures (protocol_id, procedure_key, checked, description,
+        surgical_description, aseptic_preparation, analgesia_level)
+      VALUES ('TEST-0001', 'non_survival_surgery', 1, 'Terminal LAD occlusion',
+        'Terminal LAD occlusion under deep anesthesia', 'Chlorhexidine prep', 'None')
+    `).run();
+    const res = await request(app).get("/api/protocols/TEST-0001/validation");
+    assert.equal(res.body.sections.procedures.complete, true);
+    assert.deepEqual(res.body.sections.procedures.missing, []);
+  });
+
+  test("a completed survival surgery row passes once post-op care is present", async () => {
+    insertProtocol();
+    db.prepare(`
+      INSERT INTO protocol_procedures (protocol_id, procedure_key, checked, description,
+        surgical_description, aseptic_preparation, analgesia_level, postop_care)
+      VALUES ('TEST-0001', 'survival_surgery', 1, 'LAD ligation',
+        'LAD ligation via thoracotomy', 'Chlorhexidine prep', 'Moderate',
+        'Monitored twice daily for 72 h')
+    `).run();
+    const res = await request(app).get("/api/protocols/TEST-0001/validation");
+    assert.equal(res.body.sections.procedures.complete, true);
   });
 
   test("Category D/E requires an AV consultation date", async () => {
