@@ -143,8 +143,15 @@ const proceduresSeed = {
   ],
   "IACUC-2026-0139": [
     { key: "anesthesia", checked: 1, description: "Isoflurane 1.5–2% in oxygen for survival surgery." },
-    { key: "non_survival_surgery", checked: 1, description: "Terminal LAD occlusion under anesthesia for infarction induction." },
-    { key: "survival_surgery", checked: 1, description: "Left anterior descending coronary artery ligation via thoracotomy." },
+    { key: "non_survival_surgery", checked: 1, description: "Terminal LAD occlusion under anesthesia for infarction induction.",
+      surgical_description: "Terminal left anterior descending coronary artery ligation under deep general anesthesia to induce myocardial infarction.",
+      aseptic_preparation: "Surgical field clipped and disinfected with chlorhexidine; instruments autoclaved; surgeon gloved.",
+      analgesia_level: "None" },
+    { key: "survival_surgery", checked: 1, description: "Left anterior descending coronary artery ligation via thoracotomy.",
+      surgical_description: "Left anterior descending coronary artery ligation via left thoracotomy for myocardial infarction induction.",
+      aseptic_preparation: "Mice clipped, site prepped with alternating chlorhexidine and 70% ethanol; sterile instruments; aseptic technique.",
+      analgesia_level: "Moderate",
+      postop_care: "Monitored twice daily for 72 h post-op; buprenorphine q12h; LAMS consulted for weight loss > 20% or signs of heart failure." },
     { key: "tissue_collection", checked: 1, description: "Hearts harvested for histology and gene expression at 1, 4, and 8 weeks." },
     { key: "illness_endpoint", checked: 1, description: "Humane endpoint if >30% body weight loss or signs of heart failure." },
   ],
@@ -170,7 +177,11 @@ const proceduresSeed = {
   ],
   "IACUC-2026-0150": [
     { key: "anesthesia", checked: 1, description: "Isoflurane 2% for stereotaxic surgery." },
-    { key: "survival_surgery", checked: 1, description: "Bilateral deep brain stimulation electrode implantation into the subthalamic nucleus." },
+    { key: "survival_surgery", checked: 1, description: "Bilateral deep brain stimulation electrode implantation into the subthalamic nucleus.",
+      surgical_description: "Bilateral deep brain stimulation electrode implantation into the subthalamic nucleus under stereotaxic guidance.",
+      aseptic_preparation: "Scalp shaved and prepped with betadine; autoclaved stereotaxic instruments; sterile field maintained.",
+      analgesia_level: "Mild",
+      postop_care: "Rats checked daily for 7 days; meloxicam q24h × 3 days; staple removal at day 7." },
     { key: "prolonged_restraint", checked: 1, description: "Rats briefly restrained in a holding tube during stimulation sessions." },
     { key: "illness_endpoint", checked: 1, description: "Endpoints: severe post-operative neurological deficit or infection unresponsive to treatment." },
   ],
@@ -185,7 +196,11 @@ const proceduresSeed = {
   ],
   "IACUC-2026-0155": [
     { key: "anesthesia", checked: 1, description: "Ketamine/dexmedetomidine for corneal grafting." },
-    { key: "survival_surgery", checked: 1, description: "Penetrating keratoplasty with donor grafts." },
+    { key: "survival_surgery", checked: 1, description: "Penetrating keratoplasty with donor grafts.",
+      surgical_description: "Penetrating keratoplasty with donor corneal grafts under general anesthesia.",
+      aseptic_preparation: "Ophthalmic site rinsed with sterile saline; instruments sterilized; aseptic draping.",
+      analgesia_level: "Moderate",
+      postop_care: "Monitored twice daily for 7 days; buprenorphine q12h × 72 h; topical antibiotic drops twice daily." },
     { key: "tissue_collection", checked: 1, description: "Corneas collected for histology at study end." },
   ],
   "IACUC-2026-0158": [
@@ -528,8 +543,9 @@ const insertPersonnel = db.prepare(`
 `);
 
 const insertProcedure = db.prepare(`
-  INSERT INTO protocol_procedures (protocol_id, procedure_key, checked, description)
-  VALUES (?, ?, ?, ?)
+  INSERT INTO protocol_procedures (protocol_id, procedure_key, checked, description,
+    surgical_description, aseptic_preparation, analgesia_level, postop_care)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `);
 const insertDrug = db.prepare(`
   INSERT INTO protocol_drugs (protocol_id, reason_for_use, drug, dose, route, duration)
@@ -615,7 +631,11 @@ try {
 
   for (const [protocolId, rows] of Object.entries(proceduresSeed)) {
     for (const r of rows) {
-      insertProcedure.run(protocolId, r.key, r.checked ? 1 : 0, r.description || null);
+      insertProcedure.run(
+        protocolId, r.key, r.checked ? 1 : 0, r.description || null,
+        r.surgical_description || null, r.aseptic_preparation || null,
+        r.analgesia_level || null, r.postop_care || null
+      );
       procCount++;
     }
   }

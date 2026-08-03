@@ -236,7 +236,7 @@ npm run test:server   # node:test + supertest, coverage via --experimental-test-
 npm run test:client   # vitest + React Testing Library, coverage via v8
 ```
 
-**Backend: 111 tests, 99.20% lines / 90.98% branches / 94.20% functions**
+**Backend: 117 tests, 99.36% lines / 92.13% branches / 95.45% functions**
 (measured on `server/src/`, excluding `test/`). Every route file — protocols,
 protocol-form, admin, committee — has both happy-path and edge-case coverage
 (FK constraint violations, permission checks, duplicate-key conflicts, 404s).
@@ -257,14 +257,14 @@ Two real bugs were caught by writing these tests, not found any other way:
    test environment. Fixed to `useEffect(() => { load(); }, [])` in all
    three places.
 
-**Frontend: 98 tests, 99.49% lines / 91.47% branches** (see
+**Frontend: 99 tests, 99.49% lines / 91.47% branches** (see
 `vite.config.js`'s `test.coverage.exclude` for what's excluded — currently
 just `src/main.tsx` and config files, not test files themselves). Every page —
 List, Detail, Admin, Committee, Create, Application — plus `StatusBadge`,
 `api.ts`, `ProtocolForm`, and `App.tsx` routing is covered. `npm run typecheck`
 (`tsc --noEmit`) is the gate after any client change.
 
-**E2E: 19 Playwright tests, all passing** (`npm run test:e2e` from the
+**E2E: 20 Playwright tests, all passing** (`npm run test:e2e` from the
 repo root). Infra lives in `e2e/`: `playwright.config.mjs`, specs in
 `e2e/tests/`, plus a dedicated API server (`e2e/seed-and-server.mjs`) on
 port 4100 that seeds a throwaway `e2e/e2e.db` and a Vite dev server
@@ -436,6 +436,24 @@ is true; the server check is the backstop so direct API calls can't bypass it.
 Seeded data now includes 27 rrr entries (3 per fully-filled protocol), and
 the e2e suite covers submit success on the fully-seeded Draft `IACUC-2026-0158`
 and the disabled-button + API-400 path on sparse `IACUC-2026-0021`.
+
+**Surgery-specific procedure details (plan item 1b):** the two surgery
+procedures (`survival_surgery`, `non_survival_surgery`) carry an expanded
+detail block on the application page — detailed surgical description, aseptic
+preparation of animal/surgeon/instruments, analgesia level (select:
+None/Mild/Moderate/Profound), and post-operative care & monitoring (rendered
+for survival surgery only). Stored as four nullable columns on
+`protocol_procedures` (`surgical_description`, `aseptic_preparation`,
+`analgesia_level`, `postop_care`; added via the `PRAGMA table_info` migration
+guard in `db.js`) and returned/persisted by the existing `GET`/`PUT
+/:id/procedures` routes — no new endpoints. `validateCompleteness` requires
+surgical description + aseptic preparation + analgesia level for *checked*
+surgery procedures and post-op care additionally for survival surgery, so the
+procedures section gates submission until surgery detail is complete. Seeded
+surgical details for the three surgery-bearing fully-filled protocols (0139,
+0150, 0155); 0021's surgery procedures are deliberately left detail-free so it
+stays blocked. Server exports `SURGERY_KEYS` and `ANALGESIA_LEVELS`; the client
+mirrors them as `SURGERY_PROCEDURE_KEYS`/`ANALGESIA_LEVELS` in `types.ts`.
 
 Not implemented (see §1 above for the domain detail on each): conditional/
 dynamic Table of Contents, Continuing Review vs. De Novo Review as

@@ -94,6 +94,35 @@ test("opens the Appendix A application page pre-filled from seeded data", async 
   await expect(page.getByText("Status: IACUC Review")).toBeVisible();
 });
 
+test("shows seeded surgical detail fields for a surgery protocol", async ({ page }) => {
+  // IACUC-2026-0139 has checked survival and non-survival surgery procedures,
+  // both seeded with surgical details. This test only reads.
+  await page.goto("/");
+  await page.locator("tbody tr").filter({ hasText: "IACUC-2026-0139" }).click();
+  await expect(page.getByRole("heading", { name: "IACUC-2026-0139" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit application" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Application details — IACUC-2026-0139" })
+  ).toBeVisible();
+
+  // The expanded surgical detail block renders for the checked survival surgery.
+  await expect(page.getByRole("checkbox", { name: "Survival surgery", exact: true })).toBeChecked();
+  await expect(page.getByText("Surgical details").first()).toBeVisible();
+  await expect(
+    page.getByLabel("Survival surgery surgical description", { exact: true })
+  ).toHaveValue("Left anterior descending coronary artery ligation via left thoracotomy for myocardial infarction induction.");
+  await expect(page.getByLabel("Survival surgery analgesia level", { exact: true })).toHaveValue("Moderate");
+  await expect(page.getByLabel("Survival surgery post-operative care", { exact: true })).toHaveValue(
+    "Monitored twice daily for 72 h post-op; buprenorphine q12h; LAMS consulted for weight loss > 20% or signs of heart failure."
+  );
+
+  // Non-survival surgery gets the surgical fields but no post-op care field.
+  await expect(page.getByRole("checkbox", { name: "Non-survival surgery", exact: true })).toBeChecked();
+  await expect(page.getByLabel("Non-survival surgery analgesia level", { exact: true })).toHaveValue("None");
+  await expect(page.getByLabel("Non-survival surgery post-operative care", { exact: true })).not.toBeVisible();
+});
+
 test("adds an experiment to a draft protocol from the application page", async ({ page }) => {
   // IACUC-2026-0158 is a Draft protocol; adding an experiment to it is safe
   // and doesn't touch the e2e invariants on 0142 (review, vote-free) or 0064.
