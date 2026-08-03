@@ -194,11 +194,30 @@ export interface AnimalUseInput {
   max_count?: number | null;
 }
 
+export interface ExperimentRow {
+  id: number;
+  protocol_id: string;
+  name: string;
+  description: string | null;
+  multiple_surgical_events: number;
+  humane_endpoints: string | null;
+  persistent_clinical_signs_justification: string | null;
+  monitoring_plan: string | null;
+  husbandry_exceptions: string | null;
+}
+
+export interface ExperimentInput {
+  name: string;
+  description?: string | null;
+  multiple_surgical_events?: boolean | number;
+  humane_endpoints?: string | null;
+  persistent_clinical_signs_justification?: string | null;
+  monitoring_plan?: string | null;
+  husbandry_exceptions?: string | null;
+}
+
 export interface Alternatives {
   protocol_id: string;
-  replacement_text: string | null;
-  refinement_text: string | null;
-  reduction_text: string | null;
   lit_databases: string | null;
   lit_years_from: string | null;
   lit_years_to: string | null;
@@ -215,6 +234,47 @@ export interface Alternatives {
 export type AlternativesInput = Partial<
   Omit<Alternatives, "protocol_id" | "av_consultation_required">
 >;
+
+export const RRR_TYPES = ["replacement", "refinement", "reduction"] as const;
+export type RrrType = (typeof RRR_TYPES)[number];
+
+export const RRR_LABELS: Record<RrrType, string> = {
+  replacement: "Replacement",
+  refinement: "Refinement",
+  reduction: "Reduction",
+};
+
+export interface RrrEntry {
+  id: number;
+  protocol_id: string;
+  rrr_type: RrrType;
+  method: string;
+  explanation: string | null;
+}
+
+export interface RrrInput {
+  rrr_type: RrrType;
+  method: string;
+  explanation?: string | null;
+}
+
+export interface ValidationSection {
+  complete: boolean;
+  missing: string[];
+}
+
+export interface ValidationResult {
+  overall: boolean;
+  avRequired: boolean;
+  sections: {
+    summaries: ValidationSection;
+    procedures: ValidationSection;
+    drugs: ValidationSection;
+    animal_use: ValidationSection;
+    experiments: ValidationSection;
+    alternatives: ValidationSection;
+  };
+}
 
 // ---- constants shared across the UI ----
 

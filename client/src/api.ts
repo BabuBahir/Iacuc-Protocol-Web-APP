@@ -7,6 +7,8 @@ import type {
   CommitteeTally,
   DrugInput,
   DrugRow,
+  ExperimentInput,
+  ExperimentRow,
   Personnel,
   PersonnelInput,
   Procedure,
@@ -17,8 +19,11 @@ import type {
   ProtocolUpdateInput,
   ProtocolVotesResponse,
   Role,
+  RrrInput,
+  RrrEntry,
   Species,
   Summary,
+  ValidationResult,
   VoteInput,
   Voter,
 } from "./types";
@@ -99,7 +104,22 @@ export const api = {
     request(`/protocols/${id}/animal-use/${rowId}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteAnimalUse: (id: string, rowId: number): Promise<null> =>
     request(`/protocols/${id}/animal-use/${rowId}`, { method: "DELETE" }),
+  listExperiments: (id: string): Promise<ExperimentRow[]> => request(`/protocols/${id}/experiments`),
+  createExperiment: (id: string, data: ExperimentInput): Promise<ExperimentRow> =>
+    request(`/protocols/${id}/experiments`, { method: "POST", body: JSON.stringify(data) }),
+  updateExperiment: (id: string, expId: number, data: Partial<ExperimentInput>): Promise<ExperimentRow> =>
+    request(`/protocols/${id}/experiments/${expId}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteExperiment: (id: string, expId: number): Promise<null> =>
+    request(`/protocols/${id}/experiments/${expId}`, { method: "DELETE" }),
   getAlternatives: (id: string): Promise<Alternatives> => request(`/protocols/${id}/alternatives`),
   updateAlternatives: (id: string, data: AlternativesInput): Promise<Alternatives> =>
     request(`/protocols/${id}/alternatives`, { method: "PATCH", body: JSON.stringify(data) }),
+  listRrrEntries: (id: string): Promise<RrrEntry[]> => request(`/protocols/${id}/rrr`),
+  createRrrEntry: (id: string, data: RrrInput): Promise<RrrEntry> =>
+    request(`/protocols/${id}/rrr`, { method: "POST", body: JSON.stringify(data) }),
+  updateRrrEntry: (id: string, entryId: number, data: Partial<RrrInput>): Promise<RrrEntry> =>
+    request(`/protocols/${id}/rrr/${entryId}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteRrrEntry: (id: string, entryId: number): Promise<null> =>
+    request(`/protocols/${id}/rrr/${entryId}`, { method: "DELETE" }),
+  getValidation: (id: string): Promise<ValidationResult> => request(`/protocols/${id}/validation`),
 };

@@ -128,6 +128,20 @@ CREATE TABLE IF NOT EXISTS protocol_animal_use (
   max_count     INTEGER
 );
 
+-- Experiments: each protocol can describe multiple distinct experiments
+-- (per the RAP cheat-sheet's Experiments tab / Appendix A narrative).
+CREATE TABLE IF NOT EXISTS protocol_experiments (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  protocol_id   TEXT NOT NULL REFERENCES protocols(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  description   TEXT,                       -- detailed description of the experiment
+  multiple_surgical_events INTEGER NOT NULL DEFAULT 0, -- surgery performed more than once on one animal
+  humane_endpoints TEXT,                    -- endpoint criteria, incl. signs triggering euthanasia
+  persistent_clinical_signs_justification TEXT, -- required when clinical signs are allowed to persist (Cat E)
+  monitoring_plan TEXT,                     -- adverse effects expected, how/when monitored, when to call LAMS
+  husbandry_exceptions TEXT                 -- deviations from standard practices (single housing, medicated water, etc.)
+);
+
 -- 3 Rs / alternatives search: one row per protocol
 CREATE TABLE IF NOT EXISTS protocol_alternatives (
   protocol_id      TEXT PRIMARY KEY REFERENCES protocols(id) ON DELETE CASCADE,
@@ -144,6 +158,18 @@ CREATE TABLE IF NOT EXISTS protocol_alternatives (
   colleague_date   TEXT,
   colleague_notes  TEXT,
   av_consult_date  TEXT -- Attending Veterinarian consultation date (required for Category D/E)
+);
+
+-- Structured 3 Rs justifications: one or more per type per protocol
+-- (method + explanation) instead of one free-text blob per R. The
+-- replacement/refinement/reduction_text columns above are retained for
+-- backward compatibility but are no longer read or written by the API.
+CREATE TABLE IF NOT EXISTS protocol_rrr_entries (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  protocol_id TEXT NOT NULL REFERENCES protocols(id) ON DELETE CASCADE,
+  rrr_type    TEXT NOT NULL CHECK (rrr_type IN ('replacement', 'refinement', 'reduction')),
+  method      TEXT NOT NULL, -- the strategy/approach taken
+  explanation TEXT           -- why it applies to this protocol
 );
 `);
 

@@ -182,15 +182,162 @@ router.delete("/:id/animal-use/:rowId", (req, res) => {
   res.status(204).end();
 });
 
+// ---- experiments (1:N per protocol) ----
+
+router.get("/:id/experiments", (req, res) => {
+  if (!requireProtocol(req, res)) return;
+  res.json(db.prepare("SELECT * FROM protocol_experiments WHERE protocol_id = ? ORDER BY id").all(req.params.id));
+});
+
+router.post("/:id/experiments", (req, res) => {
+  if (!requireProtocol(req, res)) return;
+  const { name, description, multiple_surgical_events, humane_endpoints, persistent_clinical_signs_justification, monitoring_plan, husbandry_exceptions } = req.body;
+  if (!name) return res.status(400).json({ error: "name is required" });
+
+  const result = db.prepare(`
+    INSERT INTO protocol_experiments (
+      protocol_id, name, description, multiple_surgical_events,
+      humane_endpoints, persistent_clinical_signs_justification,
+      monitoring_plan, husbandry_exceptions
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    req.params.id,
+    name,
+    description || null,
+    multiple_surgical_events ? 1 : 0,
+    humane_endpoints || null,
+    persistent_clinical_signs_justification || null,
+    monitoring_plan || null,
+    husbandry_exceptions || null,
+  );
+
+  res.status(201).json(db.prepare("SELECT * FROM protocol_experiments WHERE id = ?").get(Number(result.lastInsertRowid)));
+});
+
+router.patch("/:id/experiments/:expId", (req, res) => {
+  if (!requireProtocol(req, res)) return;
+  const existing = db.prepare("SELECT * FROM protocol_experiments WHERE id = ? AND protocol_id = ?")
+    .get(Number(req.params.expId), req.params.id);
+  if (!existing) return res.status(404).json({ error: "Experiment row not found" });
+
+  const fields = [
+    "name", "description", "multiple_surgical_events",
+    "humane_endpoints", "persistent_clinical_signs_justification",
+    "monitoring_plan", "husbandry_exceptions",
+  ];
+  const updates = fields.filter(f => f in req.body);
+  if (updates.length === 0) return res.status(400).json({ error: "No updatable fields provided" });
+
+  const params = { id: Number(req.params.expId) };
+  for (const f of updates) params[f] = f === "multiple_surgical_events" ? (req.body[f] ? 1 : 0) : req.body[f];
+  const setClause = updates.map(f => `${f} = @${f}`).join(", ");
+  db.prepare(`UPDATE protocol_experiments SET ${setClause} WHERE id = @id`).run(params);
+
+  res.json(db.prepare("SELECT * FROM protocol_experiments WHERE id = ?").get(Number(req.params.expId)));
+});
+
+router.delete("/:id/experiments/:expId", (req, res) => {
+  if (!requireProtocol(req, res)) return;
+  const result = db.prepare("DELETE FROM protocol_experiments WHERE id = ? AND protocol_id = ?")
+    .run(Number(req.params.expId), req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: "Experiment row not found" });
+  res.status(204).end();
+});
+
+// ---- 3 Rs justification entries (1:N per protocol) ----
+
+export const RRR_TYPES = ["replacement", "refinement", "reduction"];
+
+export const RRR_LABELS = {
+  replacement: "Replacement",
+  refinement: "Refinement",
+  reduction: "Reduction",
+};
+
+router.get("/:id/rrr", (req, res) => {
+  if (!requireProtocol(req, res)) return;
+  res.json(
+    db.prepare("SELECT * FROM protocol_rrr_entries WHERE protocol_id = ? ORDER BY rrr_type, id")
+      .all(req.params.id)
+  );
+});
+
+router.post("/:id/rrr", (req, res) => {
+  if (!requireProtocol(req, res)) return;
+  const { rrr_type, method, explanation } = req.body;
+  if (!RRR_TYPES.includes(rrr_type)) {
+    return res.status(400).json({ error: `rrr_type must be one of: ${RRR_TYPES.join(", ")}` });
+  }
+  if (!method) return res.status(400).json({ error: "method is required" });
+
+  const result = db.prepare(`
+    INSERT INTO protocol_rrr_entries (protocol_id, rrr_type, method, explanation)
+    VALUES (?, ?, ?, ?)
+  `).run(req.params.id, rrr_type, method, explanation || null);
+
+  res.status(201).json(db.prepare("SELECT * FROM protocol_rrr_entries WHERE id = ?").get(Number(result.lastInsertRowid)));
+});
+
+router.patch("/:id/rrr/:entryId", (req, res) => {
+  if (!requireProtocol(req, res)) return;
+  const existing = db.prepare("SELECT * FROM protocol_rrr_entries WHERE id = ? AND protocol_id = ?")
+    .get(Number(req.params.entryId), req.params.id);
+  if (!existing) return res.status(404).json({ error: "RRR entry not found" });
+
+  const fields = ["rrr_type", "method", "explanation"];
+  const updates = fields.filter(f => f in req.body);
+  if (updates.length === 0) return res.status(400).json({ error: "No updatable fields provided" });
+  if (updates.includes("rrr_type") && !RRR_TYPES.includes(req.body.rrr_type)) {
+    return res.status(400).json({ error: `rrr_type must be one of: ${RRR_TYPES.join(", ")}` });
+  }
+
+  const params = { id: Number(req.params.entryId) };
+  for (const f of updates) params[f] = req.body[f];
+  const setClause = updates.map(f => `${f} = @${f}`).join(", ");
+  db.prepare(`UPDATE protocol_rrr_entries SET ${setClause} WHERE id = @id`).run(params);
+
+  res.json(db.prepare("SELECT * FROM protocol_rrr_entries WHERE id = ?").get(Number(req.params.entryId)));
+});
+
+router.delete("/:id/rrr/:entryId", (req, res) => {
+  if (!requireProtocol(req, res)) return;
+  const result = db.prepare("DELETE FROM protocol_rrr_entries WHERE id = ? AND protocol_id = ?")
+    .run(Number(req.params.entryId), req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: "RRR entry not found" });
+  res.status(204).end();
+});
+
 // ---- 3 Rs / alternatives (one row per protocol) ----
 
 const ALTERNATIVES_FIELDS = [
-  "replacement_text", "refinement_text", "reduction_text",
   "lit_databases", "lit_years_from", "lit_years_to", "lit_search_date",
   "lit_keywords", "lit_summary",
   "colleague_name", "colleague_date", "colleague_notes",
   "av_consult_date",
 ];
+
+// The three replacement/refinement/reduction text blobs were replaced by the
+// structured protocol_rrr_entries rows above; keep the DB columns for
+// backward compatibility but never expose them through the API.
+function shapeAlternatives(row, protocol) {
+  const categoryLetter = (protocol.pain_category || "").trim().slice(-1).toUpperCase();
+  const avRequired = categoryLetter === "D" || categoryLetter === "E";
+  return {
+    protocol_id: row.protocol_id,
+    lit_databases: row.lit_databases,
+    lit_years_from: row.lit_years_from,
+    lit_years_to: row.lit_years_to,
+    lit_search_date: row.lit_search_date,
+    lit_keywords: row.lit_keywords,
+    lit_summary: row.lit_summary,
+    colleague_name: row.colleague_name,
+    colleague_date: row.colleague_date,
+    colleague_notes: row.colleague_notes,
+    av_consult_date: row.av_consult_date,
+    av_consultation_required: avRequired,
+  };
+}
 
 router.get("/:id/alternatives", (req, res) => {
   const protocol = requireProtocol(req, res);
@@ -199,14 +346,7 @@ router.get("/:id/alternatives", (req, res) => {
   db.prepare(`INSERT OR IGNORE INTO protocol_alternatives (protocol_id) VALUES (?)`).run(req.params.id);
   const row = db.prepare("SELECT * FROM protocol_alternatives WHERE protocol_id = ?").get(req.params.id);
 
-  // Category D/E protocols require an Attending Veterinarian consultation (per Appendix A, section 3).
-  // Bug fix: a naive /[DE]/i.test(pain_category) matches the E in the word
-  // "Category" itself, so it was true for every category, not just D/E.
-  // Check the actual trailing category letter instead.
-  const categoryLetter = (protocol.pain_category || "").trim().slice(-1).toUpperCase();
-  const avRequired = categoryLetter === "D" || categoryLetter === "E";
-
-  res.json({ ...row, av_consultation_required: avRequired });
+  res.json(shapeAlternatives(row, protocol));
 });
 
 router.patch("/:id/alternatives", (req, res) => {
@@ -221,5 +361,102 @@ router.patch("/:id/alternatives", (req, res) => {
   const setClause = updates.map(f => `${f} = @${f}`).join(", ");
   db.prepare(`UPDATE protocol_alternatives SET ${setClause} WHERE protocol_id = @protocol_id`).run(params);
 
-  res.json(db.prepare("SELECT * FROM protocol_alternatives WHERE protocol_id = ?").get(req.params.id));
+  const protocol = db.prepare("SELECT * FROM protocols WHERE id = ?").get(req.params.id);
+  const row = db.prepare("SELECT * FROM protocol_alternatives WHERE protocol_id = ?").get(req.params.id);
+  res.json(shapeAlternatives(row, protocol));
+});
+
+// ---- submission-readiness validation (per-section completeness) ----
+// Mirrors the Cayuse/Cornell rule: every section must be complete (green
+// checkmark) before a protocol may be submitted. The same function is used
+// by GET /:id/validation and by the protocols PATCH handler when a protocol
+// is transitioned to "Submitted".
+
+function hasText(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function countDatabases(value) {
+  return String(value || "").split(",").map(s => s.trim()).filter(Boolean).length;
+}
+
+function capitalize(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+export function validateCompleteness(protocolId) {
+  const protocol = db.prepare("SELECT * FROM protocols WHERE id = ?").get(protocolId);
+  if (!protocol) return null;
+
+  // summaries
+  const summariesMissing = [];
+  if (!hasText(protocol.purpose_summary)) summariesMissing.push("Lay purpose summary");
+  if (!hasText(protocol.harm_benefit_analysis)) summariesMissing.push("Harm–benefit analysis");
+  if (!hasText(protocol.scientific_summary)) summariesMissing.push("Scientific summary");
+
+  // procedures: rows are auto-created on access; every checked item needs a narrative
+  const insertDefault = db.prepare(`
+    INSERT OR IGNORE INTO protocol_procedures (protocol_id, procedure_key, checked)
+    VALUES (?, ?, 0)
+  `);
+  for (const { key } of PROCEDURE_KEYS) insertDefault.run(protocolId, key);
+  const labelByKey = Object.fromEntries(PROCEDURE_KEYS.map(p => [p.key, p.label]));
+  const proceduresMissing = [];
+  for (const r of db.prepare("SELECT * FROM protocol_procedures WHERE protocol_id = ?").all(protocolId)) {
+    if (r.checked && !hasText(r.description)) {
+      proceduresMissing.push(`Narrative for “${labelByKey[r.procedure_key] || r.procedure_key}”`);
+    }
+  }
+
+  const drugCount = db.prepare("SELECT COUNT(*) AS c FROM protocol_drugs WHERE protocol_id = ?").get(protocolId).c;
+  const animalUseCount = db.prepare("SELECT COUNT(*) AS c FROM protocol_animal_use WHERE protocol_id = ?").get(protocolId).c;
+  const experimentCount = db.prepare("SELECT COUNT(*) AS c FROM protocol_experiments WHERE protocol_id = ?").get(protocolId).c;
+
+  const drugsMissing = drugCount === 0 ? ["At least one drug/dosing row"] : [];
+  const animalUseMissing = animalUseCount === 0 ? ["At least one animal-use row"] : [];
+  const experimentsMissing = experimentCount === 0 ? ["At least one experiment"] : [];
+
+  // alternatives (literature search + 3 Rs entries + AV consultation)
+  db.prepare(`INSERT OR IGNORE INTO protocol_alternatives (protocol_id) VALUES (?)`).run(protocolId);
+  const alt = db.prepare("SELECT * FROM protocol_alternatives WHERE protocol_id = ?").get(protocolId);
+
+  const altMissing = [];
+  if (countDatabases(alt.lit_databases) < 2) altMissing.push("Literature search in ≥2 databases");
+  if (!hasText(alt.lit_years_from) || !hasText(alt.lit_years_to)) {
+    altMissing.push("Literature search date range (years from / to)");
+  }
+  if (!hasText(alt.lit_search_date)) altMissing.push("Literature search date");
+  if (!hasText(alt.lit_keywords)) altMissing.push("Literature search keywords");
+  if (!hasText(alt.lit_summary)) altMissing.push("Literature search summary");
+
+  const rrrByType = {};
+  for (const r of db.prepare("SELECT rrr_type, COUNT(*) AS c FROM protocol_rrr_entries WHERE protocol_id = ? GROUP BY rrr_type").all(protocolId)) {
+    rrrByType[r.rrr_type] = r.c;
+  }
+  for (const t of RRR_TYPES) {
+    if (!rrrByType[t]) altMissing.push(`${capitalize(t)} justification`);
+  }
+
+  const categoryLetter = (protocol.pain_category || "").trim().slice(-1).toUpperCase();
+  const avRequired = categoryLetter === "D" || categoryLetter === "E";
+  if (avRequired && !hasText(alt.av_consult_date)) {
+    altMissing.push("Attending Veterinarian consultation date");
+  }
+
+  const sections = {
+    summaries: { complete: summariesMissing.length === 0, missing: summariesMissing },
+    procedures: { complete: proceduresMissing.length === 0, missing: proceduresMissing },
+    drugs: { complete: drugsMissing.length === 0, missing: drugsMissing },
+    animal_use: { complete: animalUseMissing.length === 0, missing: animalUseMissing },
+    experiments: { complete: experimentsMissing.length === 0, missing: experimentsMissing },
+    alternatives: { complete: altMissing.length === 0, missing: altMissing },
+  };
+  const overall = Object.values(sections).every(s => s.complete);
+
+  return { overall, avRequired, sections };
+}
+
+router.get("/:id/validation", (req, res) => {
+  if (!requireProtocol(req, res)) return;
+  res.json(validateCompleteness(req.params.id));
 });
