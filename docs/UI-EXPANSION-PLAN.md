@@ -230,6 +230,13 @@ Cross-cutting notes that apply to all six domains:
 
 ### A. Review & Approval Workflow
 
+> **Status: DONE.** `protocols.review_method` (`FCR`/`DMR`) + 
+> `protocol_review_assignments` + `protocol_review_comments` tables; committee
+> endpoints `GET/POST /:id/reviews`, `POST /:id/comments`,
+> `PATCH /:id/assign`, `PATCH /:id/review-method`; `CommitteePage` review-method
+> selector, assign-reviewers and section-comments panels. Ship date: this cycle
+> (PR #11).
+
 Endpoints: `POST /:id/reviews` (submit a review/vote/committee recommendation:
 Approved / Modifications Required / Tabled), `GET /:id/reviews` (history,
 assignments, comments), `POST /:id/comments` (inline/section-specific
@@ -344,9 +351,9 @@ Endpoints: `GET /api/facilities`, `POST /api/inspections`, `GET /api/inspections
 Independent of items 1–5 above; smallest-to-largest surface area:
 
 1. **D — Animal Census & Usage** (leverages existing `protocol_animal_use`,
-   self-contained ledger + tally, clear test story for overshoot).
-2. **A — Review workflow depth** (extends existing `committee.js`; plan item 4).
-3. **C — Personnel compliance** (two data tables + read-only verification).
+   self-contained ledger + tally, clear test story for overshoot). ✅ Shipped.
+2. **A — Review workflow depth** (extends existing `committee.js`; plan item 4). ✅ Shipped.
+3. **C — Personnel compliance** (two data tables + read-only verification). ← next
 4. **F — Facilities & inspections** (three standalone tables, no protocol deps).
 5. **E — PAM & incidents** (two tables + status/CAPA lifecycle).
 6. **B — Amendments & renewals** (largest; versioned documents + diffs;

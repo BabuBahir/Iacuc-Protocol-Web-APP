@@ -1,8 +1,25 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { LayoutGrid, Gavel, PawPrint, ThumbsUp, ThumbsDown, PauseCircle, PenLine, type LucideIcon } from "lucide-react";
+import {
+  LayoutGrid,
+  Gavel,
+  PawPrint,
+  ThumbsUp,
+  ThumbsDown,
+  PauseCircle,
+  PenLine,
+  UserRoundCheck,
+  MessageSquareText,
+  type LucideIcon,
+} from "lucide-react";
 import StatusBadge from "../components/StatusBadge";
 import { api } from "../api";
+import {
+  ASSIGNMENT_ROLES,
+  REVIEW_METHODS,
+  REVIEW_SECTIONS,
+  REVIEW_SECTION_LABELS,
+} from "../types";
 import type { CommitteeProtocol, Voter } from "../types";
 
 interface VoteOption {
@@ -46,6 +63,185 @@ function VoteBar({ counts, totalVotes }: { counts: Record<string, number>; total
   );
 }
 
+function AssignReviewers({
+  protocol,
+  voters,
+  onChanged,
+}: {
+  protocol: CommitteeProtocol;
+  voters: Voter[];
+  onChanged: () => void;
+}) {
+  const [personnelId, setPersonnelId] = useState<string>(String(voters[0]?.id ?? ""));
+  const [role, setRole] = useState<string>(ASSIGNMENT_ROLES[0]);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!personnelId && voters.length > 0) setPersonnelId(String(voters[0].id));
+  }, [voters]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!personnelId) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.assignReviewer(protocol.id, { personnel_id: Number(personnelId), role: role as never });
+      onChanged();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="px-4 py-3 border-b border-gray-100">
+      <div className="flex items-center gap-1.5 text-[12px] font-medium text-gray-700 mb-2">
+        <UserRoundCheck size={13} className="text-[#0176D3]" />
+        Reviewer assignments
+      </div>
+      {protocol.assignments.length === 0 && (
+        <div className="text-[12px] text-gray-400 mb-2">No reviewers assigned yet.</div>
+      )}
+      <ul className="space-y-1 mb-2">
+        {protocol.assignments.map((a, i) => (
+          <li key={i} className="text-[12px] text-gray-600">
+            <span className="font-medium text-gray-800">{a.reviewer_name}</span>
+            <span className="text-[#3B6D11] bg-[#EBF5E3] rounded px-1.5 py-0.5 ml-1.5 text-[11px]">
+              {a.role}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <form onSubmit={submit} className="flex flex-wrap items-center gap-2">
+        <select
+          value={personnelId}
+          onChange={e => setPersonnelId(e.target.value)}
+          aria-label="Assignee"
+          className="bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-[13px] outline-none focus:border-[#0176D3]"
+        >
+          {voters.map(v => <option key={v.id} value={v.id}>{v.name} — {v.role_name}</option>)}
+          {voters.length === 0 && <option value="">No committee-eligible personnel</option>}
+        </select>
+        <select
+          value={role}
+          onChange={e => setRole(e.target.value)}
+          aria-label="Assignment role"
+          className="bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-[13px] outline-none focus:border-[#0176D3]"
+        >
+          {ASSIGNMENT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <button
+          disabled={submitting || voters.length === 0}
+          className="px-3 py-1.5 rounded border border-[#0176D3] text-[#0176D3] text-[13px] font-medium hover:bg-[#EBF5FC] disabled:opacity-50"
+        >
+          {submitting ? "Assigning…" : "Assign"}
+        </button>
+        {error && <div className="text-[12px] text-red-600 w-full">{error}</div>}
+      </form>
+    </div>
+  );
+}
+
+function SectionComments({
+  protocol,
+  voters,
+  onChanged,
+}: {
+  protocol: CommitteeProtocol;
+  voters: Voter[];
+  onChanged: () => void;
+}) {
+  const [personnelId, setPersonnelId] = useState<string>(String(voters[0]?.id ?? ""));
+  const [section, setSection] = useState<string>(REVIEW_SECTIONS[0]);
+  const [comment, setComment] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!personnelId && voters.length > 0) setPersonnelId(String(voters[0].id));
+  }, [voters]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!personnelId) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.postComment(protocol.id, {
+        personnel_id: Number(personnelId),
+        section: section as never,
+        comment: comment.trim(),
+      });
+      setComment("");
+      onChanged();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="px-4 py-3 border-b border-gray-100">
+      <div className="flex items-center gap-1.5 text-[12px] font-medium text-gray-700 mb-2">
+        <MessageSquareText size={13} className="text-[#0176D3]" />
+        Section comments
+      </div>
+      {protocol.comments.length === 0 && (
+        <div className="text-[12px] text-gray-400 mb-2">No section comments yet.</div>
+      )}
+      <ul className="space-y-1.5 mb-2">
+        {protocol.comments.map(c => (
+          <li key={c.id} className="text-[12px] text-gray-600">
+            <span className="text-[#854F0B] bg-[#FBF0DF] rounded px-1.5 py-0.5 text-[11px] mr-1.5">
+              {REVIEW_SECTION_LABELS[c.section]}
+            </span>
+            <span className="font-medium text-gray-800">{c.commenter_name}:</span> {c.comment}
+          </li>
+        ))}
+      </ul>
+      <form onSubmit={submit} className="space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <select
+            value={personnelId}
+            onChange={e => setPersonnelId(e.target.value)}
+            aria-label="Commenter"
+            className="bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-[13px] outline-none focus:border-[#0176D3]"
+          >
+            {voters.map(v => <option key={v.id} value={v.id}>{v.name} — {v.role_name}</option>)}
+            {voters.length === 0 && <option value="">No committee-eligible personnel</option>}
+          </select>
+          <select
+            value={section}
+            onChange={e => setSection(e.target.value)}
+            aria-label="Comment section"
+            className="bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-[13px] outline-none focus:border-[#0176D3]"
+          >
+            {REVIEW_SECTIONS.map(s => <option key={s} value={s}>{REVIEW_SECTION_LABELS[s]}</option>)}
+          </select>
+        </div>
+        <textarea
+          value={comment}
+          onChange={e => setComment(e.target.value)}
+          placeholder="Add section feedback…"
+          rows={2}
+          className="w-full bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-[13px] outline-none focus:border-[#0176D3]"
+        />
+        {error && <div className="text-[12px] text-red-600">{error}</div>}
+        <button
+          disabled={submitting || voters.length === 0 || comment.trim() === ""}
+          className="px-3 py-1.5 rounded border border-[#854F0B] text-[#854F0B] text-[13px] font-medium hover:bg-[#FBF0DF] disabled:opacity-50"
+        >
+          {submitting ? "Posting…" : "Add comment"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 interface ProtocolVoteCardProps {
   protocol: CommitteeProtocol;
   voters: Voter[];
@@ -56,12 +252,23 @@ function ProtocolVoteCard({ protocol, voters, onVoted }: ProtocolVoteCardProps) 
   const [voterId, setVoterId] = useState<string>(String(voters[0]?.id ?? ""));
   const [vote, setVote] = useState("Approve");
   const [comment, setComment] = useState("");
+  const [method, setMethod] = useState<string>(protocol.review_method ?? "FCR");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!voterId && voters.length > 0) setVoterId(String(voters[0].id));
   }, [voters]);
+
+  const changeMethod = async (value: string) => {
+    setMethod(value);
+    try {
+      await api.setReviewMethod(protocol.id, value as never);
+      onVoted();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,14 +297,29 @@ function ProtocolVoteCard({ protocol, voters, onVoted }: ProtocolVoteCardProps) 
           <div className="text-gray-800 text-[13px] mt-0.5">{protocol.title}</div>
           <div className="text-gray-500 text-[12px] mt-0.5">{protocol.pi} · {protocol.species}</div>
         </div>
-        <StatusBadge status={protocol.status} />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={protocol.status} />
+          <select
+            value={method}
+            onChange={e => changeMethod(e.target.value)}
+            aria-label="Review method"
+            title="Review method: full committee (FCR) or designated member (DMR)"
+            className={`rounded px-2 py-1 text-[11px] font-medium outline-none focus:ring-1 focus:ring-[#0176D3] ${
+              method === "DMR"
+                ? "bg-[#EBF5FC] text-[#0176D3] border border-[#9BCDF5]"
+                : "bg-[#F3F4F6] text-gray-700 border border-gray-200"
+            }`}
+          >
+            {REVIEW_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
       </div>
 
       <div className="px-4 py-3 border-b border-gray-100">
         <VoteBar counts={protocol.counts} totalVotes={protocol.totalVotes} />
       </div>
 
-      <form onSubmit={submit} className="px-4 py-3 space-y-2">
+      <form onSubmit={submit} className="px-4 py-3 space-y-2 border-b border-gray-100">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <select
             value={voterId}
@@ -131,14 +353,19 @@ function ProtocolVoteCard({ protocol, voters, onVoted }: ProtocolVoteCardProps) 
       </form>
 
       {protocol.votes.length > 0 && (
-        <div className="border-t border-gray-100 divide-y divide-gray-100">
+        <div className="border-b border-gray-100 divide-y divide-gray-100">
           {protocol.votes.map((v, i) => (
-            <div key={i} className="px-4 py-2 text-[12px] text-gray-600 flex items-center justify-between">
-              <span><span className="font-medium text-gray-800">{v.voter_name}</span> ({v.role_name}) voted <span className="font-medium">{v.vote}</span>{v.comment ? ` — "${v.comment}"` : ""}</span>
+            <div key={i} className="px-4 py-2 text-[12px] text-gray-600">
+              <span className="font-medium text-gray-800">{v.voter_name}</span> ({v.role_name}) voted{" "}
+              <span className="font-medium">{v.vote}</span>
+              {v.comment ? ` — "${v.comment}"` : ""}
             </div>
           ))}
         </div>
       )}
+
+      <AssignReviewers protocol={protocol} voters={voters} onChanged={onVoted} />
+      <SectionComments protocol={protocol} voters={voters} onChanged={onVoted} />
     </div>
   );
 }
@@ -179,8 +406,9 @@ export default function CommitteePage() {
           <h1 className="text-xl font-semibold text-gray-900">Full Committee Review</h1>
         </div>
         <p className="text-[13px] text-gray-500 mt-1">
-          Protocols currently in Veterinary or IACUC Review. Committee-eligible personnel can
-          cast an FCR vote below — votes cast by the same person again will update, not duplicate.
+          Protocols currently in Veterinary or IACUC Review. Pick the review method (full committee
+          FCR or designated member DMR), assign reviewers, leave section-specific comments, and cast
+          a vote — votes cast by the same person again will update, not duplicate.
         </p>
       </div>
 

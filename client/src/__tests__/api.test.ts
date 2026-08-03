@@ -93,6 +93,52 @@ describe("api.ts request wrapper", () => {
     );
   });
 
+  test("review workflow endpoints hit the correct committee paths", async () => {
+    mockFetchOnce(200, { protocol: { id: "P-1" }, assignments: [], comments: [] });
+    await api.getReviews("P-1");
+    expect(fetch).toHaveBeenCalledWith("/api/committee/protocols/P-1/reviews", expect.anything());
+
+    mockFetchOnce(201, { protocol: { id: "P-1" }, totalVotes: 1 });
+    await api.postReview("P-1", { personnel_id: 5, vote: "Approve", comment: "ok" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/committee/protocols/P-1/reviews",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ personnel_id: 5, vote: "Approve", comment: "ok" }),
+      })
+    );
+
+    mockFetchOnce(201, { id: 7, section: "procedures", comment: "Add details" });
+    await api.postComment("P-1", { personnel_id: 5, section: "procedures", comment: "Add details" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/committee/protocols/P-1/comments",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ personnel_id: 5, section: "procedures", comment: "Add details" }),
+      })
+    );
+
+    mockFetchOnce(200, { personnel_id: 5, role: "Primary Reviewer" });
+    await api.assignReviewer("P-1", { personnel_id: 5, role: "Primary Reviewer" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/committee/protocols/P-1/assign",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ personnel_id: 5, role: "Primary Reviewer" }),
+      })
+    );
+
+    mockFetchOnce(200, { id: "P-1", review_method: "DMR" });
+    await api.setReviewMethod("P-1", "DMR");
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/committee/protocols/P-1/review-method",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ review_method: "DMR" }),
+      })
+    );
+  });
+
   test("Appendix A endpoints hit the correct nested protocol paths", async () => {
     mockFetchOnce(200, []);
     await api.listProcedures("P-1");

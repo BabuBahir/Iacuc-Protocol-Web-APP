@@ -211,3 +211,217 @@ describe("POST /api/committee/protocols/:id/votes", () => {
     }
   );
 });
+
+describe("review workflow depth (Domain A)", () => {
+  beforeEach(() => resetTables(db));
+
+  test("GET /protocols includes review_method, assignments, and comments per protocol", async () => {
+    insertProtocol();
+    const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
+    const commenterId = await insertPersonnel("Dr. Comment", "Committee Member", true);
+
+    await request(app)
+      .patch("/api/committee/protocols/TEST-0001/review-method")
+      .send({ review_method: "DMR" });
+    await request(app)
+      .patch("/api/committee/protocols/TEST-0001/assign")
+      .send({ personnel_id: reviewerId, role: "Designated Member" });
+    await request(app)
+      .post("/api/committee/protocols/TEST-0001/comments")
+      .send({ personnel_id: commenterId, section: "procedures", comment: "Add a scoring rubric." });
+
+    const res = await request(app).get("/api/committee/protocols");
+    assert.equal(res.body[0].review_method, "DMR");
+    assert.equal(res.body[0].assignments.length, 1);
+    assert.equal(res.body[0].assignments[0].reviewer_name, "Dr. Review");
+    assert.equal(res.body[0].comments.length, 1);
+    assert.equal(res.body[0].comments[0].section, "procedures");
+  });
+
+  test("PATCH review-method sets FCR or DMR on the protocol", async () => {
+    insertProtocol();
+    const res = await request(app)
+      .patch("/api/committee/protocols/TEST-0001/review-method")
+      .send({ review_method: "DMR" });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.review_method, "DMR");
+
+    const list = await request(app).get("/api/committee/protocols");
+    assert.equal(list.body[0].review_method, "DMR");
+  });
+
+  test("PATCH review-method rejects unknown methods and unknown protocols", async () => {
+    insertProtocol();
+    const bad = await request(app)
+      .patch("/api/committee/protocols/TEST-0001/review-method")
+      .send({ review_method: "EMAIL" });
+    assert.equal(bad.status, 400);
+
+    const missing = await request(app)
+      .patch("/api/committee/protocols/TEST-0001/review-method")
+      .send({});
+    assert.equal(missing.status, 400);
+
+    const nope = await request(app)
+      .patch("/api/committee/protocols/NOPE/review-method")
+      .send({ review_method: "FCR" });
+    assert.equal(nope.status, 404);
+  });
+
+  test("PATCH assign creates a reviewer assignment and upserts instead of duplicating", async () => {
+    insertProtocol();
+    const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
+
+    const first = await request(app)
+      .patch("/api/committee/protocols/TEST-0001/assign")
+      .send({ personnel_id: reviewerId, role: "Primary Reviewer" });
+    assert.equal(first.status, 200);
+    assert.equal(first.body.role, "Primary Reviewer");
+
+    // Same reviewer reassigned: role changes, no duplicate row.
+    const second = await request(app)
+      .patch("/api/committee/protocols/TEST-0001/assign")
+      .send({ personnel_id: reviewerId, role: "Designated Member" });
+    assert.equal(second.body.role, "Designated Member");
+
+    const count = db.prepare("SELECT COUNT(*) AS c FROM protocol_review_assignments").get();
+    assert.equal(count.c, 1);
+  });
+
+  test("PATCH assign validates role, personnel, and protocol", async () => {
+    insertProtocol();
+    const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
+
+    let res = await request(app)
+      .patch("/api/committee/protocols/TEST-0001/assign")
+      .send({ role: "Primary Reviewer" }); // missing personnel_id
+    assert.equal(res.status, 400);
+
+    res = await request(app)
+      .patch("/api/committee/protocols/TEST-0001/assign")
+      .send({ personnel_id: reviewerId }); // missing role
+    assert.equal(res.status, 400);
+
+    res = await request(app)
+      .patch("/api/committee/protocols/TEST-0001/assign")
+      .send({ personnel_id: reviewerId, role: "Villain" });
+    assert.equal(res.status, 400);
+
+    res = await request(app)
+      .patch("/api/committee/protocols/TEST-0001/assign")
+      .send({ personnel_id: 99999, role: "Primary Reviewer" });
+    assert.equal(res.status, 400);
+
+    res = await request(app)
+      .patch("/api/committee/protocols/NOPE/assign")
+      .send({ personnel_id: reviewerId, role: "Primary Reviewer" });
+    assert.equal(res.status, 404);
+  });
+
+  test("POST comments adds a section-specific comment", async () => {
+    insertProtocol();
+    const commenterId = await insertPersonnel("Dr. Comment", "Committee Member", true);
+
+    const res = await request(app)
+      .post("/api/committee/protocols/TEST-0001/comments")
+      .send({ personnel_id: commenterId, section: "alternatives", comment: "  Use a second database.  " });
+    assert.equal(res.status, 201);
+    assert.equal(res.body.section, "alternatives");
+    assert.equal(res.body.comment, "Use a second database.");
+    assert.equal(res.body.commenter_name, "Dr. Comment");
+  });
+
+  test("POST comments validates section, comment text, personnel, and protocol", async () => {
+    insertProtocol();
+    const commenterId = await insertPersonnel("Dr. Comment", "Committee Member", true);
+
+    let res = await request(app)
+      .post("/api/committee/protocols/TEST-0001/comments")
+      .send({ personnel_id: commenterId, section: "nonsense", comment: "hi" });
+    assert.equal(res.status, 400);
+
+    res = await request(app)
+      .post("/api/committee/protocols/TEST-0001/comments")
+      .send({ personnel_id: commenterId, section: "overall", comment: "   " });
+    assert.equal(res.status, 400);
+
+    res = await request(app)
+      .post("/api/committee/protocols/TEST-0001/comments")
+      .send({ personnel_id: 99999, section: "overall", comment: "hi" });
+    assert.equal(res.status, 400);
+
+    res = await request(app)
+      .post("/api/committee/protocols/NOPE/comments")
+      .send({ personnel_id: commenterId, section: "overall", comment: "hi" });
+    assert.equal(res.status, 404);
+  });
+
+  test("GET reviews returns the full review history", async () => {
+    insertProtocol();
+    const voterId = await insertPersonnel("Dr. Voter", "Committee Member", true);
+    const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
+
+    await request(app)
+      .post("/api/committee/protocols/TEST-0001/votes")
+      .send({ personnel_id: voterId, vote: "Approve", comment: "ok" });
+    await request(app)
+      .patch("/api/committee/protocols/TEST-0001/assign")
+      .send({ personnel_id: reviewerId, role: "Primary Reviewer" });
+    await request(app)
+      .post("/api/committee/protocols/TEST-0001/comments")
+      .send({ personnel_id: voterId, section: "overall", comment: "Solid plan." });
+
+    const res = await request(app).get("/api/committee/protocols/TEST-0001/reviews");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.protocol.id, "TEST-0001");
+    assert.equal(res.body.totalVotes, 1);
+    assert.equal(res.body.votes[0].vote, "Approve");
+    assert.equal(res.body.assignments.length, 1);
+    assert.equal(res.body.comments.length, 1);
+
+    const nope = await request(app).get("/api/committee/protocols/NOPE/reviews");
+    assert.equal(nope.status, 404);
+  });
+
+  test("POST reviews casts a vote and returns the full history", async () => {
+    insertProtocol();
+    const voterId = await insertPersonnel("Dr. Voter", "Committee Member", true);
+
+    const res = await request(app)
+      .post("/api/committee/protocols/TEST-0001/reviews")
+      .send({ personnel_id: voterId, vote: "Request Modifications", comment: "Needs work" });
+
+    assert.equal(res.status, 201);
+    assert.equal(res.body.totalVotes, 1);
+    assert.equal(res.body.protocol.id, "TEST-0001");
+    assert.ok(Array.isArray(res.body.assignments));
+    assert.ok(Array.isArray(res.body.comments));
+  });
+
+  test("POST reviews rejects a non-committee reviewer with 403", async () => {
+    insertProtocol();
+    const piId = await insertPersonnel("Dr. PI", "Principal Investigator", false);
+
+    const res = await request(app)
+      .post("/api/committee/protocols/TEST-0001/reviews")
+      .send({ personnel_id: piId, vote: "Approve" });
+    assert.equal(res.status, 403);
+  });
+
+  test("deleting a protocol cascades its assignments and comments", async () => {
+    insertProtocol();
+    const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
+
+    await request(app)
+      .patch("/api/committee/protocols/TEST-0001/assign")
+      .send({ personnel_id: reviewerId, role: "Primary Reviewer" });
+    await request(app)
+      .post("/api/committee/protocols/TEST-0001/comments")
+      .send({ personnel_id: reviewerId, section: "overall", comment: "Great." });
+
+    db.prepare("DELETE FROM protocols WHERE id = ?").run("TEST-0001");
+
+    assert.equal(db.prepare("SELECT COUNT(*) AS c FROM protocol_review_assignments").get().c, 0);
+    assert.equal(db.prepare("SELECT COUNT(*) AS c FROM protocol_review_comments").get().c, 0);
+  });
+});

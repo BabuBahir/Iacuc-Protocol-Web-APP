@@ -238,11 +238,12 @@ npm run test:server   # node:test + supertest, coverage via --experimental-test-
 npm run test:client   # vitest + React Testing Library, coverage via v8
 ```
 
-**Backend: 125 tests, 99.42% lines / 92.76% branches / 94.79% functions**
+**Backend: 136 tests, 99.49% lines / 93.08% branches / 95.19% functions**
 (measured on `server/src/`, excluding `test/`). Every route file — protocols,
 protocol-form, animal-usage, admin, committee — has both happy-path and edge-case
 coverage (FK constraint violations, permission checks, duplicate-key conflicts,
-404s). The one meaningful gap is a database-transaction-rollback error path
+404s). `committee.js` is at 100% lines. The one meaningful gap is a
+database-transaction-rollback error path
 (`protocol-form.js` lines 109–112) that's legitimately hard to trigger without
 mocking the DB layer — left uncovered rather than writing a contrived test
 for it.
@@ -259,14 +260,14 @@ Two real bugs were caught by writing these tests, not found any other way:
    test environment. Fixed to `useEffect(() => { load(); }, [])` in all
    three places.
 
-**Frontend: 102 tests, 99.49% lines / 91.47% branches** (see
+**Frontend: 112 tests, 98.74% lines / 87.05% branches** (see
 `vite.config.js`'s `test.coverage.exclude` for what's excluded — currently
 just `src/main.tsx` and config files, not test files themselves). Every page —
 List, Detail, Admin, Committee, Create, Application — plus `StatusBadge`,
 `api.ts`, `ProtocolForm`, and `App.tsx` routing is covered. `npm run typecheck`
 (`tsc --noEmit`) is the gate after any client change.
 
-**E2E: 24 Playwright tests, all passing** (`npm run test:e2e` from the
+**E2E: 27 Playwright tests, all passing** (`npm run test:e2e` from the
 repo root). Infra lives in `e2e/`: `playwright.config.mjs`, specs in
 `e2e/tests/`, plus a dedicated API server (`e2e/seed-and-server.mjs`) on
 port 4100 that seeds a throwaway `e2e/e2e.db` and a Vite dev server
@@ -317,7 +318,17 @@ from building it:
   dates earlier than 2026-06-30 and don't seed votes for 0142. Don't add
   committee-eligible personnel (is_committee = 1) casually — the committee
   vote-casting test selects voters by index and assumes the sorted voter
-  list.
+  list (six voters: Dr. Amara Osei, Dr. Harold Kim, Dr. Marcus Chen,
+  Dr. Priya Nair, Dr. Sofia Ramos, Jordan Blake).
+- The review-workflow seed (Domain A) sets `review_method` on the three
+  review protocols — 0142 = `DMR`, 0150/0147 = `FCR` — plus 5 reviewer
+  assignments (0142: Dr. Sofia Ramos as Designated Member; 0150: Dr. Harold
+  Kim Primary + Dr. Priya Nair Secondary; 0147: Dr. Marcus Chen Primary +
+  Jordan Blake Secondary) and 6 section comments. 0142 is DMR but stays
+  vote-free, and the committee spec's combobox indices assume a fixed card
+  order: **review method, voter picker, vote, assignee, role, commenter,
+  section** — the vote-casting test uses `nth(1)` (voter) and `nth(2)`
+  (vote). If you add more selects to the card, update those indices.
 - The animal usage register seeds 5 ledger transactions across three
   protocols: 0142 (order 60 / use 55 of a 240 Mouse allowance — the
   "Within allowance" fixture), 0158 (order 100 of an 800 Zebrafish
@@ -325,14 +336,16 @@ from building it:
   "Over allowance" fixture, remaining clamped to 0). Keep 0021 over its
   allowance and 0142/0158 under theirs; the register e2e and css specs
   depend on both states.
-- `e2e/tests/css.spec.js` (5 tests) guards against the CSS bundle going
+- `e2e/tests/css.spec.js` (6 tests) guards against the CSS bundle going
   empty/regressing: it asserts computed styles for the dark header bar
   (`#032D60` bg + white text on dashboard/committee/admin), the primary
   button (`#0176D3`), the detail-page breadcrumb (white bg + gray border),
   and sums all injected `<style>` rules to prove the Tailwind CSS is
   non-empty. The fifth test asserts the register's within-/over-allowance
   badge colors (`text-emerald-700`/`bg-emerald-50` vs
-  `text-red-700`/`bg-red-50`) on 0142 and 0021. Vite dev injects CSS as
+  `text-red-700`/`bg-red-50`) on 0142 and 0021; the sixth asserts the
+  review-method badge colors on the committee page (`#EBF5FC` DMR vs
+  `#F3F4F6` FCR) on 0142 and 0150. Vite dev injects CSS as
   `<style>` tags, so don't switch these
   checks to `<link>` stylesheets — there are none in dev mode. Note there
   is **no footer** anywhere in the app, so the "footer" check doesn't
@@ -407,7 +420,7 @@ submitted/expires dates on). Keep using this component for any future
 protocol form rather than duplicating fields. Also implemented: dashboard
 metrics, admin lookup lists (species/roles/personnel), FCR committee voting
 with live tallies (including vote comments, returned by the tally endpoints),
-and a 17-test Playwright e2e suite covering dashboard/detail/committee/admin/css.
+and a Playwright e2e suite covering dashboard/detail/committee/admin/css.
 
 **Appendix A application page** (`client/src/pages/ApplicationPage.tsx`, route
 `/protocols/:id/application`, reachable via the detail page's "Edit
@@ -495,6 +508,29 @@ client previously only had `SURGERY_PROCEDURE_KEYS`). Seeded ledger fixtures:
 0142 under (order 60 / use 55 of 240), 0158 under (order 100 of 800), 0021
 over its Rabbit allowance (order 30 / use 40 of 60) — the css.spec and
 detail.spec e2e tests depend on both states.
+
+**Review workflow depth (plan item A):** the committee page now carries the
+full review workflow, not just FCR vote tallies. Schema: `protocols.review_method`
+(`FCR` full committee | `DMR` designated member, added via the `PRAGMA
+table_info` migration guard), plus `protocol_review_assignments`
+(protocol_id, personnel_id, role ∈ Primary/Secondary Reviewer/Designated
+Member, UNIQUE(protocol_id, personnel_id)) and `protocol_review_comments`
+(protocol_id, personnel_id, section ∈ overall/summaries/procedures/drugs/
+animal_use/experiments/alternatives, comment). Server (`committee.js`):
+`assignmentsFor`/`commentsFor` helpers, vote logic refactored into a shared
+`castVote()` used by both the `/votes` and `/reviews` POST handlers, the
+list and votes GETs now include `assignments` + `comments`, and four new
+endpoints — `GET/POST /:id/reviews` (full history; the POST returns it so the
+UI refreshes in one call), `POST /:id/comments` (validates section enum +
+non-blank comment), `PATCH /:id/assign` (upserts on protocol+personnel),
+`PATCH /:id/review-method` (validates against `REVIEW_METHODS`). Client:
+`CommitteeProtocol` gained `review_method`/`assignments`/`comments`, new
+api.ts wrappers, and the protocol card on `CommitteePage.tsx` gained a
+review-method selector (colored DMR/FCR badge), an assign-reviewers section,
+and a section-comments section. Seed: 0142 = DMR (stays vote-free for e2e),
+0150/0147 = FCR, 5 assignments, 6 comments. Server `committee.js` is at 100%
+lines; the e2e committee spec covers the DMR badge + seeded assignment/comment
+read, assigning + commenting writes, and the method switch.
 
 Not implemented (see §1 above for the domain detail on each): conditional/
 dynamic Table of Contents, Continuing Review vs. De Novo Review as

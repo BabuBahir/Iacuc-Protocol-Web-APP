@@ -94,6 +94,29 @@ CREATE TABLE IF NOT EXISTS protocol_votes (
   voted_at     TEXT DEFAULT (datetime('now')),
   UNIQUE(protocol_id, personnel_id) -- one vote per person per protocol; re-voting updates it
 );
+
+-- Reviewer assignments: who is assigned to review a protocol (a designated
+-- member for DMR, or primary/secondary reviewers for FCR). Distinct from
+-- votes — an assigned reviewer may or may not have voted yet.
+CREATE TABLE IF NOT EXISTS protocol_review_assignments (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  protocol_id  TEXT NOT NULL REFERENCES protocols(id) ON DELETE CASCADE,
+  personnel_id INTEGER NOT NULL REFERENCES personnel(id) ON DELETE CASCADE,
+  role         TEXT NOT NULL, -- 'Primary Reviewer' | 'Secondary Reviewer' | 'Designated Member'
+  assigned_at  TEXT DEFAULT (datetime('now')),
+  UNIQUE(protocol_id, personnel_id)
+);
+
+-- Section-specific review comments (inline feedback on a protocol section,
+-- distinct from the single free-text comment attached to a vote).
+CREATE TABLE IF NOT EXISTS protocol_review_comments (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  protocol_id  TEXT NOT NULL REFERENCES protocols(id) ON DELETE CASCADE,
+  personnel_id INTEGER NOT NULL REFERENCES personnel(id) ON DELETE CASCADE,
+  section      TEXT NOT NULL, -- 'overall' | 'summaries' | 'procedures' | 'drugs' | 'animal_use' | 'experiments' | 'alternatives'
+  comment      TEXT NOT NULL,
+  created_at   TEXT DEFAULT (datetime('now'))
+);
 -- ---- protocol application content (mirrors Appendix A research form) ----
 
 -- Procedures checklist: each protocol gets one row per PROCEDURE_KEYS entry
@@ -206,6 +229,7 @@ for (const [col, type] of [
   ["disposal", "TEXT"],
   ["npg", "TEXT"],
   ["research_steps", "TEXT"],
+  ["review_method", "TEXT"], // 'FCR' (full committee) | 'DMR' (designated member)
 ]) {
   if (!protocolColumns.has(col)) {
     db.exec(`ALTER TABLE protocols ADD COLUMN ${col} ${type}`);
