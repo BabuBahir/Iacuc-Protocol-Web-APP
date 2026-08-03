@@ -2,10 +2,11 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import AdminPage from "../AdminPage.jsx";
-import { api } from "../../api.js";
+import AdminPage from "../AdminPage";
+import { api as realApi } from "../../api";
+import type { Personnel } from "../../types";
 
-vi.mock("../../api.js", () => ({
+vi.mock("../../api", () => ({
   api: {
     listSpecies: vi.fn(),
     createSpecies: vi.fn(),
@@ -18,6 +19,8 @@ vi.mock("../../api.js", () => ({
     deletePersonnel: vi.fn(),
   },
 }));
+
+const api = vi.mocked(realApi);
 
 function renderAdminPage() {
   return render(
@@ -102,7 +105,7 @@ describe("AdminPage — species panel", () => {
     await waitFor(() => expect(screen.getByText("Mouse")).toBeInTheDocument());
 
     const row = screen.getByText("Mouse").closest(".px-4");
-    await user.click(within(row).getByRole("button"));
+    await user.click(within(row as HTMLElement).getByRole("button"));
 
     await waitFor(() => {
       expect(screen.getByText("Species in use.")).toBeInTheDocument();
@@ -129,7 +132,7 @@ describe("AdminPage — roles panel", () => {
     // specifically via its distinguishing class rather than the ambiguous text.
     const badge = document.querySelector("span.rounded-full");
     expect(badge).toBeTruthy();
-    expect(badge.textContent).toBe("Committee");
+    expect(badge!.textContent).toBe("Committee");
   });
 });
 
@@ -208,7 +211,7 @@ describe("AdminPage — roles panel actions", () => {
     // "IACUC Chair" appears both in the roles list and the personnel role
     // dropdown; the roles-list row is the first match in DOM order.
     const row = screen.getAllByText("IACUC Chair")[0].closest(".px-4");
-    await user.click(within(row).getByRole("button"));
+    await user.click(within(row as HTMLElement).getByRole("button"));
 
     await waitFor(() => {
       expect(api.deleteRole).toHaveBeenCalledWith(2);
@@ -228,7 +231,7 @@ describe("AdminPage — roles panel actions", () => {
     });
 
     const row = screen.getAllByText("IACUC Chair")[0].closest(".px-4");
-    await user.click(within(row).getByRole("button"));
+    await user.click(within(row as HTMLElement).getByRole("button"));
 
     await waitFor(() => {
       expect(screen.getByText(/still assigned to personnel/)).toBeInTheDocument();
@@ -242,8 +245,8 @@ describe("AdminPage — personnel panel actions", () => {
       { id: 1, name: "IACUC Chair", is_committee: 1 },
     ]);
     api.listPersonnel.mockResolvedValue([
-      { id: 1, name: "Dr. Harold Kim", email: "h.kim@university.edu", role_name: "IACUC Chair", is_committee: 1 },
-      { id: 2, name: "Sam Whitfield", email: null, role_name: "Lab Technician", is_committee: 0 },
+      { id: 1, name: "Dr. Harold Kim", email: "h.kim@university.edu", role_id: 1, role_name: "IACUC Chair", is_committee: 1 },
+      { id: 2, name: "Sam Whitfield", email: null, role_id: 2, role_name: "Lab Technician", is_committee: 0 },
     ]);
 
     renderAdminPage();
@@ -258,7 +261,7 @@ describe("AdminPage — personnel panel actions", () => {
 
   test("adding personnel calls the API with the selected role and refreshes", async () => {
     const user = userEvent.setup();
-    api.createPersonnel.mockResolvedValue({});
+    api.createPersonnel.mockResolvedValue({} as Personnel);
 
     renderAdminPage();
     await waitFor(() => {
@@ -270,7 +273,7 @@ describe("AdminPage — personnel panel actions", () => {
     await user.type(screen.getByPlaceholderText("Email (optional)"), "p.nair@university.edu");
 
     const form = nameInput.closest("form");
-    await user.click(within(form).getByRole("button"));
+    await user.click(within(form as HTMLElement).getByRole("button"));
 
     await waitFor(() => {
       expect(api.createPersonnel).toHaveBeenCalledWith({
@@ -283,7 +286,7 @@ describe("AdminPage — personnel panel actions", () => {
 
   test("sends null email when the email field is blank", async () => {
     const user = userEvent.setup();
-    api.createPersonnel.mockResolvedValue({});
+    api.createPersonnel.mockResolvedValue({} as Personnel);
 
     renderAdminPage();
     await waitFor(() => {
@@ -293,7 +296,7 @@ describe("AdminPage — personnel panel actions", () => {
     const nameInput = screen.getByPlaceholderText("Full name");
     await user.type(nameInput, "Sam Whitfield");
     const form = nameInput.closest("form");
-    await user.click(within(form).getByRole("button"));
+    await user.click(within(form as HTMLElement).getByRole("button"));
 
     await waitFor(() => {
       expect(api.createPersonnel).toHaveBeenCalledWith({
@@ -316,7 +319,7 @@ describe("AdminPage — personnel panel actions", () => {
     const nameInput = screen.getByPlaceholderText("Full name");
     await user.type(nameInput, "Dr. Priya Nair");
     const form = nameInput.closest("form");
-    await user.click(within(form).getByRole("button"));
+    await user.click(within(form as HTMLElement).getByRole("button"));
 
     await waitFor(() => {
       expect(screen.getByText("Unknown role_id")).toBeInTheDocument();
@@ -326,7 +329,7 @@ describe("AdminPage — personnel panel actions", () => {
   test("deleting personnel calls the API and refreshes", async () => {
     const user = userEvent.setup();
     api.listPersonnel.mockResolvedValue([
-      { id: 5, name: "Sam Whitfield", email: null, role_name: "Lab Technician", is_committee: 0 },
+      { id: 5, name: "Sam Whitfield", email: null, role_id: 5, role_name: "Lab Technician", is_committee: 0 },
     ]);
     api.deletePersonnel.mockResolvedValue(null);
 
@@ -334,7 +337,7 @@ describe("AdminPage — personnel panel actions", () => {
     await waitFor(() => expect(screen.getByText("Sam Whitfield")).toBeInTheDocument());
 
     const row = screen.getByText("Sam Whitfield").closest(".px-4");
-    await user.click(within(row).getByRole("button"));
+    await user.click(within(row as HTMLElement).getByRole("button"));
 
     await waitFor(() => {
       expect(api.deletePersonnel).toHaveBeenCalledWith(5);
@@ -344,7 +347,7 @@ describe("AdminPage — personnel panel actions", () => {
   test("shows an error message if deleting personnel fails", async () => {
     const user = userEvent.setup();
     api.listPersonnel.mockResolvedValue([
-      { id: 5, name: "Sam Whitfield", email: null, role_name: "Lab Technician", is_committee: 0 },
+      { id: 5, name: "Sam Whitfield", email: null, role_id: 5, role_name: "Lab Technician", is_committee: 0 },
     ]);
     api.deletePersonnel.mockRejectedValue(new Error("Personnel has votes."));
 
@@ -352,7 +355,7 @@ describe("AdminPage — personnel panel actions", () => {
     await waitFor(() => expect(screen.getByText("Sam Whitfield")).toBeInTheDocument());
 
     const row = screen.getByText("Sam Whitfield").closest(".px-4");
-    await user.click(within(row).getByRole("button"));
+    await user.click(within(row as HTMLElement).getByRole("button"));
 
     await waitFor(() => {
       expect(screen.getByText("Personnel has votes.")).toBeInTheDocument();

@@ -2,7 +2,7 @@ import "dotenv/config";
 import { db } from "./db.js";
 
 const protocols = [
-  { id: "IACUC-2026-0142", title: "Neurobehavioral Effects of Chronic Stress in C57BL/6 Mice", pi: "Dr. Elena Marsh", species: "Mouse", status: "IACUC Review", animals: 240, pain_category: "Category D", submitted: "2026-06-30", expires: null },
+  { id: "IACUC-2026-0142", title: "Neurobehavioral Effects of Chronic Stress in C57BL/6 Mice", pi: "Dr. Elena Marsh", species: "Mouse", status: "IACUC Review", animals: 240, pain_category: "Category D", submitted: "2026-06-30", expires: null, pi_proxy: "Sam Whitfield", ptm_member: "Dr. Priya Nair", protocol_type: "Research", anesthesia_required: 1, housing: "Group-housed 5/cage in ventilated cages on a 12:12 light cycle.", disposal: "Carbon dioxide euthanasia; carcasses incinerated per SOP.", npg: "None", research_steps: ["Habituate mice to handling for 7 days.", "Deliver corticosterone in drinking water for 21 days with daily restraint sessions.", "Collect brains and adrenals after euthanasia for histology and qPCR."] },
   { id: "IACUC-2026-0139", title: "Cardiac Regeneration Following Induced Myocardial Infarction", pi: "Dr. Raj Patel", species: "Rat", status: "Approved", animals: 80, pain_category: "Category C", submitted: "2026-06-12", expires: "2029-06-12" },
   { id: "IACUC-2025-0098", title: "Vaccine Efficacy Trial for Avian Influenza Strains", pi: "Dr. Wen Liu", species: "Chicken", status: "Active", animals: 150, pain_category: "Category B", submitted: "2025-01-08", expires: "2026-08-04" },
   { id: "IACUC-2025-0091", title: "Longitudinal Study of Diet-Induced Obesity in Zebrafish", pi: "Dr. Sofia Ramos", species: "Zebrafish", status: "Expiring soon", animals: 500, pain_category: "Category B", submitted: "2025-02-02", expires: "2026-09-01" },
@@ -12,7 +12,7 @@ const protocols = [
   { id: "IACUC-2026-0147", title: "Adoptive Cell Therapy Against Murine Melanoma", pi: "Dr. Harold Kim", species: "Mouse", status: "Veterinary Review", animals: 200, pain_category: "Category D", submitted: "2026-06-01", expires: null },
   { id: "IACUC-2025-0102", title: "Environmental Enrichment and Social Behavior in Domestic Pigs", pi: "Dr. Marcus Chen", species: "Pig", status: "Active", animals: 36, pain_category: "Category C", submitted: "2025-03-15", expires: "2028-03-15" },
   { id: "IACUC-2026-0155", title: "Corneal Transplantation Techniques in Rabbits", pi: "Dr. Wen Liu", species: "Rabbit", status: "Submitted", animals: 60, pain_category: "Category C", submitted: "2026-07-20", expires: null },
-  { id: "IACUC-2026-0158", title: "Genetic Basis of Spontaneous Seizures in Zebrafish", pi: "Dr. Amara Osei", species: "Zebrafish", status: "Draft", animals: 800, pain_category: "Category B", submitted: null, expires: null },
+  { id: "IACUC-2026-0158", title: "Genetic Basis of Spontaneous Seizures in Zebrafish", pi: "Dr. Amara Osei", species: "Zebrafish", status: "Draft", animals: 800, pain_category: "Category B", submitted: null, expires: null, protocol_type: "Breeding", anesthesia_required: 0, housing: "Recirculating aquatic system, 28°C, density ≤5 fish/L.", disposal: "Tricaine overdose followed by incineration.", npg: "None", research_steps: ["Maintain mutant and wild-type lines.", "Score seizure behavior from video recordings.", "Genotype offspring via fin-clip PCR."] },
   { id: "IACUC-2024-0023", title: "Toxicological Screening of Novel Compounds in Sprague-Dawley Rats", pi: "Dr. Raj Patel", species: "Rat", status: "Active", animals: 150, pain_category: "Category E", submitted: "2024-09-10", expires: "2027-09-10" },
 ];
 
@@ -393,8 +393,14 @@ const votesSeed = [
 ];
 
 const insertProtocol = db.prepare(`
-  INSERT INTO protocols (id, title, pi, species, status, animals, pain_category, submitted, expires)
-  VALUES (@id, @title, @pi, @species, @status, @animals, @pain_category, @submitted, @expires)
+  INSERT INTO protocols (
+    id, title, pi, species, status, animals, pain_category, submitted, expires,
+    pi_proxy, ptm_member, protocol_type, anesthesia_required, housing, disposal, npg, research_steps
+  )
+  VALUES (
+    @id, @title, @pi, @species, @status, @animals, @pain_category, @submitted, @expires,
+    @pi_proxy, @ptm_member, @protocol_type, @anesthesia_required, @housing, @disposal, @npg, @research_steps
+  )
 `);
 
 const insertRelated = db.prepare(`
@@ -442,7 +448,27 @@ try {
   db.exec("DELETE FROM personnel; DELETE FROM roles; DELETE FROM species;");
   db.exec("DELETE FROM related_items; DELETE FROM protocols;");
 
-  for (const p of protocols) insertProtocol.run(p);
+  for (const p of protocols) {
+    insertProtocol.run({
+      id: p.id,
+      title: p.title,
+      pi: p.pi,
+      species: p.species ?? null,
+      status: p.status ?? "Draft",
+      animals: p.animals ?? null,
+      pain_category: p.pain_category ?? null,
+      submitted: p.submitted ?? null,
+      expires: p.expires ?? null,
+      pi_proxy: p.pi_proxy ?? null,
+      ptm_member: p.ptm_member ?? null,
+      protocol_type: p.protocol_type ?? null,
+      anesthesia_required: p.anesthesia_required ?? 0,
+      housing: p.housing ?? null,
+      disposal: p.disposal ?? null,
+      npg: p.npg ?? null,
+      research_steps: p.research_steps ? JSON.stringify(p.research_steps) : null,
+    });
+  }
   for (const r of relatedItems) insertRelated.run(r.protocol_id, r.list_name, r.label);
   for (const s of species) insertSpecies.run(s);
   for (const r of roles) insertRole.run(r.name, r.is_committee ? 1 : 0);

@@ -155,6 +155,14 @@ for (const [col, type] of [
   ["purpose_summary", "TEXT"],
   ["harm_benefit_analysis", "TEXT"],
   ["scientific_summary", "TEXT"],
+  ["pi_proxy", "TEXT"],
+  ["ptm_member", "TEXT"],
+  ["protocol_type", "TEXT"],
+  ["anesthesia_required", "INTEGER"],
+  ["housing", "TEXT"],
+  ["disposal", "TEXT"],
+  ["npg", "TEXT"],
+  ["research_steps", "TEXT"],
 ]) {
   if (!protocolColumns.has(col)) {
     db.exec(`ALTER TABLE protocols ADD COLUMN ${col} ${type}`);

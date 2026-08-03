@@ -2,10 +2,11 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router-dom";
-import ListPage from "../ListPage.jsx";
-import { api } from "../../api.js";
+import ListPage from "../ListPage";
+import { api as realApi } from "../../api";
+import type { Protocol, Summary } from "../../types";
 
-vi.mock("../../api.js", () => ({
+vi.mock("../../api", () => ({
   api: {
     listProtocols: vi.fn(),
     getSummary: vi.fn(),
@@ -14,8 +15,10 @@ vi.mock("../../api.js", () => ({
 
 vi.mock("react-router-dom", async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, useNavigate: vi.fn() };
+  return { ...(actual as object), useNavigate: vi.fn() };
 });
+
+const api = vi.mocked(realApi);
 
 function renderListPage() {
   return render(
@@ -25,12 +28,54 @@ function renderListPage() {
   );
 }
 
-const SAMPLE_PROTOCOLS = [
-  { id: "IACUC-2026-0001", title: "Test protocol one", pi: "Dr. One", species: "Mouse", status: "Active" },
-  { id: "IACUC-2026-0002", title: "Test protocol two", pi: "Dr. Two", species: "Rat", status: "Draft" },
+const SAMPLE_PROTOCOLS: Protocol[] = [
+  {
+    id: "IACUC-2026-0001",
+    title: "Test protocol one",
+    pi: "Dr. One",
+    pi_proxy: null,
+    ptm_member: null,
+    protocol_type: null,
+    species: "Mouse",
+    status: "Active",
+    animals: 10,
+    pain_category: null,
+    anesthesia_required: 0,
+    housing: null,
+    disposal: null,
+    npg: null,
+    research_steps: [],
+    purpose_summary: null,
+    harm_benefit_analysis: null,
+    scientific_summary: null,
+    submitted: null,
+    expires: null,
+  },
+  {
+    id: "IACUC-2026-0002",
+    title: "Test protocol two",
+    pi: "Dr. Two",
+    pi_proxy: null,
+    ptm_member: null,
+    protocol_type: null,
+    species: "Rat",
+    status: "Draft",
+    animals: 5,
+    pain_category: null,
+    anesthesia_required: 0,
+    housing: null,
+    disposal: null,
+    npg: null,
+    research_steps: [],
+    purpose_summary: null,
+    harm_benefit_analysis: null,
+    scientific_summary: null,
+    submitted: null,
+    expires: null,
+  },
 ];
 
-const SAMPLE_SUMMARY = { active: 2, pendingReview: 1, expiringSoon: 0, approvedThisQuarter: 3 };
+const SAMPLE_SUMMARY: Summary = { active: 2, pendingReview: 1, expiringSoon: 0, approvedThisQuarter: 3 };
 
 describe("ListPage", () => {
   beforeEach(() => {
@@ -38,8 +83,8 @@ describe("ListPage", () => {
   });
 
   test("shows a loading state before data resolves", () => {
-    api.listProtocols.mockReturnValue(new Promise(() => {})); // never resolves
-    api.getSummary.mockReturnValue(new Promise(() => {}));
+    api.listProtocols.mockReturnValue(new Promise<Protocol[]>(() => {})); // never resolves
+    api.getSummary.mockReturnValue(new Promise<Summary>(() => {}));
 
     renderListPage();
     expect(screen.getByText("Loading…")).toBeInTheDocument();

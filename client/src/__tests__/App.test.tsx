@@ -1,15 +1,16 @@
 import { describe, test, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import App from "../App.jsx";
+import App from "../App";
 
-vi.mock("../pages/ListPage.jsx", () => ({ default: () => <div>ListPage</div> }));
-vi.mock("../pages/DetailPage.jsx", () => ({ default: () => <div>DetailPage</div> }));
-vi.mock("../pages/CreatePage.jsx", () => ({ default: () => <div>CreatePage</div> }));
-vi.mock("../pages/AdminPage.jsx", () => ({ default: () => <div>AdminPage</div> }));
-vi.mock("../pages/CommitteePage.jsx", () => ({ default: () => <div>CommitteePage</div> }));
+vi.mock("../pages/ListPage", () => ({ default: () => <div>ListPage</div> }));
+vi.mock("../pages/DetailPage", () => ({ default: () => <div>DetailPage</div> }));
+vi.mock("../pages/CreatePage", () => ({ default: () => <div>CreatePage</div> }));
+vi.mock("../pages/ApplicationPage", () => ({ default: () => <div>ApplicationPage</div> }));
+vi.mock("../pages/AdminPage", () => ({ default: () => <div>AdminPage</div> }));
+vi.mock("../pages/CommitteePage", () => ({ default: () => <div>CommitteePage</div> }));
 
-function renderAt(path) {
+function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <App />
@@ -31,6 +32,11 @@ describe("App routing", () => {
   test("renders the create page at /protocols/new", () => {
     renderAt("/protocols/new");
     expect(screen.getByText("CreatePage")).toBeInTheDocument();
+  });
+
+  test("renders the application page at /protocols/:id/application", () => {
+    renderAt("/protocols/IACUC-2026-0142/application");
+    expect(screen.getByText("ApplicationPage")).toBeInTheDocument();
   });
 
   test("renders the committee page at /committee", () => {

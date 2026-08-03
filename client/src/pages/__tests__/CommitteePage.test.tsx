@@ -2,10 +2,11 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import CommitteePage from "../CommitteePage.jsx";
-import { api } from "../../api.js";
+import CommitteePage from "../CommitteePage";
+import { api as realApi } from "../../api";
+import type { CommitteeProtocol, CommitteeTally, Voter } from "../../types";
 
-vi.mock("../../api.js", () => ({
+vi.mock("../../api", () => ({
   api: {
     listCommitteeProtocols: vi.fn(),
     listVoters: vi.fn(),
@@ -13,7 +14,9 @@ vi.mock("../../api.js", () => ({
   },
 }));
 
-const SAMPLE_PROTOCOL = {
+const api = vi.mocked(realApi);
+
+const SAMPLE_PROTOCOL: CommitteeProtocol = {
   id: "IACUC-2026-0142",
   title: "Neurobehavioral Effects of Chronic Stress in C57BL/6 Mice",
   pi: "Dr. Elena Marsh",
@@ -26,7 +29,7 @@ const SAMPLE_PROTOCOL = {
   ],
 };
 
-const SAMPLE_VOTERS = [
+const SAMPLE_VOTERS: Voter[] = [
   { id: 1, name: "Dr. Priya Nair", role_name: "Attending Veterinarian" },
   { id: 2, name: "Dr. Harold Kim", role_name: "IACUC Chair" },
 ];
@@ -45,8 +48,8 @@ describe("CommitteePage", () => {
   });
 
   test("shows a loading state before data resolves", () => {
-    api.listCommitteeProtocols.mockReturnValue(new Promise(() => {}));
-    api.listVoters.mockReturnValue(new Promise(() => {}));
+    api.listCommitteeProtocols.mockReturnValue(new Promise<CommitteeProtocol[]>(() => {}));
+    api.listVoters.mockReturnValue(new Promise<Voter[]>(() => {}));
 
     renderCommitteePage();
     expect(screen.getByText("Loading…")).toBeInTheDocument();
@@ -122,7 +125,7 @@ describe("CommitteePage", () => {
     const user = userEvent.setup();
     api.listCommitteeProtocols.mockResolvedValue([SAMPLE_PROTOCOL]);
     api.listVoters.mockResolvedValue(SAMPLE_VOTERS);
-    api.castVote.mockResolvedValue({});
+    api.castVote.mockResolvedValue({} as CommitteeTally);
 
     renderCommitteePage();
     await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
@@ -150,7 +153,7 @@ describe("CommitteePage", () => {
     const user = userEvent.setup();
     api.listCommitteeProtocols.mockResolvedValue([SAMPLE_PROTOCOL]);
     api.listVoters.mockResolvedValue(SAMPLE_VOTERS);
-    api.castVote.mockResolvedValue({});
+    api.castVote.mockResolvedValue({} as CommitteeTally);
 
     renderCommitteePage();
     await waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
@@ -168,6 +171,7 @@ describe("CommitteePage", () => {
       });
     });
   });
+
   test("shows the error from a failed vote submission", async () => {
     const user = userEvent.setup();
     api.listCommitteeProtocols.mockResolvedValue([SAMPLE_PROTOCOL]);

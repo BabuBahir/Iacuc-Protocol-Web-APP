@@ -15,12 +15,12 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    setupFiles: "./src/test-setup.js",
+    setupFiles: "./src/test-setup.ts",
     globals: true,
     coverage: {
       exclude: [
         "*.config.js",
-        "src/main.jsx", // pure bootstrapping, no logic to test
+        "src/main.tsx", // pure bootstrapping, no logic to test
         "node_modules/**",
         "dist/**",
       ],

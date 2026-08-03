@@ -5,6 +5,17 @@ export const router = Router();
 
 const STAGES = ["Draft", "Submitted", "Veterinary Review", "IACUC Review", "Approved", "Active"];
 
+// research_steps is stored as JSON text in SQLite; expose it to the client as
+// a real array so the UI never has to parse strings.
+function shape(row) {
+  if (!row) return row;
+  return { ...row, research_steps: row.research_steps ? JSON.parse(row.research_steps) : [] };
+}
+
+function normalizeResearchSteps(value) {
+  return Array.isArray(value) ? JSON.stringify(value) : value;
+}
+
 // GET /api/protocols?q=search
 router.get("/", (req, res) => {
   const q = (req.query.q || "").toLowerCase();
@@ -12,7 +23,7 @@ router.get("/", (req, res) => {
   const filtered = q
     ? rows.filter(p => `${p.id} ${p.title} ${p.pi} ${p.species} ${p.status}`.toLowerCase().includes(q))
     : rows;
-  res.json(filtered);
+  res.json(filtered.map(shape));
 });
 
 // GET /api/protocols/summary  -> metric counts for the dashboard cards
@@ -43,21 +54,47 @@ router.get("/:id", (req, res) => {
     (related[item.list_name] ??= []).push(item.label);
   }
 
-  res.json({ ...protocol, stages: STAGES, related });
+  res.json({ ...shape(protocol), stages: STAGES, related });
 });
 
 // POST /api/protocols  -> create a new protocol (starts as Draft)
 router.post("/", (req, res) => {
-  const { id, title, pi, species, animals, pain_category } = req.body;
+  const { id, title, pi } = req.body;
   if (!id || !title || !pi) {
     return res.status(400).json({ error: "id, title, and pi are required" });
   }
   try {
     db.prepare(`
-      INSERT INTO protocols (id, title, pi, species, status, animals, pain_category)
-      VALUES (?, ?, ?, ?, 'Draft', ?, ?)
-    `).run(id, title, pi, species ?? null, animals ?? null, pain_category ?? null);
-    res.status(201).json(db.prepare("SELECT * FROM protocols WHERE id = ?").get(id));
+      INSERT INTO protocols (
+        id, title, pi, pi_proxy, ptm_member, protocol_type, species, status, animals,
+        pain_category, anesthesia_required, housing, disposal, npg, research_steps,
+        purpose_summary, harm_benefit_analysis, scientific_summary
+      )
+      VALUES (
+        @id, @title, @pi, @pi_proxy, @ptm_member, @protocol_type, @species, 'Draft', @animals,
+        @pain_category, @anesthesia_required, @housing, @disposal, @npg, @research_steps,
+        @purpose_summary, @harm_benefit_analysis, @scientific_summary
+      )
+    `).run({
+      id,
+      title,
+      pi,
+      pi_proxy: req.body.pi_proxy ?? null,
+      ptm_member: req.body.ptm_member ?? null,
+      protocol_type: req.body.protocol_type ?? null,
+      species: req.body.species ?? null,
+      animals: req.body.animals ?? null,
+      pain_category: req.body.pain_category ?? null,
+      anesthesia_required: req.body.anesthesia_required ? 1 : 0,
+      housing: req.body.housing ?? null,
+      disposal: req.body.disposal ?? null,
+      npg: req.body.npg ?? null,
+      research_steps: normalizeResearchSteps(req.body.research_steps) ?? null,
+      purpose_summary: req.body.purpose_summary ?? null,
+      harm_benefit_analysis: req.body.harm_benefit_analysis ?? null,
+      scientific_summary: req.body.scientific_summary ?? null,
+    });
+    res.status(201).json(shape(db.prepare("SELECT * FROM protocols WHERE id = ?").get(id)));
   } catch (err) {
     res.status(409).json({ error: err.message });
   }
@@ -69,7 +106,9 @@ router.patch("/:id", (req, res) => {
   if (!existing) return res.status(404).json({ error: "Protocol not found" });
 
   const fields = [
-    "title", "pi", "species", "status", "animals", "pain_category", "submitted", "expires",
+    "title", "pi", "pi_proxy", "ptm_member", "protocol_type", "species", "status",
+    "animals", "pain_category", "anesthesia_required", "housing", "disposal", "npg",
+    "research_steps", "submitted", "expires",
     "purpose_summary", "harm_benefit_analysis", "scientific_summary",
   ];
   const updates = fields.filter(f => f in req.body);
@@ -77,12 +116,14 @@ router.patch("/:id", (req, res) => {
 
   const setClause = updates.map(f => `${f} = @${f}`).join(", ");
   const params = { id: req.params.id };
-  for (const f of updates) params[f] = req.body[f];
+  for (const f of updates) {
+    params[f] = f === "research_steps" ? normalizeResearchSteps(req.body[f]) : req.body[f];
+  }
 
   db.prepare(`UPDATE protocols SET ${setClause}, updated_at = datetime('now') WHERE id = @id`)
     .run(params);
 
-  res.json(db.prepare("SELECT * FROM protocols WHERE id = ?").get(req.params.id));
+  res.json(shape(db.prepare("SELECT * FROM protocols WHERE id = ?").get(req.params.id)));
 });
 
 // DELETE /api/protocols/:id

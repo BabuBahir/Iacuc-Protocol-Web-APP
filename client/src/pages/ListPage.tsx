@@ -1,23 +1,33 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Search, LayoutGrid, Plus, ShieldCheck, Clock, AlertTriangle, CheckCircle2, FileText, PawPrint } from "lucide-react";
-import StatusBadge from "../components/StatusBadge.jsx";
-import { api } from "../api.js";
+import { Search, LayoutGrid, Plus, ShieldCheck, Clock, AlertTriangle, CheckCircle2, FileText, PawPrint, type LucideIcon } from "lucide-react";
+import StatusBadge from "../components/StatusBadge";
+import { api } from "../api";
+import type { Protocol, Summary } from "../types";
 
-const METRIC_META = [
+interface MetricMeta {
+  key: keyof Summary;
+  label: string;
+  icon: LucideIcon;
+  tint: string;
+}
+
+const METRIC_META: MetricMeta[] = [
   { key: "active", label: "Active protocols", icon: ShieldCheck, tint: "bg-[#EAF3DE] text-[#3B6D11]" },
   { key: "pendingReview", label: "Pending IACUC review", icon: Clock, tint: "bg-[#FAEEDA] text-[#854F0B]" },
   { key: "expiringSoon", label: "Expiring within 60 days", icon: AlertTriangle, tint: "bg-[#FCEBEB] text-[#A32D2D]" },
   { key: "approvedThisQuarter", label: "Approved this quarter", icon: CheckCircle2, tint: "bg-[#E6F1FB] text-[#185FA5]" },
 ];
 
+const EMPTY_SUMMARY: Summary = { active: 0, pendingReview: 0, expiringSoon: 0, approvedThisQuarter: 0 };
+
 export default function ListPage() {
   const navigate = useNavigate();
-  const [protocols, setProtocols] = useState([]);
-  const [summary, setSummary] = useState({});
+  const [protocols, setProtocols] = useState<Protocol[]>([]);
+  const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -27,7 +37,7 @@ export default function ListPage() {
         setSummary(summaryData);
         setError(null);
       })
-      .catch(err => setError(err.message))
+      .catch(err => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
   };
 

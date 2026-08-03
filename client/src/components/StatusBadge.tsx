@@ -1,6 +1,4 @@
-import React from "react";
-
-const STATUS_STYLES = {
+const STATUS_STYLES: Record<string, string> = {
   "IACUC Review": "bg-[#FAEEDA] text-[#854F0B]",
   "Veterinary Review": "bg-[#FAEEDA] text-[#854F0B]",
   Approved: "bg-[#EAF3DE] text-[#3B6D11]",
@@ -10,7 +8,7 @@ const STATUS_STYLES = {
   "Expiring soon": "bg-[#FCEBEB] text-[#A32D2D]",
 };
 
-export default function StatusBadge({ status }) {
+export default function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium ${STATUS_STYLES[status] || "bg-gray-100 text-gray-600"}`}>
       {status}
