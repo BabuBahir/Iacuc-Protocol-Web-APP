@@ -1,6 +1,9 @@
 import type {
   Alternatives,
   AlternativesInput,
+  AnimalUsageInput,
+  AnimalUsageLedger,
+  AnimalUsageTransaction,
   AnimalUseInput,
   AnimalUseRow,
   CommitteeProtocol,
@@ -104,6 +107,9 @@ export const api = {
     request(`/protocols/${id}/animal-use/${rowId}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteAnimalUse: (id: string, rowId: number): Promise<null> =>
     request(`/protocols/${id}/animal-use/${rowId}`, { method: "DELETE" }),
+  listAnimalUsage: (id: string): Promise<AnimalUsageLedger> => request(`/protocols/${id}/animal-usage`),
+  createAnimalUsage: (id: string, data: AnimalUsageInput): Promise<AnimalUsageTransaction> =>
+    request(`/protocols/${id}/animal-usage`, { method: "POST", body: JSON.stringify(data) }),
   listExperiments: (id: string): Promise<ExperimentRow[]> => request(`/protocols/${id}/experiments`),
   createExperiment: (id: string, data: ExperimentInput): Promise<ExperimentRow> =>
     request(`/protocols/${id}/experiments`, { method: "POST", body: JSON.stringify(data) }),

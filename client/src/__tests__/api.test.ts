@@ -222,5 +222,19 @@ describe("api.ts request wrapper", () => {
     mockFetchOnce(200, { overall: false, sections: {} });
     await api.getValidation("P-1");
     expect(fetch).toHaveBeenCalledWith("/api/protocols/P-1/validation", expect.anything());
+
+    mockFetchOnce(200, { transactions: [], by_species: [], by_pain_category: [], by_procedure: [] });
+    await api.listAnimalUsage("P-1");
+    expect(fetch).toHaveBeenCalledWith("/api/protocols/P-1/animal-usage", expect.anything());
+
+    mockFetchOnce(200, { id: 1, quantity: 20, type: "use" });
+    await api.createAnimalUsage("P-1", { transaction_date: "2026-07-10", species_strain: "Wistar rat", quantity: 20, type: "use" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/animal-usage",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ transaction_date: "2026-07-10", species_strain: "Wistar rat", quantity: 20, type: "use" }),
+      })
+    );
   });
 });

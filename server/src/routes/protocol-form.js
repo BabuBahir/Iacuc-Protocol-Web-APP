@@ -29,7 +29,7 @@ export const SURGERY_KEYS = ["survival_surgery", "non_survival_surgery"];
 
 export const ANALGESIA_LEVELS = ["None", "Mild", "Moderate", "Profound"];
 
-function requireProtocol(req, res) {
+export function requireProtocol(req, res) {
   const protocol = db.prepare("SELECT * FROM protocols WHERE id = ?").get(req.params.id);
   if (!protocol) {
     res.status(404).json({ error: "Protocol not found" });

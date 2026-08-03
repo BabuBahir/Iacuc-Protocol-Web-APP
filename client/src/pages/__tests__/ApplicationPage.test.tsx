@@ -6,6 +6,7 @@ import ApplicationPage from "../ApplicationPage";
 import { api as realApi } from "../../api";
 import type {
   Alternatives,
+  AnimalUsageLedger,
   AnimalUseRow,
   DrugRow,
   ExperimentRow,
@@ -40,6 +41,8 @@ vi.mock("../../api", () => ({
     updateRrrEntry: vi.fn(),
     deleteRrrEntry: vi.fn(),
     updateAlternatives: vi.fn(),
+    listAnimalUsage: vi.fn(),
+    createAnimalUsage: vi.fn(),
   },
 }));
 
@@ -174,6 +177,47 @@ const VALIDATION: ValidationResult = {
   },
 };
 
+const USAGE_LEDGER: AnimalUsageLedger = {
+  transactions: [
+    {
+      id: 1,
+      protocol_id: "IACUC-2026-0142",
+      transaction_date: "2026-07-10",
+      species_strain: "C57BL/6 mouse",
+      pain_level: "C",
+      quantity: 55,
+      type: "use",
+      procedure_key: "injections",
+      notes: "Weekly cohort",
+      created_at: "2026-07-10 12:00:00",
+    },
+    {
+      id: 2,
+      protocol_id: "IACUC-2026-0142",
+      transaction_date: "2026-07-01",
+      species_strain: "C57BL/6 mouse",
+      pain_level: "C",
+      quantity: 60,
+      type: "order",
+      procedure_key: null,
+      notes: null,
+      created_at: "2026-07-01 09:00:00",
+    },
+  ],
+  by_species: [
+    {
+      species_strain: "C57BL/6 mouse",
+      allowance: 240,
+      ordered: 60,
+      used: 55,
+      remaining: 125,
+      over_allowance: false,
+    },
+  ],
+  by_pain_category: [{ pain_level: "C", count: 2 }],
+  by_procedure: [{ procedure_key: "injections", count: 1 }],
+};
+
 function renderApplicationPage() {
   return render(
     <MemoryRouter initialEntries={["/protocols/IACUC-2026-0142/application"]}>
@@ -206,6 +250,8 @@ describe("ApplicationPage", () => {
     api.createRrrEntry.mockResolvedValue({ ...RRR_ENTRIES[0] });
     api.deleteRrrEntry.mockResolvedValue(null);
     api.updateAlternatives.mockResolvedValue(ALTERNATIVES);
+    api.listAnimalUsage.mockResolvedValue(USAGE_LEDGER);
+    api.createAnimalUsage.mockResolvedValue({ ...USAGE_LEDGER.transactions[0] });
   });
 
   test("shows a loading state before data resolves", () => {
@@ -238,7 +284,7 @@ describe("ApplicationPage", () => {
 
     // the drug table row and animal-use row render
     expect(screen.getAllByText("Isoflurane").length).toBeGreaterThan(0);
-    expect(screen.getByText("C57BL/6 mouse")).toBeInTheDocument();
+    expect(screen.getAllByText("C57BL/6 mouse").length).toBeGreaterThan(0);
   });
 
   test("saving summaries calls updateProtocol and shows confirmation", async () => {
@@ -378,6 +424,70 @@ describe("ApplicationPage", () => {
         "IACUC-2026-0142",
         expect.objectContaining({ species_strain: "Wistar rat", max_count: 40 })
       );
+    });
+  });
+
+  test("renders the animal usage register with tallies and transactions", async () => {
+    renderApplicationPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Animal usage register")).toBeInTheDocument();
+    });
+    // per-species tally row with allowance/ordered/used/remaining
+    expect(screen.getAllByText("C57BL/6 mouse").length).toBeGreaterThan(0);
+    expect(screen.getByText("Within allowance")).toBeInTheDocument();
+    // transactions list
+    expect(screen.getByText("Weekly cohort")).toBeInTheDocument();
+    expect(screen.getByText("order")).toBeInTheDocument();
+    expect(screen.getByText("injections")).toBeInTheDocument();
+  });
+
+  test("marks a species over its allowance with a warning badge", async () => {
+    api.listAnimalUsage.mockResolvedValue({
+      transactions: [],
+      by_species: [
+        {
+          species_strain: "Rabbit",
+          allowance: 60,
+          ordered: 30,
+          used: 40,
+          remaining: -10,
+          over_allowance: true,
+        },
+      ],
+      by_pain_category: [],
+      by_procedure: [],
+    });
+
+    renderApplicationPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Over allowance")).toBeInTheDocument();
+    });
+  });
+
+  test("logging a usage transaction calls createAnimalUsage and closes the modal", async () => {
+    const user = userEvent.setup();
+    renderApplicationPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Log usage" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Log usage" }));
+    await user.type(screen.getByLabelText("Species / strain"), "Wistar rat");
+    await user.type(screen.getByLabelText("Quantity"), "20");
+    await user.selectOptions(screen.getByLabelText("Type"), "order");
+    await user.click(screen.getByRole("button", { name: "Save usage" }));
+
+    await waitFor(() => {
+      expect(api.createAnimalUsage).toHaveBeenCalledWith(
+        "IACUC-2026-0142",
+        expect.objectContaining({ species_strain: "Wistar rat", quantity: 20, type: "order" })
+      );
+    });
+    await waitFor(() => {
+      expect(screen.queryByLabelText("Quantity")).not.toBeInTheDocument();
     });
   });
 

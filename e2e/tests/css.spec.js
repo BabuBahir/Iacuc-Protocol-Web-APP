@@ -8,6 +8,10 @@ const HEADER_FG = "rgb(255, 255, 255)";    // white header text
 const BRAND_BLUE = "rgb(1, 118, 211)";     // #0176D3 primary buttons / links
 const WHITE = "rgb(255, 255, 255)";
 const BORDER_GRAY = "rgb(229, 231, 235)";  // gray-200
+const EMERALD_TEXT = "rgb(4, 120, 87)";     // text-emerald-700
+const EMERALD_BG = "rgb(236, 253, 245)";    // bg-emerald-50
+const RED_TEXT = "rgb(185, 28, 28)";        // text-red-700
+const RED_BG = "rgb(254, 242, 242)";        // bg-red-50
 const MIN_HEADER_HEIGHT = 25; // py-2 + brand row
 
 // The "IACUC Protocols" brand label is the first item inside the dark header
@@ -74,4 +78,20 @@ test("the app actually ships a non-empty CSS bundle", async ({ page }) => {
     return bytes;
   });
   expect(cssBytes).toBeGreaterThan(1000);
+});
+
+test("the animal usage register styles within- and over-allowance states distinctly", async ({ page }) => {
+  // IACUC-2026-0142 is seeded under its allowance -> green "Within allowance".
+  await page.goto("/protocols/IACUC-2026-0142/application");
+  const within = page.getByText("Within allowance");
+  await expect(within).toBeVisible();
+  await expect(within).toHaveCSS("color", EMERALD_TEXT);
+  await expect(within).toHaveCSS("background-color", EMERALD_BG);
+
+  // IACUC-2026-0021 is seeded over its Rabbit allowance -> red "Over allowance".
+  await page.goto("/protocols/IACUC-2026-0021/application");
+  const over = page.getByText("Over allowance");
+  await expect(over).toBeVisible();
+  await expect(over).toHaveCSS("color", RED_TEXT);
+  await expect(over).toHaveCSS("background-color", RED_BG);
 });

@@ -149,7 +149,9 @@ application needs. We built this out in `protocol-form.js` /
 Distinct from the *planned* animal-use table above: the "Register" is a
 ledger of *actual* animal ordering/usage transactions against an approved
 protocol — species, pain level, transaction date. This is closer to
-inventory/procurement tracking than protocol content. **Not implemented.**
+inventory/procurement tracking than protocol content. **Implemented** as
+`animal_usage_transactions` + `GET/POST /api/protocols/:id/animal-usage`
+(see the "Animal usage register" block below).
 
 ### 1.5 Multi-role, multi-site access model
 
@@ -236,12 +238,12 @@ npm run test:server   # node:test + supertest, coverage via --experimental-test-
 npm run test:client   # vitest + React Testing Library, coverage via v8
 ```
 
-**Backend: 117 tests, 99.36% lines / 92.13% branches / 95.45% functions**
+**Backend: 125 tests, 99.42% lines / 92.76% branches / 94.79% functions**
 (measured on `server/src/`, excluding `test/`). Every route file — protocols,
-protocol-form, admin, committee — has both happy-path and edge-case coverage
-(FK constraint violations, permission checks, duplicate-key conflicts, 404s).
-The one meaningful gap is a database-transaction-rollback error path
-(`protocol-form.js` lines 86–88) that's legitimately hard to trigger without
+protocol-form, animal-usage, admin, committee — has both happy-path and edge-case
+coverage (FK constraint violations, permission checks, duplicate-key conflicts,
+404s). The one meaningful gap is a database-transaction-rollback error path
+(`protocol-form.js` lines 109–112) that's legitimately hard to trigger without
 mocking the DB layer — left uncovered rather than writing a contrived test
 for it.
 
@@ -257,14 +259,14 @@ Two real bugs were caught by writing these tests, not found any other way:
    test environment. Fixed to `useEffect(() => { load(); }, [])` in all
    three places.
 
-**Frontend: 99 tests, 99.49% lines / 91.47% branches** (see
+**Frontend: 102 tests, 99.49% lines / 91.47% branches** (see
 `vite.config.js`'s `test.coverage.exclude` for what's excluded — currently
 just `src/main.tsx` and config files, not test files themselves). Every page —
 List, Detail, Admin, Committee, Create, Application — plus `StatusBadge`,
 `api.ts`, `ProtocolForm`, and `App.tsx` routing is covered. `npm run typecheck`
 (`tsc --noEmit`) is the gate after any client change.
 
-**E2E: 20 Playwright tests, all passing** (`npm run test:e2e` from the
+**E2E: 24 Playwright tests, all passing** (`npm run test:e2e` from the
 repo root). Infra lives in `e2e/`: `playwright.config.mjs`, specs in
 `e2e/tests/`, plus a dedicated API server (`e2e/seed-and-server.mjs`) on
 port 4100 that seeds a throwaway `e2e/e2e.db` and a Vite dev server
@@ -290,6 +292,15 @@ from building it:
   that any new button whose label is a prefix of an existing one will trip
   strict mode. An application.spec-style test (in `detail.spec.js`) now
   covers the Appendix A page read-only against 0142's seeded content.
+- The animal usage register card introduced more "Species / strain" and
+  quantity cells, so several existing specs needed scoping: 0142's
+  "Mouse / C57BL/6" cell assertion uses `.first()` (the register summary +
+  transaction rows also render it), the register tally assertion scopes to
+  `getByTestId("usage-species-summary")`, and the log-usage spec asserts on
+  a unique note text rather than a numeric cell (the summary's "Used"
+  column and the transactions "Qty" column can hold the same number).
+  Also, `getByLabel("Notes")` resolves to both the alternatives "Notes"
+  and the usage modal's `#usage-notes`, so the spec targets the id.
 - `seed.js` now seeds 12 protocols (up from 6) plus Appendix A content
   (procedures/drugs/animal-use/experiments/alternatives) and FCR votes for
   the two non-0142 review protocols. Six protocols (0142, 0139, 0150, 0147,
@@ -307,12 +318,22 @@ from building it:
   committee-eligible personnel (is_committee = 1) casually — the committee
   vote-casting test selects voters by index and assumes the sorted voter
   list.
-- `e2e/tests/css.spec.js` (4 tests) guards against the CSS bundle going
+- The animal usage register seeds 5 ledger transactions across three
+  protocols: 0142 (order 60 / use 55 of a 240 Mouse allowance — the
+  "Within allowance" fixture), 0158 (order 100 of an 800 Zebrafish
+  allowance), and 0021 (order 30 / use 40 of a 60 Rabbit allowance — the
+  "Over allowance" fixture, remaining clamped to 0). Keep 0021 over its
+  allowance and 0142/0158 under theirs; the register e2e and css specs
+  depend on both states.
+- `e2e/tests/css.spec.js` (5 tests) guards against the CSS bundle going
   empty/regressing: it asserts computed styles for the dark header bar
   (`#032D60` bg + white text on dashboard/committee/admin), the primary
   button (`#0176D3`), the detail-page breadcrumb (white bg + gray border),
   and sums all injected `<style>` rules to prove the Tailwind CSS is
-  non-empty. Vite dev injects CSS as `<style>` tags, so don't switch these
+  non-empty. The fifth test asserts the register's within-/over-allowance
+  badge colors (`text-emerald-700`/`bg-emerald-50` vs
+  `text-red-700`/`bg-red-50`) on 0142 and 0021. Vite dev injects CSS as
+  `<style>` tags, so don't switch these
   checks to `<link>` stylesheets — there are none in dev mode. Note there
   is **no footer** anywhere in the app, so the "footer" check doesn't
   exist; extend `css.spec.js` if one is ever added.
@@ -455,10 +476,30 @@ surgical details for the three surgery-bearing fully-filled protocols (0139,
 stays blocked. Server exports `SURGERY_KEYS` and `ANALGESIA_LEVELS`; the client
 mirrors them as `SURGERY_PROCEDURE_KEYS`/`ANALGESIA_LEVELS` in `types.ts`.
 
+**Animal usage register (plan item D):** an `animal_usage_transactions` table
+(protocol_id, transaction_date, species_strain, pain_level USDA B/C/D/E,
+quantity, type `order`/`use`, procedure_key, notes) with `GET`/`POST
+/:id/animal-usage` in `server/src/routes/animal-usage.js`. The GET endpoint
+keeps the ledger distinct from the *planned* allowance: allowance is summed
+from `protocol_animal_use.max_count` per species; the endpoint returns
+transactions (date desc), per-species tallies (allowance/ordered/used/
+remaining, with `remaining` clamped to ≥0 and an `over_allowance` flag when
+total > allowance), plus tallies by pain category and procedure. POST validates
+`transaction_date`/`species_strain` required, `quantity` a positive integer,
+`type`/`pain_level`/`procedure_key` against enums, and 404s on unknown
+protocols. The application page renders an "Animal usage register" card
+(per-species summary table + transactions list) with a "Log usage" modal;
+`requireProtocol` is exported from `protocol-form.js` and reused here. Client
+types mirror the ledger payload and add a full `PROCEDURE_KEYS` constant (the
+client previously only had `SURGERY_PROCEDURE_KEYS`). Seeded ledger fixtures:
+0142 under (order 60 / use 55 of 240), 0158 under (order 100 of 800), 0021
+over its Rabbit allowance (order 30 / use 40 of 60) — the css.spec and
+detail.spec e2e tests depend on both states.
+
 Not implemented (see §1 above for the domain detail on each): conditional/
 dynamic Table of Contents, Continuing Review vs. De Novo Review as
 distinct recurring events, amendment workflow with live-diff view and
-protocol versioning, animal usage register/ledger, auth or role-based
+protocol versioning, auth or role-based
 access control, search filter-builder, compliance reports.
 
 ## 3. HIPAA, PHI, and AI-safety guardrails
