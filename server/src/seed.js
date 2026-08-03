@@ -286,6 +286,75 @@ const animalUseSeed = {
   ],
 };
 
+const experimentsSeed = {
+  "IACUC-2026-0142": [
+    {
+      name: "Chronic restraint stress paradigm",
+      description: "C57BL/6 mice are habituated, then exposed to 21 days of daily 2-hour restraint plus corticosterone in drinking water to model chronic psychological stress.",
+      multiple_surgical_events: 0,
+      humane_endpoints: "Euthanize if an animal loses >20% body weight, becomes moribund, or shows a distress score above 3 on the monitoring rubric.",
+      persistent_clinical_signs_justification: null,
+      monitoring_plan: "Animals checked twice daily for fur quality, posture, and responsiveness; LAMS consulted if any animal shows sustained clinical signs.",
+      husbandry_exceptions: "Standard group housing maintained; no enrichment withdrawal.",
+    },
+  ],
+  "IACUC-2026-0139": [
+    {
+      name: "Permanent coronary ligation",
+      description: "LAD ligation via thoracotomy under isoflurane to induce myocardial infarction; telemetry and echocardiography at 1, 4, and 8 weeks.",
+      multiple_surgical_events: 1,
+      humane_endpoints: "Euthanize on >30% body weight loss or signs of heart failure (labored breathing, subcutaneous edema).",
+      persistent_clinical_signs_justification: null,
+      monitoring_plan: "Post-operative daily checks for 7 days, then weekly; surgical site inspected for infection; LAMS contacted for any unexpected clinical signs.",
+      husbandry_exceptions: "Single housing during telemetry recording only.",
+    },
+  ],
+  "IACUC-2026-0150": [
+    {
+      name: "Subthalamic nucleus DBS",
+      description: "Bilateral electrodes stereotaxically implanted into the subthalamic nucleus after 6-OHDA lesion; 4 weeks of high-frequency stimulation with weekly motor scoring.",
+      multiple_surgical_events: 0,
+      humane_endpoints: "Euthanize on severe post-operative neurological deficit or infection unresponsive to treatment.",
+      persistent_clinical_signs_justification: null,
+      monitoring_plan: "Daily neurologic checks post-surgery; weekly cylinder and rotarod scoring during stimulation; LAMS consulted for any motor deficit.",
+      husbandry_exceptions: null,
+    },
+  ],
+  "IACUC-2026-0147": [
+    {
+      name: "Adoptive CAR-T therapy against B16-F10 melanoma",
+      description: "NOD scid gamma mice receive subcutaneous B16-F10 injection, then CAR-T cells IV once tumors establish; tumor burden monitored by caliper and ultrasound.",
+      multiple_surgical_events: 0,
+      humane_endpoints: "Euthanize at tumor volume >2000 mm3, ulceration, or >20% body weight loss.",
+      persistent_clinical_signs_justification: null,
+      monitoring_plan: "Tumors measured twice weekly; mice checked daily for body condition; LAMS consulted on any clinical deterioration.",
+      husbandry_exceptions: "Immunodeficient mice in sterile ventilated cages with autoclaved feed and bedding.",
+    },
+  ],
+  "IACUC-2026-0155": [
+    {
+      name: "Penetrating keratoplasty comparison",
+      description: "Rabbits undergo corneal grafting with suture or sutureless apposition; graft clarity, vascularization, and rejection scored weekly for 8 weeks.",
+      multiple_surgical_events: 1,
+      humane_endpoints: "Euthanize on severe graft rejection with corneal perforation or untreatable infection.",
+      persistent_clinical_signs_justification: null,
+      monitoring_plan: "Daily topical antibiotic and analgesic administration; weekly slit-lamp scoring; LAMS consulted for ocular complications.",
+      husbandry_exceptions: null,
+    },
+  ],
+  "IACUC-2026-0158": [
+    {
+      name: "Seizure phenotype characterization",
+      description: "Zebrafish lines carrying seizure-associated mutations are maintained and seizure-like behavior scored from video; offspring genotyped by fin-clip PCR.",
+      multiple_surgical_events: 0,
+      humane_endpoints: "Larvae and adults euthanized on severe malformation or inability to feed; no painful endpoint anticipated.",
+      persistent_clinical_signs_justification: null,
+      monitoring_plan: "Daily tank checks for morbidity; water quality monitored; LAMS consulted for unexplained mortality.",
+      husbandry_exceptions: null,
+    },
+  ],
+};
+
 const alternativesSeed = {
   "IACUC-2026-0142": {
     replacement_text: "In-vitro organotypic hippocampal slice cultures were used to screen stressors before any in-vivo work.",
@@ -470,6 +539,13 @@ const insertAnimalUse = db.prepare(`
   INSERT INTO protocol_animal_use (protocol_id, species_strain, sex, approx_age, max_count)
   VALUES (?, ?, ?, ?, ?)
 `);
+const insertExperiment = db.prepare(`
+  INSERT INTO protocol_experiments (
+    protocol_id, name, description, multiple_surgical_events,
+    humane_endpoints, persistent_clinical_signs_justification,
+    monitoring_plan, husbandry_exceptions
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+`);
 const insertAlternatives = db.prepare(`
   INSERT INTO protocol_alternatives (
     protocol_id, replacement_text, refinement_text, reduction_text,
@@ -477,18 +553,31 @@ const insertAlternatives = db.prepare(`
     colleague_name, colleague_date, colleague_notes, av_consult_date
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
+// The structured 3 Rs justifications are seeded from the same source data as
+// the legacy replacement/refinement/reduction blobs above. The blobs remain in
+// the DB for backward compatibility but are no longer read by the API.
+const RRR_METHODS = {
+  replacement: "Screening of non-animal models",
+  refinement: "Welfare refinement of procedures",
+  reduction: "Statistical and experimental design",
+};
+const insertRrrEntry = db.prepare(`
+  INSERT INTO protocol_rrr_entries (protocol_id, rrr_type, method, explanation)
+  VALUES (?, ?, ?, ?)
+`);
 const getPersonnelId = db.prepare(`SELECT id FROM personnel WHERE name = ?`);
 const insertVote = db.prepare(`
   INSERT INTO protocol_votes (protocol_id, personnel_id, vote, comment, voted_at)
   VALUES (?, ?, ?, ?, ?)
 `);
 
-let procCount = 0, drugCount = 0, animalUseCount = 0, alternativesCount = 0;
+let procCount = 0, drugCount = 0, animalUseCount = 0, alternativesCount = 0, experimentCount = 0, rrrCount = 0;
 
 db.exec("BEGIN");
 try {
   db.exec("DELETE FROM protocol_votes; DELETE FROM protocol_procedures; DELETE FROM protocol_drugs;");
   db.exec("DELETE FROM protocol_animal_use; DELETE FROM protocol_alternatives;");
+  db.exec("DELETE FROM protocol_experiments; DELETE FROM protocol_rrr_entries;");
   db.exec("DELETE FROM personnel; DELETE FROM roles; DELETE FROM species;");
   db.exec("DELETE FROM related_items; DELETE FROM protocols;");
 
@@ -542,6 +631,21 @@ try {
       animalUseCount++;
     }
   }
+  for (const [protocolId, rows] of Object.entries(experimentsSeed)) {
+    for (const r of rows) {
+      insertExperiment.run(
+        protocolId,
+        r.name,
+        r.description,
+        r.multiple_surgical_events ? 1 : 0,
+        r.humane_endpoints,
+        r.persistent_clinical_signs_justification,
+        r.monitoring_plan,
+        r.husbandry_exceptions,
+      );
+      experimentCount++;
+    }
+  }
   for (const [protocolId, r] of Object.entries(alternativesSeed)) {
     insertAlternatives.run(
       protocolId,
@@ -551,6 +655,10 @@ try {
       r.colleague_name, r.colleague_date, r.colleague_notes, r.av_consult_date,
     );
     alternativesCount++;
+    for (const [type, method] of Object.entries(RRR_METHODS)) {
+      insertRrrEntry.run(protocolId, type, method, r[`${type}_text`]);
+      rrrCount++;
+    }
   }
   for (const v of votesSeed) {
     const voter = getPersonnelId.get(v.voter);
@@ -567,5 +675,5 @@ console.log(
   `Seeded ${protocols.length} protocols, ${relatedItems.length} related items, ` +
   `${species.length} species, ${roles.length} roles, ${personnel.length} personnel, ` +
   `${procCount} procedures, ${drugCount} drugs, ${animalUseCount} animal-use rows, ` +
-  `${alternativesCount} alternatives rows, ${votesSeed.length} votes.`
+  `${experimentCount} experiments, ${alternativesCount} alternatives rows, ${rrrCount} 3Rs entries, ${votesSeed.length} votes.`
 );

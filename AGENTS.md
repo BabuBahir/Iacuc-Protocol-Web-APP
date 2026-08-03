@@ -116,7 +116,7 @@ data-driven from an `options` answer set rather than hardcoded routes.
 The NMSU Appendix A form is the concrete field-level content a real IACUC
 application needs. We built this out in `protocol-form.js` /
 `protocol_procedures`, `protocol_drugs`, `protocol_animal_use`,
-`protocol_alternatives` tables:
+`protocol_experiments`, `protocol_alternatives` tables:
 
 - **Purpose/harm-benefit/scientific summary** — three distinct fields, not
   one description blob. Lay purpose, a short harm-vs-benefit comparison,
@@ -189,7 +189,7 @@ iacuc-app/
     src/seed.js          sample data
     src/routes/
       protocols.js        core protocol CRUD + summary
-      protocol-form.js     Appendix A content: procedures/drugs/animal-use/alternatives
+      protocol-form.js     Appendix A content: procedures/drugs/animal-use/experiments/alternatives
       admin.js             species / roles / personnel (personas) CRUD
       committee.js          FCR voting on protocols in review
   client/              Vite + React + TypeScript + react-router-dom
@@ -236,7 +236,7 @@ npm run test:server   # node:test + supertest, coverage via --experimental-test-
 npm run test:client   # vitest + React Testing Library, coverage via v8
 ```
 
-**Backend: 83 tests, 99.12% lines / 91.12% branches / 93.65% functions**
+**Backend: 111 tests, 99.20% lines / 90.98% branches / 94.20% functions**
 (measured on `server/src/`, excluding `test/`). Every route file — protocols,
 protocol-form, admin, committee — has both happy-path and edge-case coverage
 (FK constraint violations, permission checks, duplicate-key conflicts, 404s).
@@ -257,14 +257,14 @@ Two real bugs were caught by writing these tests, not found any other way:
    test environment. Fixed to `useEffect(() => { load(); }, [])` in all
    three places.
 
-**Frontend: 71 tests, 99.55% lines / 93.24% branches** (see
+**Frontend: 98 tests, 99.49% lines / 91.47% branches** (see
 `vite.config.js`'s `test.coverage.exclude` for what's excluded — currently
 just `src/main.tsx` and config files, not test files themselves). Every page —
-List, Detail, Admin, Committee, Create — plus `StatusBadge`, `api.ts`,
-`ProtocolForm`, and `App.tsx` routing is covered. `npm run typecheck`
+List, Detail, Admin, Committee, Create, Application — plus `StatusBadge`,
+`api.ts`, `ProtocolForm`, and `App.tsx` routing is covered. `npm run typecheck`
 (`tsc --noEmit`) is the gate after any client change.
 
-**E2E: 16 Playwright tests, all passing** (`npm run test:e2e` from the
+**E2E: 19 Playwright tests, all passing** (`npm run test:e2e` from the
 repo root). Infra lives in `e2e/`: `playwright.config.mjs`, specs in
 `e2e/tests/`, plus a dedicated API server (`e2e/seed-and-server.mjs`) on
 port 4100 that seeds a throwaway `e2e/e2e.db` and a Vite dev server
@@ -291,13 +291,13 @@ from building it:
   strict mode. An application.spec-style test (in `detail.spec.js`) now
   covers the Appendix A page read-only against 0142's seeded content.
 - `seed.js` now seeds 12 protocols (up from 6) plus Appendix A content
-  (procedures/drugs/animal-use/alternatives) and FCR votes for the two
-  non-0142 review protocols. Six protocols (0142, 0139, 0150, 0147, 0155,
-  0158) are seeded with *every* application field filled — summaries,
+  (procedures/drugs/animal-use/experiments/alternatives) and FCR votes for
+  the two non-0142 review protocols. Six protocols (0142, 0139, 0150, 0147,
+  0155, 0158) are seeded with *every* application field filled — summaries,
   PI proxy, PTM member, protocol type, anesthesia flag, housing, disposal,
-  NPG, research steps — plus their procedures/drugs/animal-use/alternatives
-  rows; the other six are intentionally sparse. Master data: 17 species,
-  12 roles, 13 personnel. Two invariants the e2e suite depends on:
+  NPG, research steps — plus their procedures/drugs/animal-use/experiments/
+  alternatives rows; the other six are intentionally sparse. Master data: 17
+  species, 12 roles, 13 personnel. Two invariants the e2e suite depends on:
   (1) `IACUC-2026-0142` must stay the **latest-submitted** review protocol
   so it sorts first on the Committee page (the vote-casting test drives its
   form), and must stay **vote-free** so "No votes cast yet." renders; and
@@ -386,7 +386,7 @@ submitted/expires dates on). Keep using this component for any future
 protocol form rather than duplicating fields. Also implemented: dashboard
 metrics, admin lookup lists (species/roles/personnel), FCR committee voting
 with live tallies (including vote comments, returned by the tally endpoints),
-and a 16-test Playwright e2e suite covering dashboard/detail/committee/admin/css.
+and a 17-test Playwright e2e suite covering dashboard/detail/committee/admin/css.
 
 **Appendix A application page** (`client/src/pages/ApplicationPage.tsx`, route
 `/protocols/:id/application`, reachable via the detail page's "Edit
@@ -394,14 +394,48 @@ application" button): purpose/harm-benefit/scientific summaries (stored on
 `protocols` via `PATCH /api/protocols/:id`), the 15-item procedures checklist
 (`PUT /api/protocols/:id/procedures`), the drug/dosing table
 (`POST`/`PATCH`/`DELETE /api/protocols/:id/drugs[/:drugId]`), the animal-use
-table (`/api/protocols/:id/animal-use`), and the 3 Rs & alternatives card
+table (`/api/protocols/:id/animal-use`), the experiments card
+(`GET`/`POST`/`PATCH`/`DELETE /api/protocols/:id/experiments[/:expId]` — a
+per-protocol 1:N table with `name` (required), `description`,
+`multiple_surgical_events` flag, `humane_endpoints`,
+`persistent_clinical_signs_justification`, `monitoring_plan`, and
+`husbandry_exceptions`; seeded one experiment per fully-filled protocol and
+covered by server/client/e2e tests), and the 3 Rs & alternatives card
 (`PATCH /api/protocols/:id/alternatives`) — including the derived
 `av_consultation_required` amber banner. The three summary textareas also live
 in the shared `ProtocolForm.tsx` (ids `protocol-form-purpose`,
 `protocol-form-harm-benefit`, `protocol-form-scientific`), and the server's
 `POST /api/protocols` create handler stores them too, so summaries can be
 entered at create time and edited later on the application page. All client
-Appendix A calls go through the ~12 typed wrappers in `client/src/api.ts`.
+Appendix A calls go through the ~20 typed wrappers in `client/src/api.ts`.
+
+**Structured 3 Rs justifications + submission enforcement (plan item 1c):**
+the three free-text `replacement_text`/`refinement_text`/`reduction_text`
+blobs on `protocol_alternatives` were replaced by a per-protocol
+`protocol_rrr_entries` table (one or more rows per R: `rrr_type` CHECK
+constrained, `method` required, `explanation` optional) with
+`GET/POST /api/protocols/:id/rrr` + `PATCH/DELETE /api/protocols/:id/rrr/:entryId`.
+The blob columns are retained in the DB for backward compatibility but the
+alternatives API (`shapeAlternatives` in `protocol-form.js`) never reads or
+writes them — the rrr rows are the source of truth. The application page
+replaces the three textareas with an add/edit/delete list per R (plus a
+per-type "Add" button) via `RrrModal`. **Submission gating:** the server
+exports `validateCompleteness(protocolId)` returning `{ overall, avRequired,
+sections }` (each section `{ complete, missing[] }` for
+summaries/procedures/drugs/animal_use/experiments/alternatives), surfaced at
+`GET /api/protocols/:id/validation` and enforced in the protocols `PATCH`
+handler: transitioning `status → "Submitted"` returns 400 with the validation
+payload unless every section is complete. Rules: all three summaries filled;
+every **checked** procedure needs a narrative; ≥1 drug, ≥1 animal-use row,
+≥1 experiment; literature search with ≥2 databases (comma-counted), years
+from/to, search date, keywords, and summary; ≥1 rrr entry per type; and an
+AV consultation date when pain category is D/E. The application page renders
+a "Submission readiness" panel (green-check/amber-flag per section, missing
+items listed) and a "Submit protocol" button that's disabled until `overall`
+is true; the server check is the backstop so direct API calls can't bypass it.
+Seeded data now includes 27 rrr entries (3 per fully-filled protocol), and
+the e2e suite covers submit success on the fully-seeded Draft `IACUC-2026-0158`
+and the disabled-button + API-400 path on sparse `IACUC-2026-0021`.
 
 Not implemented (see §1 above for the domain detail on each): conditional/
 dynamic Table of Contents, Continuing Review vs. De Novo Review as

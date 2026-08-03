@@ -158,6 +158,31 @@ describe("api.ts request wrapper", () => {
       expect.objectContaining({ method: "DELETE" })
     );
 
+    mockFetchOnce(200, []);
+    await api.listExperiments("P-1");
+    expect(fetch).toHaveBeenCalledWith("/api/protocols/P-1/experiments", expect.anything());
+
+    mockFetchOnce(201, { id: 1 });
+    await api.createExperiment("P-1", { name: "Chronic restraint", multiple_surgical_events: 1 });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/experiments",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Chronic restraint", multiple_surgical_events: 1 }) })
+    );
+
+    mockFetchOnce(200, { id: 1 });
+    await api.updateExperiment("P-1", 1, { monitoring_plan: "Daily scoring" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/experiments/1",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ monitoring_plan: "Daily scoring" }) })
+    );
+
+    mockFetchOnce(204, undefined, { json: false });
+    await api.deleteExperiment("P-1", 1);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/experiments/1",
+      expect.objectContaining({ method: "DELETE" })
+    );
+
     mockFetchOnce(200, { av_consultation_required: true });
     await api.getAlternatives("P-1");
     expect(fetch).toHaveBeenCalledWith("/api/protocols/P-1/alternatives", expect.anything());
@@ -168,5 +193,34 @@ describe("api.ts request wrapper", () => {
       "/api/protocols/P-1/alternatives",
       expect.objectContaining({ method: "PATCH", body: JSON.stringify({ av_consult_date: "2026-07-01" }) })
     );
+
+    mockFetchOnce(200, [{ id: 1, rrr_type: "replacement", method: "Cell models" }]);
+    await api.listRrrEntries("P-1");
+    expect(fetch).toHaveBeenCalledWith("/api/protocols/P-1/rrr", expect.anything());
+
+    mockFetchOnce(200, { id: 2, rrr_type: "reduction", method: "Power analysis" });
+    await api.createRrrEntry("P-1", { rrr_type: "reduction", method: "Power analysis" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/rrr",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ rrr_type: "reduction", method: "Power analysis" }) })
+    );
+
+    mockFetchOnce(200, { id: 2, rrr_type: "reduction", method: "Power analysis v2" });
+    await api.updateRrrEntry("P-1", 2, { method: "Power analysis v2" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/rrr/2",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ method: "Power analysis v2" }) })
+    );
+
+    mockFetchOnce(204, null);
+    await api.deleteRrrEntry("P-1", 2);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/rrr/2",
+      expect.objectContaining({ method: "DELETE" })
+    );
+
+    mockFetchOnce(200, { overall: false, sections: {} });
+    await api.getValidation("P-1");
+    expect(fetch).toHaveBeenCalledWith("/api/protocols/P-1/validation", expect.anything());
   });
 });

@@ -251,6 +251,88 @@ describe("animal use table", () => {
   });
 });
 
+describe("experiments", () => {
+  beforeEach(() => resetTables(db));
+
+  test("adds and lists experiments", async () => {
+    insertProtocol();
+    const add = await request(app)
+      .post("/api/protocols/TEST-0001/experiments")
+      .send({ name: "Chronic restraint stress", description: "4 weeks of daily restraint", multiple_surgical_events: 1 });
+    assert.equal(add.status, 201);
+
+    const list = await request(app).get("/api/protocols/TEST-0001/experiments");
+    assert.equal(list.body.length, 1);
+    assert.equal(list.body[0].name, "Chronic restraint stress");
+    assert.equal(list.body[0].multiple_surgical_events, 1);
+  });
+
+  test("requires experiment name", async () => {
+    insertProtocol();
+    const res = await request(app)
+      .post("/api/protocols/TEST-0001/experiments")
+      .send({ description: "missing a name" });
+    assert.equal(res.status, 400);
+  });
+
+  test("supports multiple experiments per protocol", async () => {
+    insertProtocol();
+    await request(app).post("/api/protocols/TEST-0001/experiments").send({ name: "Exp A" });
+    await request(app).post("/api/protocols/TEST-0001/experiments").send({ name: "Exp B" });
+
+    const list = await request(app).get("/api/protocols/TEST-0001/experiments");
+    assert.equal(list.body.length, 2);
+  });
+
+  test("updates and deletes an experiment", async () => {
+    insertProtocol();
+    const add = await request(app)
+      .post("/api/protocols/TEST-0001/experiments")
+      .send({ name: "Chronic restraint stress" });
+
+    const patch = await request(app)
+      .patch(`/api/protocols/TEST-0001/experiments/${add.body.id}`)
+      .send({ monitoring_plan: "Daily observation; score 2 = endpoint" });
+    assert.equal(patch.status, 200);
+    assert.equal(patch.body.monitoring_plan, "Daily observation; score 2 = endpoint");
+
+    const del = await request(app).delete(`/api/protocols/TEST-0001/experiments/${add.body.id}`);
+    assert.equal(del.status, 204);
+  });
+
+  test("404s patching an unknown experiment", async () => {
+    insertProtocol();
+    const res = await request(app)
+      .patch("/api/protocols/TEST-0001/experiments/9999")
+      .send({ name: "X" });
+    assert.equal(res.status, 404);
+  });
+
+  test("400s patching with no updatable fields", async () => {
+    insertProtocol();
+    const add = await request(app)
+      .post("/api/protocols/TEST-0001/experiments")
+      .send({ name: "Chronic restraint stress" });
+    const res = await request(app)
+      .patch(`/api/protocols/TEST-0001/experiments/${add.body.id}`)
+      .send({});
+    assert.equal(res.status, 400);
+  });
+
+  test("404s deleting an unknown experiment", async () => {
+    insertProtocol();
+    const res = await request(app).delete("/api/protocols/TEST-0001/experiments/9999");
+    assert.equal(res.status, 404);
+  });
+
+  test("404s for an unknown protocol on experiments routes", async () => {
+    const list = await request(app).get("/api/protocols/NOPE/experiments");
+    assert.equal(list.status, 404);
+    const add = await request(app).post("/api/protocols/NOPE/experiments").send({ name: "X" });
+    assert.equal(add.status, 404);
+  });
+});
+
 describe("3 Rs / alternatives", () => {
   beforeEach(() => resetTables(db));
 
@@ -317,5 +399,213 @@ describe("3 Rs / alternatives", () => {
       });
     assert.equal(res.status, 200);
     assert.equal(res.body.lit_databases, "PubMed, AGRICOLA");
+  });
+
+  test("regression: legacy 3 Rs blob fields are never returned by the alternatives API", async () => {
+    insertProtocol();
+    const res = await request(app).get("/api/protocols/TEST-0001/alternatives");
+    assert.equal(res.status, 200);
+    assert.equal("replacement_text" in res.body, false);
+    assert.equal("refinement_text" in res.body, false);
+    assert.equal("reduction_text" in res.body, false);
+  });
+});
+
+describe("3 Rs justifications", () => {
+  beforeEach(() => resetTables(db));
+
+  test("GET returns an empty list for a protocol with no entries", async () => {
+    insertProtocol();
+    const res = await request(app).get("/api/protocols/TEST-0001/rrr");
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, []);
+  });
+
+  test("POST creates an entry and GET returns it", async () => {
+    insertProtocol();
+    const created = await request(app)
+      .post("/api/protocols/TEST-0001/rrr")
+      .send({ rrr_type: "replacement", method: "Cell culture models", explanation: "Considered" });
+    assert.equal(created.status, 201);
+    assert.equal(created.body.method, "Cell culture models");
+    assert.equal(created.body.explanation, "Considered");
+
+    const list = await request(app).get("/api/protocols/TEST-0001/rrr");
+    assert.equal(list.status, 200);
+    assert.equal(list.body.length, 1);
+    assert.equal(list.body[0].rrr_type, "replacement");
+  });
+
+  test("POST rejects a missing method", async () => {
+    insertProtocol();
+    const res = await request(app)
+      .post("/api/protocols/TEST-0001/rrr")
+      .send({ rrr_type: "replacement" });
+    assert.equal(res.status, 400);
+  });
+
+  test("POST rejects an invalid rrr_type", async () => {
+    insertProtocol();
+    const res = await request(app)
+      .post("/api/protocols/TEST-0001/rrr")
+      .send({ rrr_type: "transformation", method: "Foo" });
+    assert.equal(res.status, 400);
+  });
+
+  test("404s for an unknown protocol on rrr routes", async () => {
+    const get = await request(app).get("/api/protocols/NOPE/rrr");
+    assert.equal(get.status, 404);
+    const post = await request(app)
+      .post("/api/protocols/NOPE/rrr")
+      .send({ rrr_type: "replacement", method: "Foo" });
+    assert.equal(post.status, 404);
+  });
+
+  test("PATCH updates an entry", async () => {
+    insertProtocol();
+    const created = await request(app)
+      .post("/api/protocols/TEST-0001/rrr")
+      .send({ rrr_type: "replacement", method: "Old method" });
+    const res = await request(app)
+      .patch(`/api/protocols/TEST-0001/rrr/${created.body.id}`)
+      .send({ method: "New method", explanation: "Updated" });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.method, "New method");
+    assert.equal(res.body.explanation, "Updated");
+  });
+
+  test("PATCH rejects an invalid rrr_type change", async () => {
+    insertProtocol();
+    const created = await request(app)
+      .post("/api/protocols/TEST-0001/rrr")
+      .send({ rrr_type: "replacement", method: "Foo" });
+    const res = await request(app)
+      .patch(`/api/protocols/TEST-0001/rrr/${created.body.id}`)
+      .send({ rrr_type: "bogus" });
+    assert.equal(res.status, 400);
+  });
+
+  test("PATCH 400s with no updatable fields and 404s for an unknown entry", async () => {
+    insertProtocol();
+    const missing = await request(app).patch("/api/protocols/TEST-0001/rrr/999").send({});
+    assert.equal(missing.status, 404);
+    const created = await request(app)
+      .post("/api/protocols/TEST-0001/rrr")
+      .send({ rrr_type: "replacement", method: "Foo" });
+    const noFields = await request(app)
+      .patch(`/api/protocols/TEST-0001/rrr/${created.body.id}`)
+      .send({});
+    assert.equal(noFields.status, 400);
+  });
+
+  test("DELETE removes an entry and 404s for a missing one", async () => {
+    insertProtocol();
+    const created = await request(app)
+      .post("/api/protocols/TEST-0001/rrr")
+      .send({ rrr_type: "replacement", method: "Foo" });
+    const del = await request(app).delete(`/api/protocols/TEST-0001/rrr/${created.body.id}`);
+    assert.equal(del.status, 204);
+    const missing = await request(app).delete(`/api/protocols/TEST-0001/rrr/${created.body.id}`);
+    assert.equal(missing.status, 404);
+  });
+
+  test("allows multiple entries per type", async () => {
+    insertProtocol();
+    await request(app).post("/api/protocols/TEST-0001/rrr").send({ rrr_type: "replacement", method: "A" });
+    await request(app).post("/api/protocols/TEST-0001/rrr").send({ rrr_type: "replacement", method: "B" });
+    const res = await request(app).get("/api/protocols/TEST-0001/rrr");
+    assert.equal(res.body.length, 2);
+    assert.ok(res.body.every(e => e.rrr_type === "replacement"));
+  });
+});
+
+describe("submission-readiness validation", () => {
+  beforeEach(() => resetTables(db));
+
+  function fillCompleteProtocol(overrides = {}) {
+    insertProtocol(overrides);
+    db.prepare(`
+      UPDATE protocols SET
+        purpose_summary = 'Lay purpose',
+        harm_benefit_analysis = 'Harm/benefit',
+        scientific_summary = 'Scientific'
+      WHERE id = 'TEST-0001'
+    `).run();
+    db.prepare(`
+      INSERT INTO protocol_drugs (protocol_id, reason_for_use, drug, dose, route, duration)
+      VALUES ('TEST-0001', 'Anesthesia', 'Isoflurane', '2-3%', 'Inhalation', '15 min')
+    `).run();
+    db.prepare(`
+      INSERT INTO protocol_animal_use (protocol_id, species_strain, sex, approx_age, max_count)
+      VALUES ('TEST-0001', 'Mouse', 'F', '8 weeks', 10)
+    `).run();
+    db.prepare(`INSERT INTO protocol_experiments (protocol_id, name) VALUES ('TEST-0001', 'Main study')`).run();
+    db.prepare(`
+      INSERT INTO protocol_alternatives (protocol_id, lit_databases, lit_years_from, lit_years_to,
+        lit_search_date, lit_keywords, lit_summary)
+      VALUES ('TEST-0001', 'PubMed, AGRICOLA', '2019', '2026', '2026-06-01', 'alternatives', 'No full alternatives')
+    `).run();
+    const rrr = db.prepare(`INSERT INTO protocol_rrr_entries (protocol_id, rrr_type, method) VALUES (?, ?, ?)`);
+    rrr.run("TEST-0001", "replacement", "Cell culture models");
+    rrr.run("TEST-0001", "refinement", "Refined endpoints");
+    rrr.run("TEST-0001", "reduction", "Power analysis");
+  }
+
+  test("GET /:id/validation reports every incomplete section with its missing items", async () => {
+    insertProtocol();
+    const res = await request(app).get("/api/protocols/TEST-0001/validation");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.overall, false);
+    assert.equal(res.body.avRequired, false);
+    assert.deepEqual(res.body.sections.summaries.missing, [
+      "Lay purpose summary", "Harm–benefit analysis", "Scientific summary",
+    ]);
+    assert.deepEqual(res.body.sections.drugs.missing, ["At least one drug/dosing row"]);
+    assert.deepEqual(res.body.sections.animal_use.missing, ["At least one animal-use row"]);
+    assert.deepEqual(res.body.sections.experiments.missing, ["At least one experiment"]);
+    assert.ok(res.body.sections.alternatives.missing.includes("Replacement justification"));
+    assert.ok(res.body.sections.alternatives.missing.includes("Refinement justification"));
+    assert.ok(res.body.sections.alternatives.missing.includes("Reduction justification"));
+    assert.equal(res.body.sections.procedures.complete, true);
+  });
+
+  test("validation passes once every section is complete", async () => {
+    fillCompleteProtocol();
+    const res = await request(app).get("/api/protocols/TEST-0001/validation");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.overall, true);
+    for (const s of Object.values(res.body.sections)) assert.equal(s.complete, true);
+  });
+
+  test("a checked procedure without a narrative keeps the procedures section incomplete", async () => {
+    insertProtocol();
+    db.prepare(`
+      INSERT INTO protocol_procedures (protocol_id, procedure_key, checked)
+      VALUES ('TEST-0001', 'anesthesia', 1)
+    `).run();
+    const res = await request(app).get("/api/protocols/TEST-0001/validation");
+    assert.equal(res.body.sections.procedures.complete, false);
+    assert.deepEqual(res.body.sections.procedures.missing, ["Narrative for “Anesthesia”"]);
+  });
+
+  test("Category D/E requires an AV consultation date", async () => {
+    fillCompleteProtocol({ pain_category: "Category D" });
+    const res = await request(app).get("/api/protocols/TEST-0001/validation");
+    assert.equal(res.body.avRequired, true);
+    assert.equal(res.body.sections.alternatives.complete, false);
+    assert.deepEqual(res.body.sections.alternatives.missing, ["Attending Veterinarian consultation date"]);
+  });
+
+  test("av_consult_date satisfies the Category D/E requirement", async () => {
+    fillCompleteProtocol({ pain_category: "Category D" });
+    db.prepare(`UPDATE protocol_alternatives SET av_consult_date = '2026-07-01' WHERE protocol_id = 'TEST-0001'`).run();
+    const res = await request(app).get("/api/protocols/TEST-0001/validation");
+    assert.equal(res.body.sections.alternatives.complete, true);
+    assert.equal(res.body.overall, true);
+  });
+
+  test("404s for an unknown protocol on the validation route", async () => {
+    const res = await request(app).get("/api/protocols/NOPE/validation");
+    assert.equal(res.status, 404);
   });
 });

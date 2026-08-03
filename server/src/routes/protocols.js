@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "../db.js";
+import { validateCompleteness } from "./protocol-form.js";
 
 export const router = Router();
 
@@ -113,6 +114,20 @@ router.patch("/:id", (req, res) => {
   ];
   const updates = fields.filter(f => f in req.body);
   if (updates.length === 0) return res.status(400).json({ error: "No updatable fields provided" });
+
+  // Server-side enforcement of the Cayuse/Cornell submit rule: a protocol may
+  // not move into "Submitted" until every Appendix A section is complete.
+  // The client also surfaces this via GET /:id/validation, but the check must
+  // live here so direct API calls can't bypass it.
+  if (updates.includes("status") && req.body.status === "Submitted") {
+    const validation = validateCompleteness(req.params.id);
+    if (!validation.overall) {
+      return res.status(400).json({
+        error: "Cannot submit: complete all required sections first",
+        validation,
+      });
+    }
+  }
 
   const setClause = updates.map(f => `${f} = @${f}`).join(", ");
   const params = { id: req.params.id };

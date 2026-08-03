@@ -234,6 +234,57 @@ describe("PATCH /api/protocols/:id", () => {
     const res = await request(app).patch("/api/protocols/TEST-0001").send({});
     assert.equal(res.status, 400);
   });
+
+  function fillCompleteProtocol() {
+    insertProtocol();
+    db.prepare(`
+      UPDATE protocols SET
+        purpose_summary = 'Lay purpose',
+        harm_benefit_analysis = 'Harm/benefit',
+        scientific_summary = 'Scientific'
+      WHERE id = 'TEST-0001'
+    `).run();
+    db.prepare(`
+      INSERT INTO protocol_drugs (protocol_id, reason_for_use, drug, dose, route, duration)
+      VALUES ('TEST-0001', 'Anesthesia', 'Isoflurane', '2-3%', 'Inhalation', '15 min')
+    `).run();
+    db.prepare(`
+      INSERT INTO protocol_animal_use (protocol_id, species_strain, sex, approx_age, max_count)
+      VALUES ('TEST-0001', 'Mouse', 'F', '8 weeks', 10)
+    `).run();
+    db.prepare(`INSERT INTO protocol_experiments (protocol_id, name) VALUES ('TEST-0001', 'Main study')`).run();
+    db.prepare(`
+      INSERT INTO protocol_alternatives (protocol_id, lit_databases, lit_years_from, lit_years_to,
+        lit_search_date, lit_keywords, lit_summary)
+      VALUES ('TEST-0001', 'PubMed, AGRICOLA', '2019', '2026', '2026-06-01', 'alternatives', 'No full alternatives')
+    `).run();
+    const rrr = db.prepare(`INSERT INTO protocol_rrr_entries (protocol_id, rrr_type, method) VALUES (?, ?, ?)`);
+    rrr.run("TEST-0001", "replacement", "Cell culture models");
+    rrr.run("TEST-0001", "refinement", "Refined endpoints");
+    rrr.run("TEST-0001", "reduction", "Power analysis");
+  }
+
+  test("rejects transitioning to Submitted while sections are incomplete", async () => {
+    insertProtocol();
+    const res = await request(app)
+      .patch("/api/protocols/TEST-0001")
+      .send({ status: "Submitted", submitted: "2026-07-15" });
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error, "Cannot submit: complete all required sections first");
+    assert.equal(res.body.validation.overall, false);
+
+    const after = await request(app).get("/api/protocols/TEST-0001");
+    assert.equal(after.body.status, "Draft");
+  });
+
+  test("allows transitioning to Submitted once every section is complete", async () => {
+    fillCompleteProtocol();
+    const res = await request(app)
+      .patch("/api/protocols/TEST-0001")
+      .send({ status: "Submitted", submitted: "2026-07-15" });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, "Submitted");
+  });
 });
 
 describe("DELETE /api/protocols/:id", () => {
