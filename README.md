@@ -1,10 +1,21 @@
 # IACUC Protocols App
 
-# My Project Name
-
 [![CI](https://github.com/BabuBahir/iacuc-protocol-review-case-study/actions/workflows/ci.yml/badge.svg)](https://github.com/BabuBahir/iacuc-protocol-review-case-study/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/BabuBahir/iacuc-protocol-review-case-study/graph/badge.svg)](https://codecov.io/gh/BabuBahir/iacuc-protocol-review-case-study)
-![License](https://img.shields.io/github/license/BabuBahir/iacuc-protocol-review-case-study)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+
+
+## Demo
+
+Access the demo at [demo.iacuc.com](https://iacuc-protocol-review-case-study-cl.vercel.app/).
+
+
+
+> [!IMPORTANT]
+> This environment is not intended for use in production. It is refreshed daily, and the data entered is accessible to everyone.
+
+
 
 A real two-tier app: an Express + SQLite API, and a Vite + React frontend
 with actual client-side routing (`react-router-dom`). This replaces the
@@ -17,6 +28,8 @@ iacuc-app/
   server/        Express API + SQLite database  (package: iacuc-server)
   client/        Vite + React frontend           (package: iacuc-client)
 ```
+
+
 
 ## 1. Install everything (one command, from the repo root)
 
