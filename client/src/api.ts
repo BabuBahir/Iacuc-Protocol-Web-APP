@@ -14,12 +14,17 @@ import type {
   ExperimentInput,
   ExperimentRow,
   Personnel,
+  PersonnelCompliance,
   PersonnelInput,
+  PersonnelOhsp,
+  PersonnelOhspInput,
+  PersonnelTrainingResponse,
   Procedure,
   ProcedureInput,
   Protocol,
   ProtocolDetail,
   ProtocolInput,
+  ProtocolPersonnelResponse,
   ProtocolUpdateInput,
   ProtocolVotesResponse,
   ReviewAssignmentInput,
@@ -32,6 +37,8 @@ import type {
   RrrEntry,
   Species,
   Summary,
+  TrainingRecord,
+  TrainingRecordInput,
   ValidationResult,
   VoteInput,
   Voter,
@@ -86,6 +93,26 @@ export const api = {
   createPersonnel: (data: PersonnelInput): Promise<Personnel> =>
     request("/admin/personnel", { method: "POST", body: JSON.stringify(data) }),
   deletePersonnel: (id: number): Promise<null> => request(`/admin/personnel/${id}`, { method: "DELETE" }),
+
+  // personnel compliance (Domain C): CITI training + OHSP clearance
+  listPersonnelCompliance: (): Promise<PersonnelCompliance[]> => request("/personnel/compliance"),
+  getPersonnelTraining: (id: number): Promise<PersonnelTrainingResponse> =>
+    request(`/personnel/${id}/training`),
+  createTrainingRecord: (id: number, data: TrainingRecordInput): Promise<TrainingRecord> =>
+    request(`/personnel/${id}/training`, { method: "POST", body: JSON.stringify(data) }),
+  updateTrainingRecord: (
+    id: number,
+    trainingId: number,
+    data: Partial<TrainingRecordInput>,
+  ): Promise<TrainingRecord> =>
+    request(`/personnel/${id}/training/${trainingId}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteTrainingRecord: (id: number, trainingId: number): Promise<null> =>
+    request(`/personnel/${id}/training/${trainingId}`, { method: "DELETE" }),
+  getPersonnelOhsp: (id: number): Promise<PersonnelOhsp> => request(`/personnel/${id}/ohsp`),
+  setPersonnelOhsp: (id: number, data: PersonnelOhspInput): Promise<PersonnelOhsp> =>
+    request(`/personnel/${id}/ohsp`, { method: "POST", body: JSON.stringify(data) }),
+  getProtocolPersonnel: (id: string): Promise<ProtocolPersonnelResponse> =>
+    request(`/protocols/${id}/personnel`),
 
   // committee: FCR voting + review workflow
   listCommitteeProtocols: (): Promise<CommitteeProtocol[]> => request("/committee/protocols"),

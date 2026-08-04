@@ -83,6 +83,26 @@ CREATE TABLE IF NOT EXISTS personnel (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Personnel compliance (Domain C): CITI-style training records and OHSP
+-- (Occupational Health & Safety Program) clearance per person. personnel_ohsp
+-- is one row per person (upserted); personnel_training is a 1:N list.
+CREATE TABLE IF NOT EXISTS personnel_training (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  personnel_id   INTEGER NOT NULL REFERENCES personnel(id) ON DELETE CASCADE,
+  course         TEXT NOT NULL,
+  completed_date TEXT NOT NULL,
+  expires_date   TEXT,
+  created_at     TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS personnel_ohsp (
+  personnel_id  INTEGER PRIMARY KEY REFERENCES personnel(id) ON DELETE CASCADE,
+  status        TEXT NOT NULL DEFAULT 'Pending', -- 'Pending' | 'Cleared' | 'Denied'
+  reviewed_date TEXT,
+  notes         TEXT,
+  updated_at    TEXT DEFAULT (datetime('now'))
+);
+
 -- ---- committee: Full Committee Review (FCR) votes on a protocol ----
 
 CREATE TABLE IF NOT EXISTS protocol_votes (

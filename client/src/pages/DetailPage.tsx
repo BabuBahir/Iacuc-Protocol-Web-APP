@@ -8,7 +8,7 @@ import {
 import StatusBadge from "../components/StatusBadge";
 import ProtocolForm from "../components/ProtocolForm";
 import { api } from "../api";
-import type { ProtocolDetail, ProtocolFormValues } from "../types";
+import type { ProtocolDetail, ProtocolFormValues, ProtocolPersonnelEntry } from "../types";
 
 const LIST_ICONS: Record<string, LucideIcon> = {
   Personnel: Users,
@@ -16,6 +16,20 @@ const LIST_ICONS: Record<string, LucideIcon> = {
   "Approval history": Clock,
   Attachments: Paperclip,
 };
+
+function ComplianceChip({ entry }: { entry: ProtocolPersonnelEntry }) {
+  const ok = entry.compliance.compliant;
+  return (
+    <span
+      className={[
+        "px-1.5 py-0.5 rounded-full text-[11px] font-medium shrink-0",
+        ok ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700",
+      ].join(" ")}
+    >
+      {ok ? "Compliant" : "Action needed"}
+    </span>
+  );
+}
 
 interface EditProtocolModalProps {
   protocol: ProtocolDetail;
@@ -78,6 +92,7 @@ export default function DetailPage() {
   const [protocol, setProtocol] = useState<ProtocolDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showEdit, setShowEdit] = useState(false);
+  const [personnel, setPersonnel] = useState<Record<string, ProtocolPersonnelEntry>>({});
 
   const reload = () => {
     api.getProtocol(id!)
@@ -90,6 +105,14 @@ export default function DetailPage() {
     api.getProtocol(id!)
       .then(data => !cancelled && setProtocol(data))
       .catch(err => !cancelled && setError(err instanceof Error ? err.message : String(err)));
+    api.getProtocolPersonnel(id!)
+      .then(data => {
+        if (cancelled) return;
+        const byLabel: Record<string, ProtocolPersonnelEntry> = {};
+        for (const entry of data.personnel) byLabel[entry.label] = entry;
+        setPersonnel(byLabel);
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [id]);
 
@@ -210,7 +233,15 @@ export default function DetailPage() {
                   <button className="text-[#0176D3] text-xs font-medium">View all</button>
                 </div>
                 <div className="divide-y divide-gray-100">
-                  {rows.map(row => <div key={row} className="px-4 py-2 text-[13px] text-gray-700">{row}</div>)}
+                  {rows.map(row => {
+                    const entry = listName === "Personnel" ? personnel[row] : undefined;
+                    return (
+                      <div key={row} className="px-4 py-2 text-[13px] text-gray-700 flex items-center justify-between gap-2">
+                        <span>{row}</span>
+                        {entry && <ComplianceChip entry={entry} />}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );

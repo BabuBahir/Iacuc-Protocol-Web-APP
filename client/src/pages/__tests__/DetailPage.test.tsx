@@ -11,6 +11,7 @@ vi.mock("../../api", () => ({
     getProtocol: vi.fn(),
     listSpecies: vi.fn(),
     updateProtocol: vi.fn(),
+    getProtocolPersonnel: vi.fn(),
   },
 }));
 
@@ -62,6 +63,26 @@ function renderDetailPage() {
 describe("DetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    api.getProtocolPersonnel.mockResolvedValue({
+      protocol_id: "IACUC-2026-0142",
+      personnel: [
+        {
+          label: "Dr. Elena Marsh — PI",
+          name: "Dr. Elena Marsh",
+          role: "PI",
+          personnel_id: 1,
+          compliance: { training_status: "Current", ohsp_status: "Cleared", compliant: true },
+        },
+        {
+          label: "Sam Whitfield — Lab tech",
+          name: "Sam Whitfield",
+          role: "Lab tech",
+          personnel_id: 2,
+          compliance: { training_status: "No records", ohsp_status: "Pending", compliant: false },
+        },
+      ],
+      all_compliant: false,
+    });
   });
 
   test("shows a loading state before data resolves", () => {
@@ -148,6 +169,18 @@ describe("DetailPage", () => {
     expect(screen.getByText("Amendments (1)")).toBeInTheDocument();
     expect(screen.getByText("Dr. Elena Marsh — PI")).toBeInTheDocument();
     expect(screen.getByText("AM-01 — Add second mouse strain (Pending)")).toBeInTheDocument();
+  });
+
+  test("renders compliance chips in the Personnel card for each person", async () => {
+    api.getProtocol.mockResolvedValue(SAMPLE_PROTOCOL);
+
+    renderDetailPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Compliant")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Action needed")).toBeInTheDocument();
+    expect(api.getProtocolPersonnel).toHaveBeenCalledWith("IACUC-2026-0142");
   });
 
   test("renders the study contact email derived from the PI name", async () => {

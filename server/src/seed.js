@@ -129,6 +129,51 @@ const personnel = [
   { name: "Maya Patel", email: "maya.patel@university.edu", role: "IACUC Coordinator" },
 ];
 
+// ---- personnel compliance (Domain C): CITI-style training + OHSP clearance ----
+//
+// Fixture design drives the e2e/css compliance story:
+//  - Elena Marsh & Sam Whitfield (both on 0142) are fully compliant → green.
+//  - Raj Patel (also on 0142) has no records → amber. So 0142 shows both
+//    states on the detail page's Personnel panel.
+//  - Marcus Chen (PI of 0021) has current training but OHSP Pending → amber.
+//  - Jordan Blake has lapsed (expired) training → amber.
+//  - Everyone else stays unseeded (No records / Pending) so the admin page
+//    has a spread of statuses to show.
+const trainingSeed = {
+  "Dr. Elena Marsh": [
+    { course: "Working with the IACUC", completed_date: "2025-01-15", expires_date: "2028-01-15" },
+    { course: "Refinement of Rodent Handling", completed_date: "2025-03-02", expires_date: null },
+  ],
+  "Sam Whitfield": [
+    { course: "Rodent Surgery Techniques", completed_date: "2025-02-01", expires_date: "2028-02-01" },
+  ],
+  "Dr. Priya Nair": [
+    { course: "Attending Veterinarian Program", completed_date: "2024-06-01", expires_date: "2027-06-01" },
+  ],
+  "Dr. Harold Kim": [
+    { course: "IACUC Chair Training", completed_date: "2025-03-01", expires_date: "2028-03-01" },
+  ],
+  "Dr. Sofia Ramos": [
+    { course: "Committee Member Refresher", completed_date: "2025-05-01", expires_date: "2028-05-01" },
+  ],
+  "Dr. Marcus Chen": [
+    { course: "Committee Member Refresher", completed_date: "2024-01-01", expires_date: "2027-01-01" },
+  ],
+  "Jordan Blake": [
+    { course: "Non-Affiliated Member Training", completed_date: "2021-01-01", expires_date: "2024-01-01" },
+  ],
+};
+
+const ohspSeed = {
+  "Dr. Elena Marsh": { status: "Cleared", reviewed_date: "2026-01-10", notes: "Baseline health screening complete." },
+  "Sam Whitfield": { status: "Cleared", reviewed_date: "2025-03-01", notes: null },
+  "Dr. Priya Nair": { status: "Cleared", reviewed_date: "2024-06-15", notes: null },
+  "Dr. Harold Kim": { status: "Cleared", reviewed_date: "2025-03-10", notes: null },
+  "Dr. Sofia Ramos": { status: "Cleared", reviewed_date: "2025-05-10", notes: null },
+  "Dr. Marcus Chen": { status: "Pending", reviewed_date: null, notes: "Awaiting annual health questionnaire." },
+  "Jordan Blake": { status: "Cleared", reviewed_date: "2021-01-15", notes: null },
+};
+
 // ---- Appendix A content tables (procedures / drugs / animal use / alternatives) ----
 
 const proceduresSeed = {
@@ -592,6 +637,14 @@ const getRoleId = db.prepare(`SELECT id FROM roles WHERE name = ?`);
 const insertPersonnel = db.prepare(`
   INSERT INTO personnel (name, email, role_id) VALUES (?, ?, ?)
 `);
+const insertTraining = db.prepare(`
+  INSERT INTO personnel_training (personnel_id, course, completed_date, expires_date)
+  VALUES (?, ?, ?, ?)
+`);
+const insertOhsp = db.prepare(`
+  INSERT INTO personnel_ohsp (personnel_id, status, reviewed_date, notes)
+  VALUES (?, ?, ?, ?)
+`);
 
 const insertProcedure = db.prepare(`
   INSERT INTO protocol_procedures (protocol_id, procedure_key, checked, description,
@@ -651,7 +704,7 @@ const insertComment = db.prepare(`
   VALUES (?, ?, ?, ?)
 `);
 
-let procCount = 0, drugCount = 0, animalUseCount = 0, alternativesCount = 0, experimentCount = 0, rrrCount = 0, usageCount = 0, assignmentCount = 0, commentCount = 0;
+let procCount = 0, drugCount = 0, animalUseCount = 0, alternativesCount = 0, experimentCount = 0, rrrCount = 0, usageCount = 0, assignmentCount = 0, commentCount = 0, trainingCount = 0, ohspCount = 0;
 
 db.exec("BEGIN");
 try {
@@ -660,6 +713,7 @@ try {
   db.exec("DELETE FROM protocol_experiments; DELETE FROM protocol_rrr_entries;");
   db.exec("DELETE FROM animal_usage_transactions;");
   db.exec("DELETE FROM protocol_review_comments; DELETE FROM protocol_review_assignments;");
+  db.exec("DELETE FROM personnel_training; DELETE FROM personnel_ohsp;");
   db.exec("DELETE FROM personnel; DELETE FROM roles; DELETE FROM species;");
   db.exec("DELETE FROM related_items; DELETE FROM protocols;");
 
@@ -694,6 +748,18 @@ try {
   for (const p of personnel) {
     const role = getRoleId.get(p.role);
     insertPersonnel.run(p.name, p.email, role.id);
+  }
+  for (const [name, courses] of Object.entries(trainingSeed)) {
+    const person = getPersonnelId.get(name);
+    for (const c of courses) {
+      insertTraining.run(person.id, c.course, c.completed_date, c.expires_date ?? null);
+      trainingCount++;
+    }
+  }
+  for (const [name, ohsp] of Object.entries(ohspSeed)) {
+    const person = getPersonnelId.get(name);
+    insertOhsp.run(person.id, ohsp.status, ohsp.reviewed_date, ohsp.notes);
+    ohspCount++;
   }
 
   for (const [protocolId, rows] of Object.entries(proceduresSeed)) {
@@ -785,5 +851,5 @@ console.log(
   `Seeded ${protocols.length} protocols, ${relatedItems.length} related items, ` +
   `${species.length} species, ${roles.length} roles, ${personnel.length} personnel, ` +
   `${procCount} procedures, ${drugCount} drugs, ${animalUseCount} animal-use rows, ` +
-  `${experimentCount} experiments, ${alternativesCount} alternatives rows, ${rrrCount} 3Rs entries, ${votesSeed.length} votes, ${usageCount} usage transactions, ${assignmentCount} assignments, ${commentCount} review comments.`
+  `${experimentCount} experiments, ${alternativesCount} alternatives rows, ${rrrCount} 3Rs entries, ${votesSeed.length} votes, ${usageCount} usage transactions, ${assignmentCount} assignments, ${commentCount} review comments, ${trainingCount} training records, ${ohspCount} OHSP clearances.`
 );

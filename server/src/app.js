@@ -5,6 +5,7 @@ import { router as protocolFormRouter } from "./routes/protocol-form.js";
 import { router as animalUsageRouter } from "./routes/animal-usage.js";
 import { router as adminRouter } from "./routes/admin.js";
 import { router as committeeRouter } from "./routes/committee.js";
+import { personnelRouter, protocolPersonnelRouter } from "./routes/compliance.js";
 import "./db.js"; // ensures schema exists as soon as the app is built
 
 export function createApp() {
@@ -19,6 +20,8 @@ export function createApp() {
   app.use("/api/protocols", animalUsageRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/committee", committeeRouter);
+  app.use("/api/personnel", personnelRouter);
+  app.use("/api/protocols", protocolPersonnelRouter);
 
   return app;
 }

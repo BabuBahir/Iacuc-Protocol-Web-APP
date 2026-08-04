@@ -283,4 +283,53 @@ describe("api.ts request wrapper", () => {
       })
     );
   });
+
+  test("personnel compliance endpoints hit the correct paths", async () => {
+    mockFetchOnce(200, []);
+    await api.listPersonnelCompliance();
+    expect(fetch).toHaveBeenCalledWith("/api/personnel/compliance", expect.anything());
+
+    mockFetchOnce(200, { personnel: {}, courses: [], overall_status: "Current" });
+    await api.getPersonnelTraining(5);
+    expect(fetch).toHaveBeenCalledWith("/api/personnel/5/training", expect.anything());
+
+    mockFetchOnce(201, { id: 7, course: "Rodent Surgery" });
+    await api.createTrainingRecord(5, { course: "Rodent Surgery", completed_date: "2026-02-01" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/personnel/5/training",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ course: "Rodent Surgery", completed_date: "2026-02-01" }),
+      })
+    );
+
+    mockFetchOnce(200, { id: 7, expires_date: "2029-01-01" });
+    await api.updateTrainingRecord(5, 7, { expires_date: "2029-01-01" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/personnel/5/training/7",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ expires_date: "2029-01-01" }) })
+    );
+
+    mockFetchOnce(204, null);
+    await api.deleteTrainingRecord(5, 7);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/personnel/5/training/7",
+      expect.objectContaining({ method: "DELETE" })
+    );
+
+    mockFetchOnce(200, { personnel_id: 5, status: "Pending" });
+    await api.getPersonnelOhsp(5);
+    expect(fetch).toHaveBeenCalledWith("/api/personnel/5/ohsp", expect.anything());
+
+    mockFetchOnce(200, { personnel_id: 5, status: "Cleared" });
+    await api.setPersonnelOhsp(5, { status: "Cleared" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/personnel/5/ohsp",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ status: "Cleared" }) })
+    );
+
+    mockFetchOnce(200, { protocol_id: "P-1", personnel: [], all_compliant: false });
+    await api.getProtocolPersonnel("P-1");
+    expect(fetch).toHaveBeenCalledWith("/api/protocols/P-1/personnel", expect.anything());
+  });
 });
