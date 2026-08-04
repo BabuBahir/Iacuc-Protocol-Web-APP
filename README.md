@@ -192,9 +192,10 @@ reference lists (species, roles, personnel), and one set of child records
 that hang off each protocol (the application content, the review records,
 and the animal-usage ledger).
 
-> **Full diagram** — opens in a new tab so you can zoom in and out:
+> **Full diagram** — best viewed in its own tab so you can zoom in and out
+> (Tip: hold **Ctrl/Cmd** and click the link to open it in a new tab):
 >
-> <a href="docs/database-schema.svg" target="_blank" rel="noopener">Open the database diagram (SVG)</a>
+> <a href="docs/database-schema.png" target="_blank" rel="noopener">Open the database diagram (PNG)</a>
 
 Four things worth knowing without opening the diagram:
 

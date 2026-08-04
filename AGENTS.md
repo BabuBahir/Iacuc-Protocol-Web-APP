@@ -223,12 +223,17 @@ the demo. Keep that audience in mind whenever you touch the README:
 - **Large tables and code blocks must be collapsible** (`<details>`) or
   linked out of line. The API endpoint tables are collapsed; the database
   diagram is intentionally *not* inlined in the README — it lives as a
-  standalone image (`docs/database-schema.svg`) linked with a
+  standalone image (`docs/database-schema.png`) linked with a
   `target="_blank"` anchor so it opens in its own tab where it can be
   zoomed. The diagram is generated from `docs/database-schema.mmd`
   (mermaid source); to regenerate after a schema change, re-render the mmd
-  (e.g. via mermaid.ink or mermaid-cli) and commit the new SVG — keep the
-  mmd in sync with `server/src/db.js`.
+  and commit the new PNG (e.g. `https://mermaid.ink/img/<base64url-of-the-
+  mmd>?type=png` — the `?type=png` query is required, the endpoint returns
+  JPEG otherwise — or use mermaid-cli) and keep the mmd in sync with
+  `server/src/db.js`. Don't commit an SVG instead of the PNG: mermaid SVGs
+  contain `<foreignObject>`, so GitHub refuses to preview them. Note GitHub
+  strips `target="_blank"` from README HTML, so the anchor is best-effort
+  (Ctrl/Cmd+click works everywhere).
 - New README sections that are only useful to developers (schema internals,
   migration notes, per-endpoint detail) should default to collapsed or
   linked, and one-line summaries should carry the main message.
