@@ -58,8 +58,10 @@ Endpoints — the API surface at this point in development. Each router is
 mounted in `server/src/app.js`; every path below is prefixed with `/api`.
 See `docs/UI-EXPANSION-PLAN.md` and `ROADMAP.md` for what's coming.
 
-### Core protocol CRUD
-
+### Rest Api's for  CRUD
+<details>
+<summary><b>Core protocol CRUD</b> (Click to expand)</summary>
+  
 | Method | Path                       | Description                                     |
 |--------|----------------------------|--------------------------------------------------|
 | GET    | /api/health                | Liveness check                                   |
@@ -70,7 +72,10 @@ See `docs/UI-EXPANSION-PLAN.md` and `ROADMAP.md` for what's coming.
 | PATCH  | /api/protocols/:id         | Update fields / advance workflow stage           |
 | DELETE | /api/protocols/:id         | Delete a protocol                                |
 
-### Appendix A application content (per protocol)
+</details>
+ 
+<details>
+<summary><b>  Appendix A application content (per protocol) </b> (Click to expand)</summary>
 
 | Method | Path                                  | Description                                      |
 |--------|---------------------------------------|--------------------------------------------------|
@@ -95,16 +100,19 @@ See `docs/UI-EXPANSION-PLAN.md` and `ROADMAP.md` for what's coming.
 | GET    | /api/protocols/:id/alternatives       | 3 Rs & alternatives summary (literature search, colleague consult, AV consult) |
 | PATCH  | /api/protocols/:id/alternatives       | Update the alternatives block                    |
 | GET    | /api/protocols/:id/validation         | Per-section submission completeness + `overall`  |
-
-### Animal usage register (the ledger)
-
+</details>
+ 
+<details>
+<summary><b>   Animal usage register (the ledger) </b> (Click to expand)</summary>
+  
 | Method | Path                            | Description                                     |
 |--------|---------------------------------|--------------------------------------------------|
 | GET    | /api/protocols/:id/animal-usage | Per-species/pain-category/procedure tallies vs. the approved allowance |
 | POST   | /api/protocols/:id/animal-usage | Log an ordering/usage transaction               |
-
-### Admin lookup lists
-
+</details>
+<details>
+<summary><b>  Admin lookup lists </b> (Click to expand)</summary>
+   
 | Method | Path                    | Description                          |
 |--------|-------------------------|---------------------------------------|
 | GET    | /api/admin/species      | List species                          |
@@ -116,8 +124,11 @@ See `docs/UI-EXPANSION-PLAN.md` and `ROADMAP.md` for what's coming.
 | GET    | /api/admin/personnel    | List personnel                        |
 | POST   | /api/admin/personnel    | Create a personnel member             |
 | DELETE | /api/admin/personnel/:id| Delete a personnel member             |
+</details>
 
-### Committee / review workflow
+<details>
+<summary><b> Committee / review workflow </b> (Click to expand)</summary>
+ 
 
 | Method | Path                                        | Description                                      |
 |--------|---------------------------------------------|---------------------------------------------------|
@@ -130,8 +141,10 @@ See `docs/UI-EXPANSION-PLAN.md` and `ROADMAP.md` for what's coming.
 | POST   | /api/committee/protocols/:id/comments       | Add a section-specific review comment             |
 | PATCH  | /api/committee/protocols/:id/assign         | Upsert a reviewer assignment (Primary/Secondary/Designated Member) |
 | PATCH  | /api/committee/protocols/:id/review-method  | Set review method (`FCR` / `DMR`)                 |
+</details>
 
-### Personnel compliance (CITI training + OHSP clearance)
+<details>
+<summary><b> Personnel compliance (CITI training + OHSP clearance) </b> (Click to expand)</summary> 
 
 | Method | Path                                          | Description                                      |
 |--------|-----------------------------------------------|---------------------------------------------------|
@@ -143,6 +156,7 @@ See `docs/UI-EXPANSION-PLAN.md` and `ROADMAP.md` for what's coming.
 | GET    | /api/personnel/:id/ohsp                       | OHSP clearance row (defaults to Pending)          |
 | POST   | /api/personnel/:id/ohsp                       | Upsert OHSP status (`Pending`/`Cleared`/`Denied`) |
 | GET    | /api/protocols/:id/personnel                  | Per-listed-person compliance + `all_compliant` for a protocol |
+</details>
 
 ### Planned / future endpoints
 
