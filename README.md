@@ -29,8 +29,9 @@ It is built the way an IACUC office actually works: every protocol carries a
 full application, a review trail, and an animal-usage ledger.
 
 > [!NOTE]
-> Setup, architecture, and deployment instructions for developers live in
-> [`docs/DEVELOPER.md`](docs/DEVELOPER.md).
+> Technical setup, architecture, and deployment details are in
+> [Part 2](#part-2--for-developers-install-run-and-the-technical-reference)
+> at the bottom of this page.
 
 ## What you can do
 
@@ -50,11 +51,99 @@ full application, a review trail, and an animal-usage ledger.
   glance for everyone on a protocol.
 - **Try everything in the hosted demo** (link above) — no setup needed.
 
-## API reference
+## Part 1 — Understanding the data
 
-The full API surface is listed below (collapsed). When the app is running
-locally, a searchable interactive reference with a "try it" button is
-available at `http://localhost:4000/api-docs` (Swagger UI).
+<details>
+<summary><b>The database at a glance</b> (Click to expand)</summary>
+
+The app's data lives in 17 tables — one for each protocol, one set of
+reference lists (species, roles, personnel), and one set of child records
+that hang off each protocol (the application content, the review records,
+and the animal-usage ledger).
+
+> **Full diagram** — best viewed in its own tab so you can zoom in and out
+> (Tip: hold **Ctrl/Cmd** and click the link to open it in a new tab):
+>
+> <a href="docs/database-schema.png" target="_blank" rel="noopener">Open the database diagram (PNG)</a>
+
+Four things worth knowing without opening the diagram:
+
+- **One protocol, many details.** Everything about a protocol — its
+  application (procedures, drugs, animal use, experiments, 3 Rs entries),
+  its review records (votes, reviewer assignments, comments), and its
+  usage ledger — is stored as child rows that belong to that protocol and
+  are removed with it.
+- **Personnel are shared.** The same person (PI, committee member, vet)
+  appears once in the personnel list and can be linked to any number of
+  protocols.
+- **Planned vs. actual.** The planned animal numbers live with the protocol
+  (the approved allowance); the animal-usage register records the *actual*
+  orders and uses. The register compares the two so staff can see at a
+  glance whether a protocol is within or over its allowance.
+- **One unique case.** Each protocol has exactly one research-search record;
+  every other protocol child table can have many rows.
+
+</details>
+
+## Part 2 — For developers (install, run, and the technical reference)
+
+<details>
+<summary><b>Install, run, and explore the API</b> (Click to expand)</summary>
+
+Requires **Node 22.5 or newer**.
+
+### Install everything (one command, from the repo root)
+
+```bash
+npm install
+```
+
+npm workspaces installs both `server/` and `client/` dependencies in one
+pass and links the workspace together (single `package-lock.json` at the
+root). The server uses Node's **built-in `node:sqlite` module** rather than
+a native addon package, so this install never needs to compile anything —
+no Visual Studio Build Tools, no Python, no prebuilt-binary lookups.
+
+### Seed and run the server
+
+```bash
+copy server\.env.example server\.env    # Windows
+# cp server/.env.example server/.env    # macOS/Linux
+
+npm run seed            # creates server/data/iacuc.db with sample protocols
+npm run dev:server      # http://localhost:4000
+```
+
+### Run the client
+
+In a second terminal:
+
+```bash
+npm run dev:client      # http://localhost:5173
+```
+
+Vite proxies any `/api/*` request to `http://localhost:4000` in dev (see
+`client/vite.config.js`), so the frontend never needs a hardcoded API URL.
+
+### Open it
+
+Visit `http://localhost:5173`. Clicking a row on the list page navigates to
+`/protocols/:id` (a real URL, so refresh/back/forward all work correctly)
+and fetches that record from the API.
+
+### Working with individual packages
+
+```bash
+npm run seed --workspace=server
+npm run build --workspace=client
+cd server && npm run dev
+```
+
+### API reference
+
+The full API surface is listed below. When the app is running locally, a
+searchable interactive reference with a "try it" button is available at
+`http://localhost:4000/api-docs` (Swagger UI).
 
 ### Rest Api's for  CRUD
 <details>
@@ -178,56 +267,33 @@ lands.
 
 </details>
 
-## Database schema
+### Schema & diagram source
 
-The app's data lives in 17 tables — one for each protocol, one set of
-reference lists (species, roles, personnel), and one set of child records
-that hang off each protocol (the application content, the review records,
-and the animal-usage ledger).
+The full table definitions are in `server/src/db.js`, and the diagram is
+generated from `docs/database-schema.mmd` (how-to in `AGENTS.md`).
 
-> **Full diagram** — best viewed in its own tab so you can zoom in and out
-> (Tip: hold **Ctrl/Cmd** and click the link to open it in a new tab):
->
-> <a href="docs/database-schema.png" target="_blank" rel="noopener">Open the database diagram (PNG)</a>
+### Swapping SQLite for Postgres / MySQL later
 
-Four things worth knowing without opening the diagram:
+Every route in `server/src/routes/protocols.js` only talks to the `db`
+object exported from `server/src/db.js`. To move to Postgres:
 
-- **One protocol, many details.** Everything about a protocol — its
-  application (procedures, drugs, animal use, experiments, 3 Rs entries),
-  its review records (votes, reviewer assignments, comments), and its
-  usage ledger — is stored as child rows that belong to that protocol and
-  are removed with it.
-- **Personnel are shared.** The same person (PI, committee member, vet)
-  appears once in the personnel list and can be linked to any number of
-  protocols.
-- **Planned vs. actual.** The planned animal numbers live with the protocol
-  (the approved allowance); the animal-usage register records the *actual*
-  orders and uses. The register compares the two so staff can see at a
-  glance whether a protocol is within or over its allowance.
-- **One unique case.** Each protocol has exactly one research-search record;
-  every other protocol child table can have many rows.
+1. `npm install pg --workspace=server`
+2. Replace the contents of `db.js` with a `pg.Pool` connection and rewrite
+   the handful of prepared statements in `protocols.js` as parameterized
+   `pool.query(...)` calls (mostly 1:1 — same SQL, different driver).
+3. Point `DB_PATH`/connection string at your Postgres instance via `.env`.
 
-Technical readers: the full table definitions are in `server/src/db.js`, and
-the diagram is generated from `docs/database-schema.mmd` (how-to in
-`AGENTS.md`).
+Nothing in the client needs to change, since it only ever talks to the
+`/api/protocols` HTTP endpoints.
 
-## For developers
+### Deploying
 
-Run the app yourself, architecture notes, and deployment instructions are in
-[`docs/DEVELOPER.md`](docs/DEVELOPER.md).
-
-<details>
-<summary><b>Quick start</b> (Click to expand)</summary>
-
-Requires **Node 22.5 or newer**.
-
-```bash
-npm install                          # one command, from the repo root
-copy server\.env.example server\.env # Windows — or cp server/.env.example server/.env
-npm run seed                         # create server/data/iacuc.db with sample data
-npm run dev:server                   # API on http://localhost:4000
-npm run dev:client                   # app on http://localhost:5173
-```
+- **Server**: any Node host (Render, Fly.io, Railway, a VPS). Set
+  `CLIENT_ORIGIN` to your deployed frontend's URL for CORS.
+- **Client**: `npm run build --workspace=client` produces static files in
+  `client/dist/` that can be served from any static host (Vercel, Netlify,
+  S3+CloudFront). Point its API calls at your deployed server URL instead of
+  the dev proxy (e.g. via a `VITE_API_URL` env var and updating `api.js`).
 
 </details>
 

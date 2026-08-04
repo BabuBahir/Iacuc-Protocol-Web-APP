@@ -218,9 +218,15 @@ the demo. Keep that audience in mind whenever you touch the README:
   has an application, review records, and a usage ledger) before any *how*
   (SQL, foreign keys, npm commands). Avoid jargon where a plain word works.
 - **Don't let the README balloon with implementation detail.** Technical
-  depth belongs in this file (AGENTS.md), in code comments, in
-  `docs/DEVELOPER.md` (setup/run/architecture/deployment), and in
+  depth belongs in this file (AGENTS.md), in code comments, and in
   `server/src/db.js` / `server/src/openapi.js` — not in the README.
+- **README structure**: after the plain-language intro (demo, what this is,
+  what you can do), the README has exactly **two major collapsible
+  sections**: *Part 1 — Understanding the data* (plain-language schema
+  summary + diagram link) and *Part 2 — For developers* (install, run,
+  API reference tables, DB swap, deploy). New developer-oriented content
+  goes into Part 2's `<details>` block, not into new top-level sections or
+  a separate developer doc.
 - **Large tables and code blocks must be collapsible** (`<details>`) or
   linked out of line. The API endpoint tables are collapsed; the database
   diagram is intentionally *not* inlined in the README — it lives as a
