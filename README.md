@@ -165,9 +165,12 @@ See `docs/UI-EXPANSION-PLAN.md` and `ROADMAP.md` for what's coming.
 
 ### Planned / future endpoints
 
-Documented but **not implemented yet** — tracked in `docs/UI-EXPANSION-PLAN.md`
-(domains B, E, F) and `ROADMAP.md`. Do not build against these yet; paths are
-subject to change as the schema lands.
+<details>
+<summary><b>Not implemented yet</b> (Click to expand)</summary>
+
+Tracked in `docs/UI-EXPANSION-PLAN.md` (domains B, E, F) and `ROADMAP.md`.
+Do not build against these yet; paths are subject to change as the schema
+lands.
 
 | Domain | Planned endpoint(s)                                                         | Source | Status |
 |--------|-----------------------------------------------------------------------------|--------|--------|
@@ -180,157 +183,40 @@ subject to change as the schema lands.
 | AAALAC compliance reports | Restraint/euthanasia/surgery/drug reports by species | ROADMAP item 9 | ✗ |
 | Audit logging | Who accessed/changed what, when (prerequisite for the AI-safety guardrails in AGENTS.md §3) | ROADMAP item 11 | ✗ |
 
-## 3. Database schema
-
-Every table is created in `server/src/db.js` (SQLite, `node:sqlite`). All
-child rows hang off `protocols` via a `protocol_id` foreign key with
-`ON DELETE CASCADE`; the one exception is `personnel.role_id → roles`, which
-is `ON DELETE RESTRICT` so a role can't be deleted while people still hold it.
-Note `protocols.species` and the register's `species_strain` are free text —
-the `species` table is an admin picklist, not a foreign key target.
-
-<details>
-<summary><b>Entity-relationship diagram</b> (Click to expand)</summary>
-
-```mermaid
-erDiagram
-    protocols ||--o{ related_items : "has"
-    protocols ||--o{ protocol_procedures : "has"
-    protocols ||--o{ protocol_drugs : "has"
-    protocols ||--o{ protocol_animal_use : "has"
-    protocols ||--o{ protocol_experiments : "has"
-    protocols ||--o| protocol_alternatives : "has (1:1)"
-    protocols ||--o{ protocol_rrr_entries : "has"
-    protocols ||--o{ animal_usage_transactions : "ledger of"
-    protocols ||--o{ protocol_votes : "receives votes"
-    protocols ||--o{ protocol_review_assignments : "has"
-    protocols ||--o{ protocol_review_comments : "receives comments"
-    roles ||--o{ personnel : "occupies"
-    personnel ||--o{ personnel_training : "has"
-    personnel ||--o| personnel_ohsp : "has (0..1)"
-    personnel ||--o{ protocol_votes : "casts"
-    personnel ||--o{ protocol_review_assignments : "is assigned"
-    personnel ||--o{ protocol_review_comments : "writes"
-
-    protocols {
-        string id PK
-        string title
-        string pi
-        string status
-        string pain_category
-        string review_method
-    }
-    related_items {
-        int id PK
-        string protocol_id FK
-        string list_name
-        string label
-    }
-    species {
-        int id PK
-        string name
-    }
-    roles {
-        int id PK
-        string name
-        bool is_committee
-    }
-    personnel {
-        int id PK
-        string name
-        string email
-        int role_id FK
-    }
-    personnel_training {
-        int id PK
-        int personnel_id FK
-        string course
-        string expires_date
-    }
-    personnel_ohsp {
-        int personnel_id PK, FK
-        string status
-    }
-    protocol_votes {
-        int id PK
-        string protocol_id FK
-        int personnel_id FK
-        string vote
-        string comment
-    }
-    protocol_review_assignments {
-        int id PK
-        string protocol_id FK
-        int personnel_id FK
-        string role
-    }
-    protocol_review_comments {
-        int id PK
-        string protocol_id FK
-        int personnel_id FK
-        string section
-    }
-    protocol_procedures {
-        int id PK
-        string protocol_id FK
-        string procedure_key
-        bool checked
-    }
-    protocol_drugs {
-        int id PK
-        string protocol_id FK
-        string drug
-        string dose
-    }
-    protocol_animal_use {
-        int id PK
-        string protocol_id FK
-        string species_strain
-        int max_count
-    }
-    protocol_experiments {
-        int id PK
-        string protocol_id FK
-        string name
-    }
-    protocol_alternatives {
-        string protocol_id PK, FK
-        string lit_databases
-        string av_consult_date
-    }
-    protocol_rrr_entries {
-        int id PK
-        string protocol_id FK
-        string rrr_type
-        string method
-    }
-    animal_usage_transactions {
-        int id PK
-        string protocol_id FK
-        string species_strain
-        int quantity
-        string type
-    }
-```
-
 </details>
 
-Key facts to read from the diagram:
+## 3. Database schema
 
-- **Everything belongs to a protocol.** The Appendix A content
-  (procedures, drugs, animal use, experiments, 3 Rs entries), the review
-  workflow rows (votes, assignments, comments), and the usage ledger all
-  cascade-delete with their `protocols` row.
-- **`protocol_alternatives` is 1:1** with `protocols` (its primary key *is*
-  `protocol_id`); everything else is 1:N.
-- **Personnel are shared, not per-protocol.** Votes, review assignments,
-  comments, training records and OHSP clearance all reference the same
-  `personnel` row, and personnel may appear on multiple protocols via
-  `related_items` (list_name = `'Personnel'`).
-- **The planned allowance vs. the actual ledger stay distinct:**
-  `protocol_animal_use.max_count` is the *approved* allowance;
-  `animal_usage_transactions` records the *actual* orders/uses (the API sums
-  the latter and compares it against the former).
+The app's data lives in 17 tables — one for each protocol, one set of
+reference lists (species, roles, personnel), and one set of child records
+that hang off each protocol (the application content, the review records,
+and the animal-usage ledger).
+
+> **Full diagram** — best viewed in its own tab so you can zoom in and out
+> (Tip: hold **Ctrl/Cmd** and click the link to open it in a new tab):
+>
+> <a href="docs/database-schema.png" target="_blank" rel="noopener">Open the database diagram (PNG)</a>
+
+Four things worth knowing without opening the diagram:
+
+- **One protocol, many details.** Everything about a protocol — its
+  application (procedures, drugs, animal use, experiments, 3 Rs entries),
+  its review records (votes, reviewer assignments, comments), and its
+  usage ledger — is stored as child rows that belong to that protocol and
+  are removed with it.
+- **Personnel are shared.** The same person (PI, committee member, vet)
+  appears once in the personnel list and can be linked to any number of
+  protocols.
+- **Planned vs. actual.** The planned animal numbers live with the protocol
+  (the approved allowance); the animal-usage register records the *actual*
+  orders and uses. The register compares the two so staff can see at a
+  glance whether a protocol is within or over its allowance.
+- **One unique case.** Each protocol has exactly one research-search record;
+  every other protocol child table can have many rows.
+
+Technical readers: the full table definitions are in `server/src/db.js`, and
+the diagram is generated from `docs/database-schema.mmd` (how-to in
+`AGENTS.md`).
 
 ## 4. Run the client
 

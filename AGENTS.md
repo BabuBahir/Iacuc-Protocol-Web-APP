@@ -207,6 +207,37 @@ is part of the workflow — run it after any client change. Vite resolves
 `.js` before `.ts`/`.tsx`, so if you ever reintroduce a plain-`.js` file next
 to a `.ts`/`.tsx` one, imports will silently pick up the wrong file.
 
+### Documentation audience (README = non-technical first)
+
+The people who actually read `README.md` for this project are **university
+animal research scientists and IACUC research-administration staff**, not
+software developers — the ones who will assess/review the product and use
+the demo. Keep that audience in mind whenever you touch the README:
+
+- Write the README in **plain language**. Explain the *what* (a protocol
+  has an application, review records, and a usage ledger) before any *how*
+  (SQL, foreign keys, npm commands). Avoid jargon where a plain word works.
+- **Don't let the README balloon with implementation detail.** Technical
+  depth belongs in this file (AGENTS.md), in code comments, and in
+  `server/src/db.js` / `server/src/openapi.js` — not in the README.
+- **Large tables and code blocks must be collapsible** (`<details>`) or
+  linked out of line. The API endpoint tables are collapsed; the database
+  diagram is intentionally *not* inlined in the README — it lives as a
+  standalone image (`docs/database-schema.png`) linked with a
+  `target="_blank"` anchor so it opens in its own tab where it can be
+  zoomed. The diagram is generated from `docs/database-schema.mmd`
+  (mermaid source); to regenerate after a schema change, re-render the mmd
+  and commit the new PNG (e.g. `https://mermaid.ink/img/<base64url-of-the-
+  mmd>?type=png` — the `?type=png` query is required, the endpoint returns
+  JPEG otherwise — or use mermaid-cli) and keep the mmd in sync with
+  `server/src/db.js`. Don't commit an SVG instead of the PNG: mermaid SVGs
+  contain `<foreignObject>`, so GitHub refuses to preview them. Note GitHub
+  strips `target="_blank"` from README HTML, so the anchor is best-effort
+  (Ctrl/Cmd+click works everywhere).
+- New README sections that are only useful to developers (schema internals,
+  migration notes, per-endpoint detail) should default to collapsed or
+  linked, and one-line summaries should carry the main message.
+
 ### API documentation (Swagger UI)
 
 `server/src/openapi.js` exports `openapiSpec` (OpenAPI 3.0.3), served by
