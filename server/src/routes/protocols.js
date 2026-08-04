@@ -7,14 +7,54 @@ export const router = Router();
 const STAGES = ["Draft", "Submitted", "Veterinary Review", "IACUC Review", "Approved", "Active"];
 
 // research_steps is stored as JSON text in SQLite; expose it to the client as
-// a real array so the UI never has to parse strings.
+// a real array of structured step objects so the UI never has to parse strings.
+// Legacy databases hold steps as plain strings — normalize those to objects on
+// read so both old and new data render identically.
+function normalizeStep(entry) {
+  if (typeof entry === "string") {
+    return {
+      description: entry,
+      duration: "",
+      frequency: "",
+      species: "",
+      pain_category: "",
+      anesthesia: "No",
+      location: "",
+      personnel: "",
+      notes: "",
+    };
+  }
+  const s = entry && typeof entry === "object" ? entry : {};
+  return {
+    description: String(s.description ?? ""),
+    duration: String(s.duration ?? ""),
+    frequency: String(s.frequency ?? ""),
+    species: String(s.species ?? ""),
+    pain_category: String(s.pain_category ?? ""),
+    anesthesia: s.anesthesia === "Yes" ? "Yes" : "No",
+    location: String(s.location ?? ""),
+    personnel: String(s.personnel ?? ""),
+    notes: String(s.notes ?? ""),
+  };
+}
+
+function parseResearchSteps(raw) {
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw).map(normalizeStep);
+  } catch {
+    return [];
+  }
+}
+
 function shape(row) {
   if (!row) return row;
-  return { ...row, research_steps: row.research_steps ? JSON.parse(row.research_steps) : [] };
+  return { ...row, research_steps: parseResearchSteps(row.research_steps) };
 }
 
 function normalizeResearchSteps(value) {
-  return Array.isArray(value) ? JSON.stringify(value) : value;
+  if (!Array.isArray(value)) return value;
+  return JSON.stringify(value.map(normalizeStep));
 }
 
 // GET /api/protocols?q=search

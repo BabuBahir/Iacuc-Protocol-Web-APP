@@ -1,7 +1,7 @@
 import React, { useEffect, useState, type ReactNode } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { api } from "../api";
-import { PAIN_CATEGORIES, PROTOCOL_TYPES, type ProtocolFormValues, type Species } from "../types";
+import { PAIN_CATEGORIES, PROTOCOL_TYPES, STEP_FREQUENCIES, type ProtocolFormValues, type ResearchStep, type Species } from "../types";
 
 const INPUT_CLASS = "w-full bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-[13px] outline-none focus:border-[#0176D3]";
 const LABEL_CLASS = "block text-[11px] uppercase tracking-wide text-gray-500 mb-1";
@@ -52,19 +52,46 @@ interface FormState {
 }
 
 interface StepModalProps {
-  initial: string;
+  initial: ResearchStep;
   index: number | null;
-  onSave: (text: string) => void;
+  speciesOptions: string[];
+  onSave: (step: ResearchStep) => void;
   onClose: () => void;
 }
 
+const EMPTY_STEP: ResearchStep = {
+  description: "",
+  duration: "",
+  frequency: "Once",
+  species: "",
+  pain_category: "",
+  anesthesia: "No",
+  location: "",
+  personnel: "",
+  notes: "",
+};
+
+// Defensive normalization: legacy databases and older API payloads store steps
+// as plain strings; the server also normalizes, but the client should never
+// assume that when rendering the form.
+function normalizeStep(step: string | ResearchStep): ResearchStep {
+  if (typeof step === "string") return { ...EMPTY_STEP, description: step };
+  return { ...EMPTY_STEP, ...step, anesthesia: step.anesthesia === "Yes" ? "Yes" : "No" };
+}
+
 // Sub-modal for capturing a single step of the research procedure plan.
-// Opens from the "Add step" button on the research plan section.
-function ResearchStepModal({ initial, index, onSave, onClose }: StepModalProps) {
-  const [text, setText] = useState(initial);
+// Opens from the "Add step" button on the research plan section. Each step
+// carries the structured fields the IACUC review needs (duration, frequency,
+// species, pain category, anesthesia, location, personnel, notes).
+function ResearchStepModal({ initial, index, speciesOptions, onSave, onClose }: StepModalProps) {
+  const [step, setStep] = useState<ResearchStep>(initial);
+  const set = (key: keyof ResearchStep) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setStep(prev => ({ ...prev, [key]: e.target.value } as ResearchStep));
+  const canSave = step.description.trim().length > 0;
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-lg w-full max-w-lg mx-4" onClick={e => e.stopPropagation()}>
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
           <h3 className="font-semibold text-gray-900 text-sm">
             {index === null ? "Add research step" : "Edit research step"}
@@ -73,15 +100,105 @@ function ResearchStepModal({ initial, index, onSave, onClose }: StepModalProps) 
             <X size={16} />
           </button>
         </div>
-        <div className="p-4 space-y-3">
+        <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
           <div>
             <label htmlFor="research-step-text" className={LABEL_CLASS}>Step description</label>
             <textarea
               id="research-step-text"
-              value={text}
-              onChange={e => setText(e.target.value)}
+              value={step.description}
+              onChange={set("description")}
               placeholder="Describe what is executed in this step of the research..."
-              rows={4}
+              rows={3}
+              className={INPUT_CLASS}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="research-step-duration" className={LABEL_CLASS}>Duration</label>
+              <input
+                id="research-step-duration"
+                value={step.duration}
+                onChange={set("duration")}
+                placeholder="e.g. 7 days, ~30 min"
+                className={INPUT_CLASS}
+              />
+            </div>
+            <div>
+              <label htmlFor="research-step-frequency" className={LABEL_CLASS}>Frequency</label>
+              <select
+                id="research-step-frequency"
+                value={step.frequency}
+                onChange={set("frequency")}
+                className={INPUT_CLASS}
+              >
+                {STEP_FREQUENCIES.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="research-step-species" className={LABEL_CLASS}>Species involved</label>
+              <select
+                id="research-step-species"
+                value={step.species}
+                onChange={set("species")}
+                className={INPUT_CLASS}
+              >
+                <option value="">—</option>
+                {speciesOptions.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="research-step-pain" className={LABEL_CLASS}>Pain category</label>
+              <select
+                id="research-step-pain"
+                value={step.pain_category}
+                onChange={set("pain_category")}
+                className={INPUT_CLASS}
+              >
+                <option value="">—</option>
+                {PAIN_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="research-step-anesthesia" className={LABEL_CLASS}>Anesthesia / sedation</label>
+              <select
+                id="research-step-anesthesia"
+                value={step.anesthesia}
+                onChange={set("anesthesia")}
+                className={INPUT_CLASS}
+              >
+                <option value="No">No</option>
+                <option value="Yes">Yes</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="research-step-location" className={LABEL_CLASS}>Location</label>
+              <input
+                id="research-step-location"
+                value={step.location}
+                onChange={set("location")}
+                placeholder="e.g. Surgical suite A"
+                className={INPUT_CLASS}
+              />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="research-step-personnel" className={LABEL_CLASS}>Personnel</label>
+            <input
+              id="research-step-personnel"
+              value={step.personnel}
+              onChange={set("personnel")}
+              placeholder="Who performs this step"
+              className={INPUT_CLASS}
+            />
+          </div>
+          <div>
+            <label htmlFor="research-step-notes" className={LABEL_CLASS}>Notes</label>
+            <textarea
+              id="research-step-notes"
+              value={step.notes}
+              onChange={set("notes")}
+              placeholder="Optional details, PI approval, refinements..."
+              rows={2}
               className={INPUT_CLASS}
             />
           </div>
@@ -95,8 +212,9 @@ function ResearchStepModal({ initial, index, onSave, onClose }: StepModalProps) 
             </button>
             <button
               type="button"
-              onClick={() => onSave(text.trim())}
-              className="px-3 py-1.5 rounded bg-[#0176D3] text-white text-[13px] font-medium hover:bg-[#0b5cab]"
+              disabled={!canSave}
+              onClick={() => onSave(step)}
+              className="px-3 py-1.5 rounded bg-[#0176D3] text-white text-[13px] font-medium hover:bg-[#0b5cab] disabled:opacity-50"
             >
               Save step
             </button>
@@ -145,9 +263,14 @@ export default function ProtocolForm({
     submitted: initialValues.submitted ?? "",
     expires: initialValues.expires ?? "",
   });
-  const [researchSteps, setResearchSteps] = useState<string[]>(initialValues.research_steps ?? []);
-  const [stepModal, setStepModal] = useState<{ open: boolean; index: number | null }>({ open: false, index: null });
-  const [stepText, setStepText] = useState("");
+  const [researchSteps, setResearchSteps] = useState<ResearchStep[]>(
+    (initialValues.research_steps ?? []).map(normalizeStep)
+  );
+  const [stepModal, setStepModal] = useState<{ open: boolean; index: number | null; initial: ResearchStep }>({
+    open: false,
+    index: null,
+    initial: EMPTY_STEP,
+  });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -171,17 +294,24 @@ export default function ProtocolForm({
   const set = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm({ ...form, [field]: e.target.value });
 
-  const openAddStep = () => { setStepText(""); setStepModal({ open: true, index: null }); };
-  const openEditStep = (i: number) => { setStepText(researchSteps[i]); setStepModal({ open: true, index: i }); };
-  const saveStep = (text: string) => {
-    if (!text) { setStepModal({ open: false, index: null }); return; }
+  const openAddStep = () => {
+    setStepModal({ open: true, index: null, initial: { ...EMPTY_STEP, species: form.species } });
+  };
+  const openEditStep = (i: number) => {
+    setStepModal({ open: true, index: i, initial: researchSteps[i] });
+  };
+  const saveStep = (step: ResearchStep) => {
+    if (!step.description.trim()) {
+      setStepModal({ open: false, index: null, initial: EMPTY_STEP });
+      return;
+    }
     setResearchSteps(prev => {
-      if (stepModal.index === null) return [...prev, text];
+      if (stepModal.index === null) return [...prev, normalizeStep(step)];
       const next = [...prev];
-      next[stepModal.index] = text;
+      next[stepModal.index] = normalizeStep(step);
       return next;
     });
-    setStepModal({ open: false, index: null });
+    setStepModal({ open: false, index: null, initial: EMPTY_STEP });
   };
   const removeStep = (i: number) => setResearchSteps(prev => prev.filter((_, idx) => idx !== i));
 
@@ -205,7 +335,7 @@ export default function ProtocolForm({
         housing: form.housing.trim() || null,
         disposal: form.disposal.trim() || null,
         npg: form.npg === "true" ? (form.npg_detail.trim() || null) : null,
-        research_steps: researchSteps.map(s => s.trim()).filter(Boolean),
+        research_steps: researchSteps.filter(s => s.description.trim()).map(normalizeStep),
         purpose_summary: form.purpose_summary.trim() || null,
         harm_benefit_analysis: form.harm_benefit_analysis.trim() || null,
         scientific_summary: form.scientific_summary.trim() || null,
@@ -441,20 +571,28 @@ export default function ProtocolForm({
       <SectionTitle>Research plan</SectionTitle>
       {researchSteps.length > 0 && (
         <ol className="space-y-1.5">
-          {researchSteps.map((step, i) => (
-            <li key={i} className="flex items-center justify-between gap-2 bg-gray-50 border border-gray-200 rounded px-3 py-1.5">
-              <span className="text-[13px] text-gray-800">
-                <span className="font-medium text-gray-500 mr-1.5">Step {i + 1}.</span>
-                {step}
-              </span>
-              <span className="flex items-center gap-2 shrink-0">
-                <button type="button" onClick={() => openEditStep(i)} className="text-[#0176D3] hover:underline text-xs">Edit</button>
-                <button type="button" onClick={() => removeStep(i)} aria-label={`Remove step ${i + 1}`} className="text-gray-400 hover:text-red-600">
-                  <Trash2 size={13} />
-                </button>
-              </span>
-            </li>
-          ))}
+          {researchSteps.map((step, i) => {
+            const meta = [step.duration, step.frequency, step.species, step.location, step.personnel]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <li key={i} className="bg-gray-50 border border-gray-200 rounded px-3 py-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[13px] text-gray-800">
+                    <span className="font-medium text-gray-500 mr-1.5">Step {i + 1}.</span>
+                    {step.description}
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <button type="button" onClick={() => openEditStep(i)} className="text-[#0176D3] hover:underline text-xs">Edit</button>
+                    <button type="button" onClick={() => removeStep(i)} aria-label={`Remove step ${i + 1}`} className="text-gray-400 hover:text-red-600">
+                      <Trash2 size={13} />
+                    </button>
+                  </span>
+                </div>
+                {meta && <div className="text-[12px] text-gray-500 truncate mt-0.5">{meta}</div>}
+              </li>
+            );
+          })}
         </ol>
       )}
       <button
@@ -529,10 +667,11 @@ export default function ProtocolForm({
 
       {stepModal.open && (
         <ResearchStepModal
-          initial={stepText}
+          initial={stepModal.initial}
           index={stepModal.index}
+          speciesOptions={speciesOptions}
           onSave={saveStep}
-          onClose={() => setStepModal({ open: false, index: null })}
+          onClose={() => setStepModal({ open: false, index: null, initial: EMPTY_STEP })}
         />
       )}
     </form>

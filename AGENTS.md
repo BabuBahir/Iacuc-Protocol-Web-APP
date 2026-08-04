@@ -434,7 +434,17 @@ by a sub-modal (Add/Edit/Remove step) — all stored in the `protocols` table
 (`pi_proxy`, `ptm_member`, `protocol_type`, `anesthesia_required`, `housing`,
 `disposal`, `npg`, `research_steps` as JSON text; the server
 `shape()`/`normalizeResearchSteps()` helpers map between the array and JSON
-representations). Create and edit share one form component —
+representations). **Research steps are structured objects**, not free-text
+strings: each step is `{ description, duration, frequency, species,
+pain_category, anesthesia, location, personnel, notes }` (`ResearchStep` in
+`client/src/types.ts`; `STEP_FREQUENCIES` = Once/Daily/Weekly/Monthly/As
+needed/Continuous), captured by the enriched `ResearchStepModal` and rendered
+with a duration · frequency · species · location · personnel metadata line on
+the detail page. The server (`normalizeStep`/`parseResearchSteps` in
+`protocols.js`) coerces legacy string steps into that object shape on read —
+and `normalizeResearchSteps` does the same on write — so old DB rows (and any
+client still sending strings) render identically; a server regression test
+covers the legacy path. Create and edit share one form component —
 `client/src/components/ProtocolForm.tsx` — which owns field state and the
 species lookup; the Create page renders it full-page (protocol-number field
 on), the detail page renders it inside the edit modal (status dropdown +
