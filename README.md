@@ -17,21 +17,82 @@ Access the demo at [demo.iacuc.com](https://iacuc-protocol-review-case-study-cl.
 
 
 
-A real two-tier app: an Express + SQLite API, and a Vite + React frontend
-with actual client-side routing (`react-router-dom`). This replaces the
-single-file prototype with a proper client/server split, managed as an
-**npm workspace**.
+## What this is
 
-```
-iacuc-app/
-  package.json   root — workspaces + convenience scripts
-  server/        Express API + SQLite database  (package: iacuc-server)
-  client/        Vite + React frontend           (package: iacuc-client)
-```
+This is a working web application for managing **animal research protocols**
+— the kind of system a university's animal care committee (IACUC) uses to
+review, approve, and track studies that use animals. It is a real web app:
+a browser interface that talks to an API, which stores everything in a
+database.
 
+It is built the way an IACUC office actually works: every protocol carries a
+full application, a review trail, and an animal-usage ledger.
 
+> [!NOTE]
+> Technical setup, architecture, and deployment details are in
+> [Part 2](#part-2--for-developers-install-run-and-the-technical-reference)
+> at the bottom of this page.
 
-## 1. Install everything (one command, from the repo root)
+## What you can do
+
+- **Track protocols through their real lifecycle** — draft, submitted,
+  under review, approved, active.
+- **Complete a full IACUC application** (the Appendix A form): purpose and
+  harm-vs-benefit summaries, a 15-item procedures checklist, drug and
+  dosing tables, animal use, experiments, and the Three Rs (replacement,
+  refinement, reduction) with a required literature search.
+- **Submit with confidence.** The app checks every required section before a
+  protocol can be submitted, and tells you what's missing.
+- **Run committee review.** Full-committee (FCR) and designated-member (DMR)
+  methods, reviewer assignments, section comments, and live vote tallies.
+- **Track actual animal use.** The register logs real orders and uses
+  against a protocol's approved allowance and flags over-allowance.
+- **Check personnel compliance** — CITI training and OHSP clearance at a
+  glance for everyone on a protocol.
+- **Try everything in the hosted demo** (link above) — no setup needed.
+
+## Part 1 — Understanding the data
+
+<details>
+<summary><b>The database at a glance</b> (Click to expand)</summary>
+
+The app's data lives in 17 tables — one for each protocol, one set of
+reference lists (species, roles, personnel), and one set of child records
+that hang off each protocol (the application content, the review records,
+and the animal-usage ledger).
+
+> **Full diagram** — best viewed in its own tab so you can zoom in and out
+> (Tip: hold **Ctrl/Cmd** and click the link to open it in a new tab):
+>
+> <a href="docs/database-schema.png" target="_blank" rel="noopener">Open the database diagram (PNG)</a>
+
+Four things worth knowing without opening the diagram:
+
+- **One protocol, many details.** Everything about a protocol — its
+  application (procedures, drugs, animal use, experiments, 3 Rs entries),
+  its review records (votes, reviewer assignments, comments), and its
+  usage ledger — is stored as child rows that belong to that protocol and
+  are removed with it.
+- **Personnel are shared.** The same person (PI, committee member, vet)
+  appears once in the personnel list and can be linked to any number of
+  protocols.
+- **Planned vs. actual.** The planned animal numbers live with the protocol
+  (the approved allowance); the animal-usage register records the *actual*
+  orders and uses. The register compares the two so staff can see at a
+  glance whether a protocol is within or over its allowance.
+- **One unique case.** Each protocol has exactly one research-search record;
+  every other protocol child table can have many rows.
+
+</details>
+
+## Part 2 — For developers (install, run, and the technical reference)
+
+<details>
+<summary><b>Install, run, and explore the API</b> (Click to expand)</summary>
+
+Requires **Node 22.5 or newer**.
+
+### Install everything (one command, from the repo root)
 
 ```bash
 npm install
@@ -42,9 +103,8 @@ pass and links the workspace together (single `package-lock.json` at the
 root). The server uses Node's **built-in `node:sqlite` module** rather than
 a native addon package, so this install never needs to compile anything —
 no Visual Studio Build Tools, no Python, no prebuilt-binary lookups.
-**Requires Node 22.5 or newer** (check with `node --version`).
 
-## 2. Seed and run the server
+### Seed and run the server
 
 ```bash
 copy server\.env.example server\.env    # Windows
@@ -54,14 +114,36 @@ npm run seed            # creates server/data/iacuc.db with sample protocols
 npm run dev:server      # http://localhost:4000
 ```
 
-Endpoints — the API surface at this point in development. Each router is
-mounted in `server/src/app.js`; every path below is prefixed with `/api`.
-See `docs/UI-EXPANSION-PLAN.md` and `ROADMAP.md` for what's coming.
+### Run the client
 
-> **Interactive docs**: start the server and open
-> http://localhost:4000/api-docs for a Swagger UI where every endpoint below
-> can be explored and exercised. The machine-readable spec lives at
-> `/api-docs/spec.json` (`server/src/openapi.js`).
+In a second terminal:
+
+```bash
+npm run dev:client      # http://localhost:5173
+```
+
+Vite proxies any `/api/*` request to `http://localhost:4000` in dev (see
+`client/vite.config.js`), so the frontend never needs a hardcoded API URL.
+
+### Open it
+
+Visit `http://localhost:5173`. Clicking a row on the list page navigates to
+`/protocols/:id` (a real URL, so refresh/back/forward all work correctly)
+and fetches that record from the API.
+
+### Working with individual packages
+
+```bash
+npm run seed --workspace=server
+npm run build --workspace=client
+cd server && npm run dev
+```
+
+### API reference
+
+The full API surface is listed below. When the app is running locally, a
+searchable interactive reference with a "try it" button is available at
+`http://localhost:4000/api-docs` (Swagger UI).
 
 ### Rest Api's for  CRUD
 <details>
@@ -185,65 +267,12 @@ lands.
 
 </details>
 
-## 3. Database schema
+### Schema & diagram source
 
-The app's data lives in 17 tables — one for each protocol, one set of
-reference lists (species, roles, personnel), and one set of child records
-that hang off each protocol (the application content, the review records,
-and the animal-usage ledger).
+The full table definitions are in `server/src/db.js`, and the diagram is
+generated from `docs/database-schema.mmd` (how-to in `AGENTS.md`).
 
-> **Full diagram** — best viewed in its own tab so you can zoom in and out
-> (Tip: hold **Ctrl/Cmd** and click the link to open it in a new tab):
->
-> <a href="docs/database-schema.png" target="_blank" rel="noopener">Open the database diagram (PNG)</a>
-
-Four things worth knowing without opening the diagram:
-
-- **One protocol, many details.** Everything about a protocol — its
-  application (procedures, drugs, animal use, experiments, 3 Rs entries),
-  its review records (votes, reviewer assignments, comments), and its
-  usage ledger — is stored as child rows that belong to that protocol and
-  are removed with it.
-- **Personnel are shared.** The same person (PI, committee member, vet)
-  appears once in the personnel list and can be linked to any number of
-  protocols.
-- **Planned vs. actual.** The planned animal numbers live with the protocol
-  (the approved allowance); the animal-usage register records the *actual*
-  orders and uses. The register compares the two so staff can see at a
-  glance whether a protocol is within or over its allowance.
-- **One unique case.** Each protocol has exactly one research-search record;
-  every other protocol child table can have many rows.
-
-Technical readers: the full table definitions are in `server/src/db.js`, and
-the diagram is generated from `docs/database-schema.mmd` (how-to in
-`AGENTS.md`).
-
-## 4. Run the client
-
-In a second terminal:
-
-```bash
-npm run dev:client      # http://localhost:5173
-```
-
-Vite proxies any `/api/*` request to `http://localhost:4000` in dev (see
-`client/vite.config.js`), so the frontend never needs a hardcoded API URL.
-
-## 5. Open it
-
-Visit `http://localhost:5173`. Clicking a row on the list page navigates to
-`/protocols/:id` (a real URL, so refresh/back/forward all work correctly) and
-fetches that record from the API.
-
-## Working with individual packages
-
-```bash
-npm run seed --workspace=server
-npm run build --workspace=client
-cd server && npm run dev
-```
-
-## Swapping SQLite for Postgres / MySQL later
+### Swapping SQLite for Postgres / MySQL later
 
 Every route in `server/src/routes/protocols.js` only talks to the `db`
 object exported from `server/src/db.js`. To move to Postgres:
@@ -257,7 +286,7 @@ object exported from `server/src/db.js`. To move to Postgres:
 Nothing in the client needs to change, since it only ever talks to the
 `/api/protocols` HTTP endpoints.
 
-## Deploying
+### Deploying
 
 - **Server**: any Node host (Render, Fly.io, Railway, a VPS). Set
   `CLIENT_ORIGIN` to your deployed frontend's URL for CORS.
@@ -265,3 +294,11 @@ Nothing in the client needs to change, since it only ever talks to the
   `client/dist/` that can be served from any static host (Vercel, Netlify,
   S3+CloudFront). Point its API calls at your deployed server URL instead of
   the dev proxy (e.g. via a `VITE_API_URL` env var and updating `api.js`).
+
+</details>
+
+## Roadmap & further reading
+
+- [`ROADMAP.md`](ROADMAP.md) — the overall product roadmap
+- [`docs/UI-EXPANSION-PLAN.md`](docs/UI-EXPANSION-PLAN.md) — planned domains
+  (amendments & renewals, facilities & inspections, incidents)
