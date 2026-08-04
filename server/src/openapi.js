@@ -645,6 +645,246 @@ const schemas = {
       all_compliant: { type: "boolean" },
     },
   },
+
+  // ---- Domain F: facilities & semi-annual inspections ----
+
+  Facility: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+      name: { type: "string" },
+      type: { type: "string", enum: ["Housing Room", "Lab", "Surgical Suite"] },
+      species: { type: ["string", "null"], description: "Species housed/used there (comma-separated)" },
+      created_at: { type: "string", format: "date-time" },
+    },
+  },
+
+  FacilityInput: {
+    type: "object",
+    required: ["name", "type"],
+    properties: {
+      name: { type: "string" },
+      type: { type: "string", enum: ["Housing Room", "Lab", "Surgical Suite"] },
+      species: { type: "string" },
+    },
+  },
+
+  Deficiency: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+      inspection_id: { type: "integer" },
+      severity: { type: "string", enum: ["Minor", "Major"] },
+      description: { type: "string" },
+      remediation_deadline: { type: ["string", "null"], format: "date" },
+      remediated_at: { type: ["string", "null"], format: "date-time" },
+    },
+  },
+
+  DeficiencyInput: {
+    type: "object",
+    required: ["severity", "description"],
+    properties: {
+      severity: { type: "string", enum: ["Minor", "Major"] },
+      description: { type: "string" },
+      remediation_deadline: { type: "string", format: "date" },
+    },
+  },
+
+  Inspection: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+      facility_id: { type: "integer" },
+      facility_name: { type: ["string", "null"] },
+      inspection_date: { type: "string", format: "date" },
+      report: { type: ["string", "null"] },
+      result: { type: "string", enum: ["Pending", "Pass", "Fail", "Re-inspection required"] },
+      created_at: { type: "string", format: "date-time" },
+    },
+  },
+
+  InspectionDetail: {
+    allOf: [
+      REF("Inspection"),
+      { type: "object", properties: { deficiencies: { type: "array", items: REF("Deficiency") } } },
+    ],
+  },
+
+  InspectionInput: {
+    type: "object",
+    required: ["facility_id", "inspection_date"],
+    properties: {
+      facility_id: { type: "integer" },
+      inspection_date: { type: "string", format: "date" },
+      report: { type: "string" },
+      result: { type: "string", enum: ["Pending", "Pass", "Fail", "Re-inspection required"] },
+    },
+  },
+
+  // ---- Domain E: PAM & incident reporting ----
+
+  Incident: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+      protocol_id: { type: ["string", "null"] },
+      type: { type: "string", enum: ["Adverse Event", "Deviation", "Noncompliance", "Unanticipated Problem"] },
+      description: { type: "string" },
+      severity: { type: "string", enum: ["Minor", "Major", "Immediate"] },
+      status: { type: "string", enum: ["Open", "CAPA", "Closed"] },
+      corrective_action: { type: ["string", "null"], description: "The CAPA plan" },
+      closed_at: { type: ["string", "null"], format: "date-time" },
+      reported_by: { type: ["integer", "null"] },
+      reported_by_name: { type: ["string", "null"] },
+      assigned_to: { type: ["integer", "null"] },
+      assigned_to_name: { type: ["string", "null"] },
+      created_at: { type: "string", format: "date-time" },
+    },
+  },
+
+  IncidentInput: {
+    type: "object",
+    required: ["type", "description"],
+    properties: {
+      protocol_id: { type: "string" },
+      type: { type: "string", enum: ["Adverse Event", "Deviation", "Noncompliance", "Unanticipated Problem"] },
+      description: { type: "string" },
+      severity: { type: "string", enum: ["Minor", "Major", "Immediate"] },
+      reported_by: { type: "integer", description: "personnel_id" },
+      assigned_to: { type: "integer", description: "personnel_id" },
+    },
+  },
+
+  IncidentUpdate: {
+    type: "object",
+    properties: {
+      status: { type: "string", enum: ["Open", "CAPA", "Closed"] },
+      corrective_action: { type: ["string", "null"], description: "Required before an incident can move to CAPA/Closed" },
+      assigned_to: { type: ["integer", "null"], description: "personnel_id" },
+    },
+  },
+
+  PamAudit: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+      protocol_id: { type: "string" },
+      audit_date: { type: "string", format: "date" },
+      auditor_id: { type: ["integer", "null"] },
+      auditor_name: { type: ["string", "null"] },
+      site_visits: { type: ["string", "null"] },
+      findings: { type: ["string", "null"] },
+      report: { type: ["string", "null"] },
+      created_at: { type: "string", format: "date-time" },
+    },
+  },
+
+  PamAuditInput: {
+    type: "object",
+    required: ["audit_date"],
+    properties: {
+      audit_date: { type: "string", format: "date" },
+      auditor_id: { type: "integer" },
+      site_visits: { type: "string" },
+      findings: { type: "string" },
+      report: { type: "string" },
+    },
+  },
+
+  // ---- Domain B: amendments & annual renewals ----
+
+  AmendmentChange: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+      amendment_id: { type: "integer" },
+      section: { type: "string", enum: ["summaries", "procedures", "drugs", "animal_use", "experiments", "alternatives", "research_plan"] },
+      field: { type: "string" },
+      previous_value: { type: ["string", "null"] },
+      new_value: { type: ["string", "null"] },
+      created_at: { type: "string", format: "date-time" },
+    },
+  },
+
+  AmendmentChangeInput: {
+    type: "object",
+    required: ["section", "field"],
+    properties: {
+      section: { type: "string", enum: ["summaries", "procedures", "drugs", "animal_use", "experiments", "alternatives", "research_plan"] },
+      field: { type: "string" },
+      previous_value: { type: "string" },
+      new_value: { type: "string" },
+    },
+  },
+
+  Amendment: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+      protocol_id: { type: "string" },
+      reason: { type: "string", description: "Reason for Change — required when starting an amendment" },
+      status: { type: "string", enum: ["Pending", "Approved", "Rejected"] },
+      created_at: { type: "string", format: "date-time" },
+      changes: { type: "array", items: REF("AmendmentChange") },
+    },
+  },
+
+  AmendmentInput: {
+    type: "object",
+    required: ["reason"],
+    properties: { reason: { type: "string" } },
+  },
+
+  AmendmentDecision: {
+    type: "object",
+    required: ["status"],
+    properties: {
+      status: { type: "string", enum: ["Approved", "Rejected"] },
+      expiration_date: { type: "string", format: "date", description: "Used when approving; defaults to +365 days" },
+    },
+  },
+
+  ProtocolVersion: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+      protocol_id: { type: "string" },
+      version_number: { type: "string", description: "Zero-padded, e.g. '0001'" },
+      source: { type: "string", enum: ["New Document", "Amendment Document", "De Novo Document"] },
+      approved_date: { type: ["string", "null"], format: "date" },
+      expiration_date: { type: ["string", "null"], format: "date" },
+      version_date: { type: "string", format: "date-time" },
+    },
+  },
+
+  Renewal: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+      protocol_id: { type: "string" },
+      type: { type: "string", enum: ["Continuing Review", "De Novo Review"] },
+      status: { type: "string", enum: ["Pending", "Approved", "Rejected"] },
+      submitted_date: { type: "string", format: "date-time" },
+      decision_date: { type: ["string", "null"], format: "date" },
+      approved_until: { type: ["string", "null"], format: "date" },
+    },
+  },
+
+  RenewalInput: {
+    type: "object",
+    required: ["type"],
+    properties: { type: { type: "string", enum: ["Continuing Review", "De Novo Review"] } },
+  },
+
+  RenewalDecision: {
+    type: "object",
+    required: ["status"],
+    properties: {
+      status: { type: "string", enum: ["Approved", "Rejected"] },
+      approved_until: { type: "string", format: "date", description: "Required when approving" },
+    },
+  },
 };
 
 const paths = {
@@ -1112,6 +1352,209 @@ const paths = {
       responses: { 200: json(REF("ProtocolPersonnel"), "Per-person compliance"), ...notFound() },
     },
   },
+
+  // ---- Domain F: facilities & semi-annual inspections ----
+
+  "/api/facilities": {
+    get: {
+      tags: ["Facilities & semi-annual inspections"],
+      summary: "List facilities (housing rooms / labs / surgical suites)",
+      responses: { 200: json({ type: "array", items: REF("Facility") }, "Facilities, sorted by name") },
+    },
+    post: {
+      tags: ["Facilities & semi-annual inspections"],
+      summary: "Add a facility",
+      requestBody: json(REF("FacilityInput"), "name and type are required"),
+      responses: { 201: json(REF("Facility"), "Created facility"), 400: json(REF("Error"), "Missing name or invalid type") },
+    },
+  },
+
+  "/api/facilities/{id}": {
+    parameters: [numericPathParam("id", "Facility id")],
+    delete: {
+      tags: ["Facilities & semi-annual inspections"],
+      summary: "Delete a facility (cascades to its inspections + deficiencies)",
+      responses: { 204: { description: "Deleted" }, 404: json(REF("Error"), "Facility not found") },
+    },
+  },
+
+  "/api/inspections": {
+    get: {
+      tags: ["Facilities & semi-annual inspections"],
+      summary: "List inspections (most recent first, with facility names)",
+      responses: { 200: json({ type: "array", items: REF("Inspection") }, "Inspections") },
+    },
+    post: {
+      tags: ["Facilities & semi-annual inspections"],
+      summary: "Record a semi-annual inspection",
+      requestBody: json(REF("InspectionInput"), "facility_id and inspection_date are required"),
+      responses: { 201: json(REF("InspectionDetail"), "Created inspection (empty deficiencies)"), 400: json(REF("Error"), "Missing fields or unknown facility_id") },
+    },
+  },
+
+  "/api/inspections/{id}": {
+    parameters: [numericPathParam("id", "Inspection id")],
+    get: {
+      tags: ["Facilities & semi-annual inspections"],
+      summary: "Inspection with its deficiencies",
+      responses: { 200: json(REF("InspectionDetail"), "Inspection + deficiencies"), 404: json(REF("Error"), "Inspection not found") },
+    },
+  },
+
+  "/api/inspections/{id}/deficiencies": {
+    parameters: [numericPathParam("id", "Inspection id")],
+    get: {
+      tags: ["Facilities & semi-annual inspections"],
+      summary: "List a deficiency set for an inspection",
+      responses: { 200: json({ type: "array", items: REF("Deficiency") }, "Deficiencies, Major first"), 404: json(REF("Error"), "Inspection not found") },
+    },
+    post: {
+      tags: ["Facilities & semi-annual inspections"],
+      summary: "Record a deficiency on an inspection",
+      requestBody: json(REF("DeficiencyInput"), "severity and description are required"),
+      responses: { 201: json(REF("Deficiency"), "Created deficiency"), 400: json(REF("Error"), "Invalid severity or missing description"), 404: json(REF("Error"), "Inspection not found") },
+    },
+  },
+
+  "/api/inspections/{id}/deficiencies/{defId}": {
+    parameters: [numericPathParam("id", "Inspection id"), numericPathParam("defId", "Deficiency id")],
+    patch: {
+      tags: ["Facilities & semi-annual inspections"],
+      summary: "Mark a deficiency remediated",
+      responses: { 200: json(REF("Deficiency"), "Updated deficiency"), 400: json(REF("Error"), "Already remediated"), 404: json(REF("Error"), "Inspection or deficiency not found") },
+    },
+  },
+
+  // ---- Domain E: PAM & incident reporting ----
+
+  "/api/incidents": {
+    get: {
+      tags: ["Post-Approval Monitoring (PAM) & incidents"],
+      summary: "List incidents (most recent first, with reporter/assignee names)",
+      responses: { 200: json({ type: "array", items: REF("Incident") }, "Incidents") },
+    },
+    post: {
+      tags: ["Post-Approval Monitoring (PAM) & incidents"],
+      summary: "Report an adverse event / deviation / noncompliance",
+      requestBody: json(REF("IncidentInput"), "type and description are required"),
+      responses: { 201: json(REF("Incident"), "Created incident (status Open)"), 400: json(REF("Error"), "Invalid type/severity, missing description, or unknown protocol/personnel") },
+    },
+  },
+
+  "/api/incidents/{id}": {
+    parameters: [numericPathParam("id", "Incident id")],
+    get: {
+      tags: ["Post-Approval Monitoring (PAM) & incidents"],
+      summary: "Incident detail with reporter/assignee names",
+      responses: { 200: json(REF("Incident"), "Incident"), 404: json(REF("Error"), "Incident not found") },
+    },
+    patch: {
+      tags: ["Post-Approval Monitoring (PAM) & incidents"],
+      summary: "Log a CAPA and/or move the incident through Open → CAPA → Closed",
+      description: "Closing requires a corrective_action (CAPA) recorded first.",
+      requestBody: json(REF("IncidentUpdate"), "status / corrective_action / assigned_to"),
+      responses: { 200: json(REF("Incident"), "Updated incident"), 400: json(REF("Error"), "Invalid status or CAPA missing"), 404: json(REF("Error"), "Incident not found") },
+    },
+  },
+
+  "/api/pam-audits": {
+    get: {
+      tags: ["Post-Approval Monitoring (PAM) & incidents"],
+      summary: "Every PAM site-visit audit across protocols (most recent first)",
+      responses: { 200: json({ type: "array", items: REF("PamAudit") }, "PAM audits") },
+    },
+  },
+
+  "/api/protocols/{id}/pam-audits": {
+    parameters: [protocolIdParam],
+    get: {
+      tags: ["Post-Approval Monitoring (PAM) & incidents"],
+      summary: "PAM history + site-visit reports for a protocol",
+      responses: { 200: json({ type: "array", items: REF("PamAudit") }, "PAM audits, most recent first"), ...notFound() },
+    },
+    post: {
+      tags: ["Post-Approval Monitoring (PAM) & incidents"],
+      summary: "Log a PAM site-visit audit for a protocol",
+      requestBody: json(REF("PamAuditInput"), "audit_date is required"),
+      responses: { 201: json(REF("PamAudit"), "Created audit"), 400: json(REF("Error"), "Missing audit_date or unknown auditor_id"), ...notFound() },
+    },
+  },
+
+  // ---- Domain B: amendments & annual renewals ----
+
+  "/api/protocols/{id}/amendments": {
+    parameters: [protocolIdParam],
+    get: {
+      tags: ["Amendments & annual renewals"],
+      summary: "List amendments for a protocol (each with its field-level changes)",
+      responses: { 200: json({ type: "array", items: REF("Amendment") }, "Amendments, most recent first"), ...notFound() },
+    },
+    post: {
+      tags: ["Amendments & annual renewals"],
+      summary: "Start an amendment (one in-flight per protocol; reason required)",
+      responses: { 201: json(REF("Amendment"), "Created pending amendment"), 400: json(REF("Error"), "Reason required"), 409: json(REF("Error"), "Another amendment is already in flight"), ...notFound() },
+    },
+  },
+
+  "/api/protocols/{id}/amendments/{amendmentId}": {
+    parameters: [protocolIdParam, numericPathParam("amendmentId", "Amendment id")],
+    get: {
+      tags: ["Amendments & annual renewals"],
+      summary: "Amendment detail with its changes",
+      responses: { 200: json(REF("Amendment"), "Amendment + changes"), 404: json(REF("Error"), "Amendment not found"), ...notFound() },
+    },
+    patch: {
+      tags: ["Amendments & annual renewals"],
+      summary: "Approve (→ new protocol version) or reject a pending amendment",
+      requestBody: json(REF("AmendmentDecision"), "status is required"),
+      responses: { 200: json(REF("Amendment"), "Updated amendment"), 400: json(REF("Error"), "Invalid status or already decided"), 404: json(REF("Error"), "Amendment not found"), ...notFound() },
+    },
+  },
+
+  "/api/protocols/{id}/amendments/{amendmentId}/changes": {
+    parameters: [protocolIdParam, numericPathParam("amendmentId", "Amendment id")],
+    post: {
+      tags: ["Amendments & annual renewals"],
+      summary: "Record one field-level change (diff snapshot) on a pending amendment",
+      requestBody: json(REF("AmendmentChangeInput"), "section and field are required"),
+      responses: { 201: json(REF("AmendmentChange"), "Created change"), 400: json(REF("Error"), "Missing fields or amendment already decided"), 404: json(REF("Error"), "Amendment not found"), ...notFound() },
+    },
+  },
+
+  "/api/protocols/{id}/versions": {
+    parameters: [protocolIdParam],
+    get: {
+      tags: ["Amendments & annual renewals"],
+      summary: "Protocol version lineage (0001, 0002, ...)",
+      responses: { 200: json({ type: "array", items: REF("ProtocolVersion") }, "Versions, newest first"), ...notFound() },
+    },
+  },
+
+  "/api/protocols/{id}/renewals": {
+    parameters: [protocolIdParam],
+    get: {
+      tags: ["Amendments & annual renewals"],
+      summary: "List continuing-review / de-novo-review events for a protocol",
+      responses: { 200: json({ type: "array", items: REF("Renewal") }, "Renewals, most recent first"), ...notFound() },
+    },
+    post: {
+      tags: ["Amendments & annual renewals"],
+      summary: "Start a continuing review or de novo review (one in-flight per protocol)",
+      requestBody: json(REF("RenewalInput"), "type is required"),
+      responses: { 201: json(REF("Renewal"), "Created pending renewal"), 400: json(REF("Error"), "Invalid type"), 409: json(REF("Error"), "A renewal is already in flight"), ...notFound() },
+    },
+  },
+
+  "/api/protocols/{id}/renewals/{renewalId}": {
+    parameters: [protocolIdParam, numericPathParam("renewalId", "Renewal id")],
+    patch: {
+      tags: ["Amendments & annual renewals"],
+      summary: "Approve (→ new protocol version + updated expiration) or reject a renewal",
+      description: "Approving requires `approved_until` (the new expiration date).",
+      requestBody: json(REF("RenewalDecision"), "status is required; approved_until required when approving"),
+      responses: { 200: json(REF("Renewal"), "Updated renewal"), 400: json(REF("Error"), "Invalid status, already decided, or missing approved_until"), 404: json(REF("Error"), "Renewal not found"), ...notFound() },
+    },
+  },
 };
 
 export const openapiSpec = {
@@ -1120,7 +1563,7 @@ export const openapiSpec = {
     title: "IACUC Protocol Review App",
     version: "1.0.0",
     description:
-      "API for IACUC protocol CRUD, the Appendix A application content, the animal usage register, admin lookup lists, the committee review workflow, and personnel compliance. Every endpoint documented here is implemented (see README for the full ✓/✗ status tables).",
+      "API for IACUC protocol CRUD, the Appendix A application content, the animal usage register, admin lookup lists, the committee review workflow, personnel compliance, the facility & semi-annual inspection program, PAM & incident reporting, and amendments & annual renewals. Every endpoint documented here is implemented (see README for the full ✓/✗ status tables).",
   },
   servers: [{ url: process.env.API_BASE_URL || "http://localhost:4000", description: "Local dev server" }],
   tags: [
@@ -1130,6 +1573,9 @@ export const openapiSpec = {
     { name: "Admin lookup lists", description: "Species / roles / personnel master data" },
     { name: "Committee / review workflow", description: "FCR/DMR votes, assignments, section comments, review method" },
     { name: "Personnel compliance (CITI training + OHSP clearance)", description: "Training records, OHSP status, per-protocol compliance" },
+    { name: "Facilities & semi-annual inspections", description: "Housing rooms / labs / surgical suites and their deficiency tracking" },
+    { name: "Post-Approval Monitoring (PAM) & incidents", description: "Adverse events / deviations with the Open → CAPA → Closed lifecycle, plus PAM site-visit audits" },
+    { name: "Amendments & annual renewals", description: "Versioned amendments, protocol version lineage, continuing & de novo review" },
   ],
   paths,
   components: { schemas },

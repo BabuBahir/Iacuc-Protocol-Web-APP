@@ -638,6 +638,167 @@ const commentsSeed = {
   ],
 };
 
+// ---- Domain F: facilities & semi-annual inspections ----
+//
+// Four facilities across the three types; three inspections spanning the
+// result states (Pass / Re-inspection required / Pending). Deficiencies give
+// the "due / remediation overdue" states a fixture: Surgical Suite A carries
+// one Major (overdue) + one Minor (already remediated); Immunology Lab 220
+// carries one unremediated Minor.
+const facilitiesSeed = [
+  { name: "Central Vivarium — Rodent Housing", type: "Housing Room", species: "Mouse, Rat" },
+  { name: "Surgical Suite A", type: "Surgical Suite", species: "Rat, Rabbit" },
+  { name: "Immunology Laboratory 220", type: "Lab", species: "Mouse" },
+  { name: "Aquatics Facility", type: "Housing Room", species: "Zebrafish" },
+];
+
+const inspectionsSeed = [
+  {
+    facility: "Central Vivarium — Rodent Housing",
+    inspection_date: "2026-02-10",
+    result: "Pass",
+    report: "Routine semi-annual inspection: environmental parameters within range; cage wash logs current.",
+    deficiencies: [],
+  },
+  {
+    facility: "Surgical Suite A",
+    inspection_date: "2026-03-15",
+    result: "Re-inspection required",
+    report: "Instrument sterilization sink observed slow-draining; autoclave indicator review found overdue.",
+    deficiencies: [
+      { severity: "Major", description: "Autoclave biological indicator results overdue for week 11.", remediation_deadline: "2026-04-15" },
+      { severity: "Minor", description: "Sterile glove box needs restocking.", remediation_deadline: "2026-03-25", remediated_at: "2026-03-18" },
+    ],
+  },
+  {
+    facility: "Immunology Laboratory 220",
+    inspection_date: "2026-05-20",
+    result: "Pending",
+    report: "Walkthrough completed; report pending final review.",
+    deficiencies: [
+      { severity: "Minor", description: "Fume hood sash label illegible.", remediation_deadline: "2026-06-15" },
+    ],
+  },
+];
+
+// ---- Domain E: incidents & PAM audits ----
+//
+// Three incidents spanning the Open → CAPA → Closed lifecycle. 0142 and 0139
+// also get one PAM site-visit audit each. reported_by/assigned_to map to
+// personnel names (resolved to ids below) so the API's name decoration has
+// data to show.
+const incidentsSeed = [
+  {
+    protocol_id: "IACUC-2026-0142",
+    type: "Adverse Event",
+    description: "Two mice found moribund after a restraint session on day 14; one died before intervention.",
+    severity: "Major",
+    status: "CAPA",
+    corrective_action: "Restraint time reduced to 1 h/day for the remainder of the study; distress scoring moved to twice daily.",
+    reported_by: "Dr. Priya Nair",
+    assigned_to: "Dr. Elena Marsh",
+    created_at: "2026-07-18 09:15:00",
+  },
+  {
+    protocol_id: "IACUC-2026-0139",
+    type: "Deviation",
+    description: "Post-op analgesia recorded 6 h late for one surgical cohort.",
+    severity: "Minor",
+    status: "Open",
+    corrective_action: null,
+    reported_by: "Ben Foster",
+    assigned_to: null,
+    created_at: "2026-07-22 14:40:00",
+  },
+  {
+    protocol_id: "IACUC-2026-0021",
+    type: "Noncompliance",
+    description: "Animals observed without bedding change 5 days past schedule during wound healing phase.",
+    severity: "Immediate",
+    status: "Closed",
+    corrective_action: "Husbandry schedule corrected; lead technician retrained.",
+    reported_by: "Dr. Hana Sato",
+    assigned_to: "Dr. Marcus Chen",
+    closed_at: "2026-07-20 16:05:00",
+    created_at: "2026-07-10 08:30:00",
+  },
+];
+
+const pamAuditsSeed = [
+  {
+    protocol_id: "IACUC-2026-0142",
+    audit_date: "2026-07-20",
+    auditor: "Dr. Sofia Ramos",
+    site_visits: "Rodent housing rooms B1–B4; procedure room 2",
+    findings: "Records matched animal numbers; restraint logs reviewed.",
+    report: "No significant findings; two minor documentation gaps noted and closed same day.",
+  },
+  {
+    protocol_id: "IACUC-2026-0139",
+    audit_date: "2026-06-30",
+    auditor: "Dr. Priya Nair",
+    site_visits: "Surgical suite A; imaging core",
+    findings: "Surgery logs complete; telemetry monitoring verified.",
+    report: "Compliant with approved protocol.",
+  },
+];
+
+// ---- Domain B: amendments, version lineage & renewals ----
+//
+// Amendments line up with the related_items already seeded (0142 "AM-01 ...
+// (Pending)", 0139 "Amendment 0002", 0150 "AM-01 ... (Pending)", 0023
+// "AM-04 ... (Approved)"). Approved amendments produce protocol_versions
+// rows; the version lineage preview is seeded for the three approved
+// protocols. Renewals: 0091/0098 both have a pending Continuing Review.
+const amendmentsSeed = [
+  {
+    protocol_id: "IACUC-2026-0142",
+    reason: "Add a second mouse strain (B6129SF2) for a stress-susceptibility comparison.",
+    status: "Pending",
+    changes: [
+      { section: "animal_use", field: "species_strain", previous_value: "Mouse / C57BL/6", new_value: "Mouse / C57BL/6; Mouse / B6129SF2" },
+      { section: "summaries", field: "scientific_summary", previous_value: "Characterize the neurobehavioral consequences of chronic stress in adult male C57BL/6 mice.", new_value: "Characterize the neurobehavioral consequences of chronic stress in adult male C57BL/6 and B6129SF2 mice." },
+    ],
+  },
+  {
+    protocol_id: "IACUC-2026-0139",
+    reason: "Extend the ischemia model to 8 weeks to capture late-phase remodeling.",
+    status: "Approved",
+    changes: [
+      { section: "experiments", field: "name", previous_value: "Permanent coronary ligation", new_value: "Permanent coronary ligation (extended)" },
+      { section: "animal_use", field: "max_count", previous_value: "80", new_value: "120" },
+    ],
+  },
+  {
+    protocol_id: "IACUC-2026-0150",
+    reason: "Add an MRI lead-placement verification step before stimulation begins.",
+    status: "Pending",
+    changes: [],
+  },
+  {
+    protocol_id: "IACUC-2024-0023",
+    reason: "Reduce compound doses to minimize GI distress while preserving exposure margins.",
+    status: "Approved",
+    changes: [
+      { section: "drugs", field: "dose", previous_value: "10–100 mg/kg", new_value: "5–50 mg/kg" },
+    ],
+  },
+];
+
+const versionsSeed = [
+  { protocol_id: "IACUC-2026-0139", version_number: "0001", source: "New Document", approved_date: "2026-06-18", expiration_date: "2029-06-12", version_date: "2026-06-18" },
+  { protocol_id: "IACUC-2026-0139", version_number: "0002", source: "Amendment Document", approved_date: "2026-07-22", expiration_date: "2029-06-12", version_date: "2026-07-22" },
+  { protocol_id: "IACUC-2025-0091", version_number: "0001", source: "New Document", approved_date: "2025-02-09", expiration_date: "2026-09-01", version_date: "2025-02-09" },
+  { protocol_id: "IACUC-2025-0091", version_number: "0002", source: "Amendment Document", approved_date: "2026-01-15", expiration_date: "2026-09-01", version_date: "2026-01-15" },
+  { protocol_id: "IACUC-2024-0023", version_number: "0001", source: "New Document", approved_date: "2024-09-17", expiration_date: "2027-09-10", version_date: "2024-09-17" },
+  { protocol_id: "IACUC-2024-0023", version_number: "0002", source: "Amendment Document", approved_date: "2025-03-10", expiration_date: "2027-09-10", version_date: "2025-03-10" },
+];
+
+const renewalsSeed = [
+  { protocol_id: "IACUC-2025-0091", type: "Continuing Review", status: "Pending", submitted_date: "2026-07-15" },
+  { protocol_id: "IACUC-2025-0098", type: "Continuing Review", status: "Pending", submitted_date: "2026-07-20" },
+];
+
 const insertProtocol = db.prepare(`
   INSERT INTO protocols (
     id, title, pi, species, status, animals, pain_category, submitted, expires,
@@ -727,8 +888,40 @@ const insertComment = db.prepare(`
   INSERT INTO protocol_review_comments (protocol_id, personnel_id, section, comment)
   VALUES (?, ?, ?, ?)
 `);
+const insertFacility = db.prepare(`INSERT INTO facilities (name, type, species) VALUES (?, ?, ?)`);
+const getFacilityId = db.prepare(`SELECT id FROM facilities WHERE name = ?`);
+const insertInspection = db.prepare(`
+  INSERT INTO inspections (facility_id, inspection_date, report, result)
+  VALUES (?, ?, ?, ?)
+`);
+const insertDeficiency = db.prepare(`
+  INSERT INTO inspection_deficiencies (inspection_id, severity, description, remediation_deadline, remediated_at)
+  VALUES (?, ?, ?, ?, ?)
+`);
+const insertIncident = db.prepare(`
+  INSERT INTO incidents (protocol_id, type, description, severity, status, corrective_action, closed_at, reported_by, assigned_to, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+const insertPamAudit = db.prepare(`
+  INSERT INTO pam_audits (protocol_id, audit_date, auditor_id, site_visits, findings, report)
+  VALUES (?, ?, ?, ?, ?, ?)
+`);
+const insertAmendment = db.prepare(`INSERT INTO amendments (protocol_id, reason, status) VALUES (?, ?, ?)`);
+const insertChange = db.prepare(`
+  INSERT INTO amendment_changes (amendment_id, section, field, previous_value, new_value)
+  VALUES (?, ?, ?, ?, ?)
+`);
+const insertVersion = db.prepare(`
+  INSERT INTO protocol_versions (protocol_id, version_number, source, approved_date, expiration_date, version_date)
+  VALUES (?, ?, ?, ?, ?, ?)
+`);
+const insertRenewal = db.prepare(`
+  INSERT INTO renewals (protocol_id, type, status, submitted_date)
+  VALUES (?, ?, ?, ?)
+`);
 
 let procCount = 0, drugCount = 0, animalUseCount = 0, alternativesCount = 0, experimentCount = 0, rrrCount = 0, usageCount = 0, assignmentCount = 0, commentCount = 0, trainingCount = 0, ohspCount = 0;
+let facilityCount = 0, inspectionCount = 0, deficiencyCount = 0, incidentCount = 0, pamCount = 0, amendmentCount = 0, changeCount = 0, versionCount = 0, renewalCount = 0;
 
 db.exec("BEGIN");
 try {
@@ -738,6 +931,10 @@ try {
   db.exec("DELETE FROM animal_usage_transactions;");
   db.exec("DELETE FROM protocol_review_comments; DELETE FROM protocol_review_assignments;");
   db.exec("DELETE FROM personnel_training; DELETE FROM personnel_ohsp;");
+  db.exec("DELETE FROM amendment_changes; DELETE FROM amendments;");
+  db.exec("DELETE FROM protocol_versions; DELETE FROM renewals;");
+  db.exec("DELETE FROM incidents; DELETE FROM pam_audits;");
+  db.exec("DELETE FROM inspection_deficiencies; DELETE FROM inspections; DELETE FROM facilities;");
   db.exec("DELETE FROM personnel; DELETE FROM roles; DELETE FROM species;");
   db.exec("DELETE FROM related_items; DELETE FROM protocols;");
 
@@ -864,6 +1061,49 @@ try {
       usageCount++;
     }
   }
+  for (const f of facilitiesSeed) {
+    insertFacility.run(f.name, f.type, f.species || null);
+    facilityCount++;
+  }
+  for (const insp of inspectionsSeed) {
+    const facility = getFacilityId.get(insp.facility);
+    const r = insertInspection.run(facility.id, insp.inspection_date, insp.report || null, insp.result);
+    inspectionCount++;
+    for (const d of insp.deficiencies) {
+      insertDeficiency.run(Number(r.lastInsertRowid), d.severity, d.description, d.remediation_deadline || null, d.remediated_at || null);
+      deficiencyCount++;
+    }
+  }
+  for (const inc of incidentsSeed) {
+    insertIncident.run(
+      inc.protocol_id, inc.type, inc.description, inc.severity, inc.status,
+      inc.corrective_action || null, inc.closed_at || null,
+      inc.reported_by ? getPersonnelId.get(inc.reported_by).id : null,
+      inc.assigned_to ? getPersonnelId.get(inc.assigned_to).id : null,
+      inc.created_at,
+    );
+    incidentCount++;
+  }
+  for (const a of pamAuditsSeed) {
+    insertPamAudit.run(a.protocol_id, a.audit_date, getPersonnelId.get(a.auditor).id, a.site_visits || null, a.findings || null, a.report || null);
+    pamCount++;
+  }
+  for (const am of amendmentsSeed) {
+    const r = insertAmendment.run(am.protocol_id, am.reason, am.status);
+    amendmentCount++;
+    for (const c of am.changes) {
+      insertChange.run(Number(r.lastInsertRowid), c.section, c.field, c.previous_value ?? null, c.new_value ?? null);
+      changeCount++;
+    }
+  }
+  for (const v of versionsSeed) {
+    insertVersion.run(v.protocol_id, v.version_number, v.source, v.approved_date, v.expiration_date, v.version_date);
+    versionCount++;
+  }
+  for (const rn of renewalsSeed) {
+    insertRenewal.run(rn.protocol_id, rn.type, rn.status, rn.submitted_date);
+    renewalCount++;
+  }
 
   db.exec("COMMIT");
 } catch (err) {
@@ -875,5 +1115,6 @@ console.log(
   `Seeded ${protocols.length} protocols, ${relatedItems.length} related items, ` +
   `${species.length} species, ${roles.length} roles, ${personnel.length} personnel, ` +
   `${procCount} procedures, ${drugCount} drugs, ${animalUseCount} animal-use rows, ` +
-  `${experimentCount} experiments, ${alternativesCount} alternatives rows, ${rrrCount} 3Rs entries, ${votesSeed.length} votes, ${usageCount} usage transactions, ${assignmentCount} assignments, ${commentCount} review comments, ${trainingCount} training records, ${ohspCount} OHSP clearances.`
+  `${experimentCount} experiments, ${alternativesCount} alternatives rows, ${rrrCount} 3Rs entries, ${votesSeed.length} votes, ${usageCount} usage transactions, ${assignmentCount} assignments, ${commentCount} review comments, ${trainingCount} training records, ${ohspCount} OHSP clearances, ` +
+  `${facilityCount} facilities, ${inspectionCount} inspections, ${deficiencyCount} deficiencies, ${incidentCount} incidents, ${pamCount} PAM audits, ${amendmentCount} amendments, ${changeCount} amendment changes, ${versionCount} protocol versions, ${renewalCount} renewals.`
 );

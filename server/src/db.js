@@ -231,6 +231,119 @@ CREATE TABLE IF NOT EXISTS animal_usage_transactions (
   notes            TEXT,
   created_at       TEXT DEFAULT (datetime('now'))
 );
+
+-- ---- Domain F: facilities & semi-annual inspections ----
+--
+-- Three standalone tables with no protocol dependency. Facilities are the
+-- physical spaces (housing rooms / labs / surgical suites) inspected every
+-- six months; the semi-annual cadence is a computation, not stored state.
+
+CREATE TABLE IF NOT EXISTS facilities (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL,
+  type       TEXT NOT NULL, -- 'Housing Room' | 'Lab' | 'Surgical Suite'
+  species    TEXT,          -- species housed/used there (comma-separated)
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS inspections (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  facility_id     INTEGER NOT NULL REFERENCES facilities(id) ON DELETE CASCADE,
+  inspection_date TEXT NOT NULL,
+  report          TEXT,
+  result          TEXT NOT NULL DEFAULT 'Pending', -- 'Pending' | 'Pass' | 'Fail' | 'Re-inspection required'
+  created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS inspection_deficiencies (
+  id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+  inspection_id        INTEGER NOT NULL REFERENCES inspections(id) ON DELETE CASCADE,
+  severity             TEXT NOT NULL, -- 'Minor' | 'Major'
+  description          TEXT NOT NULL,
+  remediation_deadline TEXT,
+  remediated_at        TEXT
+);
+
+-- ---- Domain E: Post-Approval Monitoring (PAM) & incident reporting ----
+--
+-- Incidents: adverse events / deviations with an Open → CAPA → Closed
+-- lifecycle. reported_by/assigned_to are personnel FKs so RBAC can be
+-- layered on later without a migration (AGENTS.md §1.5).
+
+CREATE TABLE IF NOT EXISTS incidents (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  protocol_id       TEXT REFERENCES protocols(id) ON DELETE CASCADE,
+  type              TEXT NOT NULL, -- 'Adverse Event' | 'Deviation' | 'Noncompliance' | 'Unanticipated Problem'
+  description       TEXT NOT NULL,
+  severity          TEXT NOT NULL DEFAULT 'Minor', -- 'Minor' | 'Major' | 'Immediate'
+  status            TEXT NOT NULL DEFAULT 'Open',  -- 'Open' | 'CAPA' | 'Closed'
+  corrective_action TEXT, -- the CAPA plan
+  closed_at         TEXT,
+  reported_by       INTEGER REFERENCES personnel(id) ON DELETE SET NULL,
+  assigned_to       INTEGER REFERENCES personnel(id) ON DELETE SET NULL,
+  created_at        TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS pam_audits (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  protocol_id TEXT NOT NULL REFERENCES protocols(id) ON DELETE CASCADE,
+  audit_date  TEXT NOT NULL,
+  auditor_id  INTEGER REFERENCES personnel(id) ON DELETE SET NULL,
+  site_visits TEXT,
+  findings    TEXT,
+  report      TEXT,
+  created_at  TEXT DEFAULT (datetime('now'))
+);
+
+-- ---- Domain B: amendments & annual renewals ----
+--
+-- Amendments are versioned documents (AGENTS.md §1.1): one in-flight per
+-- protocol, requires a "Reason for Change", and approved amendments produce
+-- a new protocol version with its own approval/expiration dates. Continuing
+-- Review (lightweight annual check-in) ≠ De Novo Review (full 3-year
+-- resubmission referencing the prior protocol number).
+
+CREATE TABLE IF NOT EXISTS amendments (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  protocol_id TEXT NOT NULL REFERENCES protocols(id) ON DELETE CASCADE,
+  reason      TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'Pending', -- 'Pending' | 'Approved' | 'Rejected'
+  created_at  TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS amendment_changes (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  amendment_id   INTEGER NOT NULL REFERENCES amendments(id) ON DELETE CASCADE,
+  section        TEXT NOT NULL, -- 'summaries' | 'procedures' | 'drugs' | 'animal_use' | 'experiments' | 'alternatives' | 'research_plan'
+  field          TEXT NOT NULL,
+  previous_value TEXT,
+  new_value      TEXT,
+  created_at     TEXT DEFAULT (datetime('now'))
+);
+
+-- Version lineage (0001, 0002, ...), each with its own approval/expiration
+-- dates. Source: New Document / Amendment Document / De Novo Document.
+CREATE TABLE IF NOT EXISTS protocol_versions (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  protocol_id     TEXT NOT NULL REFERENCES protocols(id) ON DELETE CASCADE,
+  version_number  TEXT NOT NULL, -- '0001', '0002', ...
+  source          TEXT NOT NULL, -- 'New Document' | 'Amendment Document' | 'De Novo Document'
+  approved_date   TEXT,
+  expiration_date TEXT,
+  version_date    TEXT DEFAULT (datetime('now')),
+  UNIQUE(protocol_id, version_number)
+);
+
+CREATE TABLE IF NOT EXISTS renewals (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  protocol_id    TEXT NOT NULL REFERENCES protocols(id) ON DELETE CASCADE,
+  type           TEXT NOT NULL, -- 'Continuing Review' | 'De Novo Review'
+  status         TEXT NOT NULL DEFAULT 'Pending', -- 'Pending' | 'Approved' | 'Rejected'
+  submitted_date TEXT DEFAULT (datetime('now')),
+  decision_date  TEXT,
+  approved_until TEXT, -- new expiration date when approved
+  created_at     TEXT DEFAULT (datetime('now'))
+);
 `);
 
 // ---- lightweight migration for databases created before these columns existed ----

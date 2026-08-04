@@ -1,6 +1,11 @@
 import type {
   Alternatives,
   AlternativesInput,
+  Amendment,
+  AmendmentChange,
+  AmendmentChangeInput,
+  AmendmentInput,
+  AmendmentStatus,
   AnimalUsageInput,
   AnimalUsageLedger,
   AnimalUsageTransaction,
@@ -9,10 +14,22 @@ import type {
   CommitteeProtocol,
   CommitteeReview,
   CommitteeTally,
+  DeficiencyInput,
   DrugInput,
   DrugRow,
   ExperimentInput,
   ExperimentRow,
+  Facility,
+  FacilityInput,
+  Incident,
+  IncidentInput,
+  IncidentUpdateInput,
+  Inspection,
+  InspectionDetail,
+  InspectionDeficiency,
+  InspectionInput,
+  PamAudit,
+  PamAuditInput,
   Personnel,
   PersonnelCompliance,
   PersonnelInput,
@@ -26,7 +43,11 @@ import type {
   ProtocolInput,
   ProtocolPersonnelResponse,
   ProtocolUpdateInput,
+  ProtocolVersion,
   ProtocolVotesResponse,
+  Renewal,
+  RenewalInput,
+  RenewalStatus,
   ReviewAssignmentInput,
   ReviewComment,
   ReviewCommentInput,
@@ -174,4 +195,72 @@ export const api = {
   deleteRrrEntry: (id: string, entryId: number): Promise<null> =>
     request(`/protocols/${id}/rrr/${entryId}`, { method: "DELETE" }),
   getValidation: (id: string): Promise<ValidationResult> => request(`/protocols/${id}/validation`),
+
+  // ---- Domain F: facilities & semi-annual inspections ----
+  listFacilities: (): Promise<Facility[]> => request("/facilities"),
+  createFacility: (data: FacilityInput): Promise<Facility> =>
+    request("/facilities", { method: "POST", body: JSON.stringify(data) }),
+  deleteFacility: (id: number): Promise<null> => request(`/facilities/${id}`, { method: "DELETE" }),
+  listInspections: (): Promise<Inspection[]> => request("/inspections"),
+  createInspection: (data: InspectionInput): Promise<InspectionDetail> =>
+    request("/inspections", { method: "POST", body: JSON.stringify(data) }),
+  getInspection: (id: number): Promise<InspectionDetail> => request(`/inspections/${id}`),
+  listDeficiencies: (id: number): Promise<InspectionDeficiency[]> =>
+    request(`/inspections/${id}/deficiencies`),
+  createDeficiency: (id: number, data: DeficiencyInput): Promise<InspectionDeficiency> =>
+    request(`/inspections/${id}/deficiencies`, { method: "POST", body: JSON.stringify(data) }),
+  remediateDeficiency: (id: number, defId: number): Promise<InspectionDeficiency> =>
+    request(`/inspections/${id}/deficiencies/${defId}`, { method: "PATCH", body: JSON.stringify({}) }),
+
+  // ---- Domain E: PAM & incident reporting ----
+  listIncidents: (): Promise<Incident[]> => request("/incidents"),
+  createIncident: (data: IncidentInput): Promise<Incident> =>
+    request("/incidents", { method: "POST", body: JSON.stringify(data) }),
+  getIncident: (id: number): Promise<Incident> => request(`/incidents/${id}`),
+  updateIncident: (id: number, data: IncidentUpdateInput): Promise<Incident> =>
+    request(`/incidents/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  listPamAudits: (id: string): Promise<PamAudit[]> => request(`/protocols/${id}/pam-audits`),
+  createPamAudit: (id: string, data: PamAuditInput): Promise<PamAudit> =>
+    request(`/protocols/${id}/pam-audits`, { method: "POST", body: JSON.stringify(data) }),
+  listPamAuditsForAll: (): Promise<PamAudit[]> => request("/pam-audits"),
+
+  // ---- Domain B: amendments & annual renewals ----
+  listAmendments: (id: string): Promise<Amendment[]> => request(`/protocols/${id}/amendments`),
+  createAmendment: (id: string, data: AmendmentInput): Promise<Amendment> =>
+    request(`/protocols/${id}/amendments`, { method: "POST", body: JSON.stringify(data) }),
+  getAmendment: (id: string, amendmentId: number): Promise<Amendment> =>
+    request(`/protocols/${id}/amendments/${amendmentId}`),
+  updateAmendmentStatus: (
+    id: string,
+    amendmentId: number,
+    status: AmendmentStatus,
+    expirationDate?: string,
+  ): Promise<Amendment> =>
+    request(`/protocols/${id}/amendments/${amendmentId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, ...(expirationDate ? { expiration_date: expirationDate } : {}) }),
+    }),
+  addAmendmentChange: (
+    id: string,
+    amendmentId: number,
+    data: AmendmentChangeInput,
+  ): Promise<AmendmentChange> =>
+    request(`/protocols/${id}/amendments/${amendmentId}/changes`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listProtocolVersions: (id: string): Promise<ProtocolVersion[]> => request(`/protocols/${id}/versions`),
+  listRenewals: (id: string): Promise<Renewal[]> => request(`/protocols/${id}/renewals`),
+  createRenewal: (id: string, data: RenewalInput): Promise<Renewal> =>
+    request(`/protocols/${id}/renewals`, { method: "POST", body: JSON.stringify(data) }),
+  updateRenewalStatus: (
+    id: string,
+    renewalId: number,
+    status: RenewalStatus,
+    approvedUntil?: string,
+  ): Promise<Renewal> =>
+    request(`/protocols/${id}/renewals/${renewalId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, ...(approvedUntil ? { approved_until: approvedUntil } : {}) }),
+    }),
 };

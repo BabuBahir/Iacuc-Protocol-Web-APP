@@ -42,6 +42,22 @@ describe("API documentation", () => {
       "/api/committee/protocols",
       "/api/committee/protocols/{id}/votes",
       "/api/personnel/compliance",
+      "/api/facilities",
+      "/api/facilities/{id}",
+      "/api/inspections",
+      "/api/inspections/{id}",
+      "/api/inspections/{id}/deficiencies",
+      "/api/inspections/{id}/deficiencies/{defId}",
+      "/api/incidents",
+      "/api/incidents/{id}",
+      "/api/pam-audits",
+      "/api/protocols/{id}/pam-audits",
+      "/api/protocols/{id}/amendments",
+      "/api/protocols/{id}/amendments/{amendmentId}",
+      "/api/protocols/{id}/amendments/{amendmentId}/changes",
+      "/api/protocols/{id}/versions",
+      "/api/protocols/{id}/renewals",
+      "/api/protocols/{id}/renewals/{renewalId}",
     ];
     for (const p of expected) {
       assert.ok(paths.includes(p), `expected spec to document ${p}`);

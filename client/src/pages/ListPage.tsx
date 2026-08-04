@@ -53,6 +53,9 @@ export default function ListPage() {
         <div className="flex items-center gap-5 text-[13px] text-gray-200 ml-4">
           <span className="text-white border-b-2 border-white pb-2 -mb-2 pt-2">Protocols</span>
           <Link to="/committee" className="hover:text-white">Committee</Link>
+          <Link to="/inspections" className="hover:text-white">Inspections</Link>
+          <Link to="/pam" className="hover:text-white">PAM</Link>
+          <Link to="/amendments" className="hover:text-white">Amendments</Link>
           <Link to="/admin" className="hover:text-white">Admin</Link>
         </div>
         <div className="flex-1" />
