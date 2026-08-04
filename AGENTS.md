@@ -238,12 +238,13 @@ npm run test:server   # node:test + supertest, coverage via --experimental-test-
 npm run test:client   # vitest + React Testing Library, coverage via v8
 ```
 
-**Backend: 136 tests, 99.49% lines / 93.08% branches / 95.19% functions**
+**Backend: 158 tests, 99.55% lines / 91.94% branches / 96.00% functions**
 (measured on `server/src/`, excluding `test/`). Every route file — protocols,
-protocol-form, animal-usage, admin, committee — has both happy-path and edge-case
+protocol-form, animal-usage, admin, committee, compliance — has both
+happy-path and edge-case
 coverage (FK constraint violations, permission checks, duplicate-key conflicts,
-404s). `committee.js` is at 100% lines. The one meaningful gap is a
-database-transaction-rollback error path
+404s). `committee.js` and `compliance.js` are at 100% lines. The one meaningful
+gap is a database-transaction-rollback error path
 (`protocol-form.js` lines 109–112) that's legitimately hard to trigger without
 mocking the DB layer — left uncovered rather than writing a contrived test
 for it.
@@ -260,14 +261,19 @@ Two real bugs were caught by writing these tests, not found any other way:
    test environment. Fixed to `useEffect(() => { load(); }, [])` in all
    three places.
 
-**Frontend: 112 tests, 98.74% lines / 87.05% branches** (see
+**Frontend: 118 tests, 98.49% lines / 87.31% branches** (see
 `vite.config.js`'s `test.coverage.exclude` for what's excluded — currently
 just `src/main.tsx` and config files, not test files themselves). Every page —
 List, Detail, Admin, Committee, Create, Application — plus `StatusBadge`,
 `api.ts`, `ProtocolForm`, and `App.tsx` routing is covered. `npm run typecheck`
-(`tsc --noEmit`) is the gate after any client change.
+(`tsc --noEmit`) is the gate after any client change. Note:
+`vite.config.js` sets `test.testTimeout = 15000` (vitest's 5s default) —
+`ApplicationPage.test.tsx`'s heavy RTL tests (full renders + `userEvent.type`)
+hit the 5s wall when vitest runs the nine files in parallel under CPU
+contention. The failing test always passed standalone, so it was a timeout,
+not an assertion failure.
 
-**E2E: 27 Playwright tests, all passing** (`npm run test:e2e` from the
+**E2E: 32 Playwright tests, all passing** (`npm run test:e2e` from the
 repo root). Infra lives in `e2e/`: `playwright.config.mjs`, specs in
 `e2e/tests/`, plus a dedicated API server (`e2e/seed-and-server.mjs`) on
 port 4100 that seeds a throwaway `e2e/e2e.db` and a Vite dev server
@@ -350,6 +356,22 @@ from building it:
   checks to `<link>` stylesheets — there are none in dev mode. Note there
   is **no footer** anywhere in the app, so the "footer" check doesn't
   exist; extend `css.spec.js` if one is ever added.
+- `e2e/tests/compliance.spec.js` (5 tests) covers Domain C read + write: the
+  detail page's per-person compliance chips on 0142 (2 "Compliant" + 1
+  "Action needed" — seeded Elena Marsh/Sam Whitfield compliant, Raj Patel
+  record-less), the admin page's seeded status spread, opening the compliance
+  modal, and two mutations on **Dr. Hana Sato** (adding a training record and
+  clearing OHSP). Hana is deliberately the mutation target: she's on no
+  protocol's personnel list, so flipping her to fully compliant can't disturb
+  the committee/register/detail invariants. Elena/Raj/Sam/Marcus/Jordan keep
+  their seeded states because other specs assert on or near them.
+- The "adding a personnel member" admin spec was flaky under full-suite load:
+  it clicked submit before the roles fetch populated the form's `role_id`,
+  and `add()` in `AdminPage.tsx` returns early while `role_id` is empty — so
+  no POST happened and the new person never appeared. Hardened with
+  `await expect(roleSelect).not.toHaveValue("")` before clicking. If you add
+  another early-return guard to a form like that, give its e2e spec the same
+  wait-for-ready treatment.
 
 **Test isolation pattern** (see `server/test/helpers.js`): Node's test
 runner isolates each test *file* into its own process by default, so a
@@ -531,6 +553,30 @@ and a section-comments section. Seed: 0142 = DMR (stays vote-free for e2e),
 0150/0147 = FCR, 5 assignments, 6 comments. Server `committee.js` is at 100%
 lines; the e2e committee spec covers the DMR badge + seeded assignment/comment
 read, assigning + commenting writes, and the method switch.
+
+**Personnel compliance (Domain C):** a `personnel_training` 1:N table
+(personnel_id, course, completed_date, expires_date) and a `personnel_ohsp`
+one-row-per-person table (status `Pending`/`Cleared`/`Denied`, reviewed_date,
+notes; upserted) in `server/src/routes/compliance.js`, which exports two
+routers: `personnelRouter` at `/api/personnel` (list `/compliance` with derived
+per-person status, `GET/POST /:id/training`, `PATCH/DELETE /:id/training/:id`,
+`GET/POST /:id/ohsp`) and `protocolPersonnelRouter` at `/api/protocols`
+(`GET /:id/personnel` — maps each `related_items` "Personnel" label to the
+named personnel row and returns per-person compliance plus an `all_compliant`
+flag; a person with no matching profile is flagged "No profile"). A training
+record is **Current** while its `expires_date` (if any) is today or later;
+a record with no expiry is current indefinitely; overall training status is
+current if any record is valid. Client: new types + api.ts wrappers, per-person
+Training/OHSP chips and a "Manage compliance" modal (add/remove courses, OHSP
+status buttons) on the admin page's Personnel panel, and green "Compliant" /
+amber "Action needed" chips on the detail page's Personnel card. Seed: 7 of 13
+personnel have training/OHSP fixtures — Elena Marsh & Sam Whitfield fully
+compliant (both on 0142 → the detail page shows both chip colors), Raj Patel
+record-less, Marcus Chen current-training-but-ohsp-Pending, Jordan Blake
+expired — so the admin page shows a status spread. `compliance.js` is at 100%
+lines; server/client tests + 5 e2e tests (`e2e/tests/compliance.spec.js`)
+cover reads and two mutations on Dr. Hana Sato (a safe mutation target — she's
+on no protocol's personnel list).
 
 Not implemented (see §1 above for the domain detail on each): conditional/
 dynamic Table of Contents, Continuing Review vs. De Novo Review as

@@ -23,9 +23,14 @@ test("adding a personnel member and seeing them in the list", async ({ page }) =
 
   await page.getByPlaceholder("Full name").fill("Dr. E2E Reviewer");
   await page.getByPlaceholder("Email (optional)").fill("reviewer@university.edu");
-  // The role dropdown is pre-populated from seeded roles. The personnel
-  // panel's submit button has no accessible name, so scope to its form.
+  // The role dropdown is pre-populated from seeded roles, but the form's
+  // role_id only gets set once the roles fetch resolves — the submit handler
+  // returns early while it's empty, so wait for a value before clicking to
+  // avoid racing the fetch. The personnel panel's submit button has no
+  // accessible name, so scope to its form.
   const personnelForm = page.getByPlaceholder("Full name").locator("xpath=ancestor::form");
+  const roleSelect = personnelForm.locator("select");
+  await expect(roleSelect).not.toHaveValue("");
   await personnelForm.getByRole("button").click();
 
   await expect(page.getByText("Dr. E2E Reviewer")).toBeVisible();

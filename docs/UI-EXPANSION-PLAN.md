@@ -276,6 +276,15 @@ Endpoints: `POST /:id/amendments`, `GET /:id/amendments`, `POST /:id/renewals`.
 
 ### C. Personnel, CITI Training & OHSP Compliance
 
+> **Status: DONE.** `personnel_training` 1:N table + `personnel_ohsp`
+> one-row-per-person table + `server/src/routes/compliance.js` exporting two
+> routers (`/api/personnel` for per-person training/OHSP CRUD + derived
+> compliance, `/api/protocols/:id/personnel` for the computed per-protocol
+> check) + training/OHSP chips and a "Manage compliance" modal on the admin
+> page + "Compliant"/"Action needed" chips on the detail page's Personnel card.
+> Seed fixtures give 0142 both chip colors and the admin page a status spread.
+> See AGENTS.md "Personnel compliance (Domain C)". Ship date: this cycle.
+
 Endpoints: `GET /api/personnel/:id/training`, `POST /api/personnel/:id/ohsp-clearance`,
 `GET /api/protocols/:id/personnel` (verify all listed personnel meet active
 compliance).
@@ -353,7 +362,7 @@ Independent of items 1–5 above; smallest-to-largest surface area:
 1. **D — Animal Census & Usage** (leverages existing `protocol_animal_use`,
    self-contained ledger + tally, clear test story for overshoot). ✅ Shipped.
 2. **A — Review workflow depth** (extends existing `committee.js`; plan item 4). ✅ Shipped.
-3. **C — Personnel compliance** (two data tables + read-only verification). ← next
+3. **C — Personnel compliance** (two data tables + read-only verification). ✅ Shipped.
 4. **F — Facilities & inspections** (three standalone tables, no protocol deps).
 5. **E — PAM & incidents** (two tables + status/CAPA lifecycle).
 6. **B — Amendments & renewals** (largest; versioned documents + diffs;

@@ -17,6 +17,13 @@ vi.mock("../../api", () => ({
     listPersonnel: vi.fn(),
     createPersonnel: vi.fn(),
     deletePersonnel: vi.fn(),
+    listPersonnelCompliance: vi.fn(),
+    getPersonnelTraining: vi.fn(),
+    createTrainingRecord: vi.fn(),
+    updateTrainingRecord: vi.fn(),
+    deleteTrainingRecord: vi.fn(),
+    getPersonnelOhsp: vi.fn(),
+    setPersonnelOhsp: vi.fn(),
   },
 }));
 
@@ -35,6 +42,7 @@ beforeEach(() => {
   api.listSpecies.mockResolvedValue([{ id: 1, name: "Mouse" }]);
   api.listRoles.mockResolvedValue([{ id: 1, name: "Principal Investigator", is_committee: 0 }]);
   api.listPersonnel.mockResolvedValue([]);
+  api.listPersonnelCompliance.mockResolvedValue([]);
 });
 
 describe("AdminPage — species panel", () => {
@@ -337,7 +345,9 @@ describe("AdminPage — personnel panel actions", () => {
     await waitFor(() => expect(screen.getByText("Sam Whitfield")).toBeInTheDocument());
 
     const row = screen.getByText("Sam Whitfield").closest(".px-4");
-    await user.click(within(row as HTMLElement).getByRole("button"));
+    const trashButton = Array.from(within(row as HTMLElement).getAllByRole("button"))
+      .find(b => b.querySelector("svg.lucide-trash-2"))!;
+    await user.click(trashButton);
 
     await waitFor(() => {
       expect(api.deletePersonnel).toHaveBeenCalledWith(5);
@@ -355,10 +365,122 @@ describe("AdminPage — personnel panel actions", () => {
     await waitFor(() => expect(screen.getByText("Sam Whitfield")).toBeInTheDocument());
 
     const row = screen.getByText("Sam Whitfield").closest(".px-4");
-    await user.click(within(row as HTMLElement).getByRole("button"));
+    const trashButton = Array.from(within(row as HTMLElement).getAllByRole("button"))
+      .find(b => b.querySelector("svg.lucide-trash-2"))!;
+    await user.click(trashButton);
 
     await waitFor(() => {
       expect(screen.getByText("Personnel has votes.")).toBeInTheDocument();
     });
+  });
+});
+
+describe("AdminPage — personnel compliance", () => {
+  test("renders training and OHSP status chips for each person", async () => {
+    api.listPersonnel.mockResolvedValue([
+      { id: 1, name: "Dr. Elena Marsh", email: null, role_id: 1, role_name: "Principal Investigator", is_committee: 0 },
+    ]);
+    api.listPersonnelCompliance.mockResolvedValue([
+      { id: 1, name: "Dr. Elena Marsh", role_name: "Principal Investigator", training_status: "Current", ohsp_status: "Cleared", compliant: true },
+    ]);
+
+    renderAdminPage();
+
+    await waitFor(() => expect(screen.getByText("Training: Current")).toBeInTheDocument());
+    expect(screen.getByText("OHSP: Cleared")).toBeInTheDocument();
+  });
+
+  test("opening the compliance modal loads training and OHSP data", async () => {
+    const user = userEvent.setup();
+    api.listPersonnel.mockResolvedValue([
+      { id: 1, name: "Dr. Elena Marsh", email: null, role_id: 1, role_name: "Principal Investigator", is_committee: 0 },
+    ]);
+    api.listPersonnelCompliance.mockResolvedValue([]);
+    api.getPersonnelTraining.mockResolvedValue({
+      personnel: { id: 1, name: "Dr. Elena Marsh", role_name: "Principal Investigator" },
+      courses: [
+        { id: 10, personnel_id: 1, course: "Working with the IACUC", completed_date: "2025-01-15", expires_date: "2028-01-15", status: "Current" },
+      ],
+      overall_status: "Current",
+    });
+    api.getPersonnelOhsp.mockResolvedValue({ personnel_id: 1, status: "Cleared", reviewed_date: "2026-01-10", notes: null });
+
+    renderAdminPage();
+    await waitFor(() => expect(screen.getByText("Dr. Elena Marsh")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Manage compliance" }));
+
+    await waitFor(() => expect(screen.getByText("Compliance — Dr. Elena Marsh")).toBeInTheDocument());
+    expect(screen.getByText("Working with the IACUC")).toBeInTheDocument();
+    expect(screen.getByText("Last reviewed 2026-01-10")).toBeInTheDocument();
+  });
+
+  test("adding a training record calls the API and refreshes the modal list", async () => {
+    const user = userEvent.setup();
+    api.listPersonnel.mockResolvedValue([
+      { id: 1, name: "Dr. Elena Marsh", email: null, role_id: 1, role_name: "Principal Investigator", is_committee: 0 },
+    ]);
+    api.listPersonnelCompliance.mockResolvedValue([]);
+    api.getPersonnelTraining.mockResolvedValueOnce({
+      personnel: { id: 1, name: "Dr. Elena Marsh", role_name: "Principal Investigator" },
+      courses: [],
+      overall_status: "No records",
+    }).mockResolvedValueOnce({
+      personnel: { id: 1, name: "Dr. Elena Marsh", role_name: "Principal Investigator" },
+      courses: [
+        { id: 11, personnel_id: 1, course: "Rodent Surgery", completed_date: "2026-02-01", expires_date: "2029-02-01", status: "Current" },
+      ],
+      overall_status: "Current",
+    });
+    api.getPersonnelOhsp.mockResolvedValue({ personnel_id: 1, status: "Pending", reviewed_date: null, notes: null });
+    api.createTrainingRecord.mockResolvedValue({} as never);
+
+    renderAdminPage();
+    await waitFor(() => expect(screen.getByText("Dr. Elena Marsh")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Manage compliance" }));
+    await waitFor(() => expect(screen.getByText("No training records on file.")).toBeInTheDocument());
+
+    await user.type(screen.getByLabelText("Course name"), "Rodent Surgery");
+    await user.type(screen.getByLabelText("Completed date"), "2026-02-01");
+    await user.click(screen.getByRole("button", { name: /Add training/ }));
+
+    await waitFor(() => {
+      expect(api.createTrainingRecord).toHaveBeenCalledWith(1, {
+        course: "Rodent Surgery",
+        completed_date: "2026-02-01",
+        expires_date: null,
+      });
+    });
+    await waitFor(() => expect(screen.getByText("Rodent Surgery")).toBeInTheDocument());
+  });
+
+  test("setting OHSP clearance calls the API and reflects the new status", async () => {
+    const user = userEvent.setup();
+    api.listPersonnel.mockResolvedValue([
+      { id: 1, name: "Dr. Elena Marsh", email: null, role_id: 1, role_name: "Principal Investigator", is_committee: 0 },
+    ]);
+    api.listPersonnelCompliance.mockResolvedValue([]);
+    api.getPersonnelTraining.mockResolvedValue({
+      personnel: { id: 1, name: "Dr. Elena Marsh", role_name: "Principal Investigator" },
+      courses: [],
+      overall_status: "No records",
+    });
+    api.getPersonnelOhsp.mockResolvedValueOnce({ personnel_id: 1, status: "Pending", reviewed_date: null, notes: null })
+      .mockResolvedValueOnce({ personnel_id: 1, status: "Cleared", reviewed_date: null, notes: null });
+    api.setPersonnelOhsp.mockResolvedValue({ personnel_id: 1, status: "Cleared", reviewed_date: null, notes: null });
+
+    renderAdminPage();
+    await waitFor(() => expect(screen.getByText("Dr. Elena Marsh")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Manage compliance" }));
+    await waitFor(() => expect(screen.getByText("OHSP clearance")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Cleared" }));
+
+    await waitFor(() => {
+      expect(api.setPersonnelOhsp).toHaveBeenCalledWith(1, { status: "Cleared" });
+    });
+    expect(api.listPersonnelCompliance).toHaveBeenCalled();
   });
 });

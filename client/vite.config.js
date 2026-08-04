@@ -17,6 +17,10 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: "./src/test-setup.ts",
     globals: true,
+    // ApplicationPage's heavy RTL tests (full renders + userEvent.type) can
+    // exceed the 5s default under parallel-file CPU contention; 15s gives
+    // headroom while still failing genuinely hung tests.
+    testTimeout: 15000,
     coverage: {
       exclude: [
         "*.config.js",

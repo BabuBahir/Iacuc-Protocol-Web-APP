@@ -18,6 +18,8 @@ const TABLES_IN_DELETE_ORDER = [
   "protocol_rrr_entries",
   "protocol_alternatives",
   "animal_usage_transactions",
+  "personnel_training",
+  "personnel_ohsp",
   "related_items",
   "personnel",
   "roles",

@@ -210,6 +210,75 @@ export interface PersonnelInput {
   role_id: number;
 }
 
+// ---- personnel compliance (Domain C): CITI-style training + OHSP clearance ----
+
+export type TrainingStatus = "Current" | "Expired";
+export type OverallTrainingStatus = TrainingStatus | "No records";
+export type OhspStatus = "Pending" | "Cleared" | "Denied";
+
+export const OHSP_STATUSES: OhspStatus[] = ["Pending", "Cleared", "Denied"];
+
+export interface TrainingRecord {
+  id: number;
+  personnel_id: number;
+  course: string;
+  completed_date: string;
+  expires_date: string | null;
+  status: TrainingStatus;
+}
+
+export interface TrainingRecordInput {
+  course: string;
+  completed_date: string;
+  expires_date?: string | null;
+}
+
+export interface PersonnelOhsp {
+  personnel_id: number;
+  status: OhspStatus;
+  reviewed_date: string | null;
+  notes: string | null;
+}
+
+export interface PersonnelOhspInput {
+  status: OhspStatus;
+  reviewed_date?: string | null;
+  notes?: string | null;
+}
+
+export interface PersonnelTrainingResponse {
+  personnel: { id: number; name: string; role_name: string };
+  courses: TrainingRecord[];
+  overall_status: OverallTrainingStatus;
+}
+
+export interface PersonnelCompliance {
+  id: number;
+  name: string;
+  role_name: string;
+  training_status: OverallTrainingStatus;
+  ohsp_status: OhspStatus;
+  compliant: boolean;
+}
+
+export interface ProtocolPersonnelEntry {
+  label: string;
+  name: string;
+  role: string | null;
+  personnel_id: number | null;
+  compliance: {
+    training_status: OverallTrainingStatus | "No profile";
+    ohsp_status: OhspStatus | "No profile";
+    compliant: boolean;
+  };
+}
+
+export interface ProtocolPersonnelResponse {
+  protocol_id: string;
+  personnel: ProtocolPersonnelEntry[];
+  all_compliant: boolean;
+}
+
 export interface VoteInput {
   personnel_id: number;
   vote: string;

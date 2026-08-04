@@ -1,8 +1,15 @@
 import React, { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { LayoutGrid, Plus, Trash2, PawPrint, Shield, Users, type LucideIcon } from "lucide-react";
+import {
+  LayoutGrid, Plus, Trash2, PawPrint, Shield, Users, X, GraduationCap,
+  ClipboardCheck, type LucideIcon,
+} from "lucide-react";
 import { api } from "../api";
-import type { Personnel, Role, Species } from "../types";
+import type {
+  Personnel, PersonnelCompliance, PersonnelOhsp, Role, Species,
+  OhspStatus, TrainingRecord,
+} from "../types";
+import { OHSP_STATUSES } from "../types";
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -162,13 +169,203 @@ interface PersonnelFormState {
   role_id: string;
 }
 
-function PersonnelPanel({ roles }: { roles: Role[] }) {
-  const [personnel, setPersonnel] = useState<Personnel[]>([]);
-  const [form, setForm] = useState<PersonnelFormState>({ name: "", email: "", role_id: "" });
+function trainingStatusChip(status: string) {
+  const tone =
+    status === "Current"
+      ? "bg-emerald-50 text-emerald-700"
+      : status === "Expired"
+      ? "bg-red-50 text-red-700"
+      : "bg-gray-100 text-gray-600";
+  return (
+    <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-medium ${tone}`}>
+      Training: {status}
+    </span>
+  );
+}
+
+function ohspStatusChip(status: string) {
+  const tone =
+    status === "Cleared"
+      ? "bg-emerald-50 text-emerald-700"
+      : status === "Denied"
+      ? "bg-red-50 text-red-700"
+      : "bg-amber-50 text-amber-700";
+  return (
+    <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-medium ${tone}`}>
+      OHSP: {status}
+    </span>
+  );
+}
+
+interface ComplianceModalProps {
+  person: Personnel;
+  onClose: () => void;
+  onChanged: () => void;
+}
+
+function ComplianceModal({ person, onClose, onChanged }: ComplianceModalProps) {
+  const [training, setTraining] = useState<TrainingRecord[]>([]);
+  const [ohsp, setOhsp] = useState<PersonnelOhsp | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [course, setCourse] = useState("");
+  const [completedDate, setCompletedDate] = useState("");
+  const [expiresDate, setExpiresDate] = useState("");
+
+  const load = () => {
+    setError(null);
+    api.getPersonnelTraining(person.id)
+      .then(res => setTraining(res.courses))
+      .catch(err => setError(errorMessage(err)));
+    api.getPersonnelOhsp(person.id)
+      .then(setOhsp)
+      .catch(err => setError(errorMessage(err)));
+  };
+
+  useEffect(() => { load(); }, [person.id]);
+
+  const addTraining = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!course.trim() || !completedDate) return;
+    setError(null);
+    try {
+      await api.createTrainingRecord(person.id, {
+        course: course.trim(),
+        completed_date: completedDate,
+        expires_date: expiresDate || null,
+      });
+      setCourse("");
+      setCompletedDate("");
+      setExpiresDate("");
+      load();
+      onChanged();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
+
+  const removeTraining = async (id: number) => {
+    try {
+      await api.deleteTrainingRecord(person.id, id);
+      load();
+      onChanged();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
+
+  const setOhspStatus = async (status: OhspStatus) => {
+    setError(null);
+    try {
+      await api.setPersonnelOhsp(person.id, { status });
+      load();
+      onChanged();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
+
+  const inputCls = "bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-[13px] outline-none focus:border-[#0176D3]";
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
+          <h2 className="font-semibold text-gray-900 text-sm">Compliance — {person.name}</h2>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-5">
+          {error && <div className="text-[12px] text-red-600">{error}</div>}
+
+          <div>
+            <div className="flex items-center gap-1.5 font-medium text-gray-800 text-[13px] mb-2">
+              <GraduationCap size={15} className="text-gray-500" /> CITI / training
+            </div>
+            <div className="space-y-1.5">
+              {training.length === 0 && (
+                <div className="text-[12px] text-gray-400">No training records on file.</div>
+              )}
+              {training.map(t => (
+                <div key={t.id} className="flex items-center justify-between gap-2 text-[13px]">
+                  <div className="min-w-0">
+                    <div className="text-gray-900 truncate">{t.course}</div>
+                    <div className="text-[11px] text-gray-500">
+                      Completed {t.completed_date}{t.expires_date ? ` · Expires ${t.expires_date}` : " · No expiry"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {trainingStatusChip(t.status)}
+                    <button onClick={() => removeTraining(t.id)} className="text-gray-400 hover:text-red-600" aria-label={`Remove ${t.course}`}>
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <form onSubmit={addTraining} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input value={course} onChange={e => setCourse(e.target.value)} placeholder="Course name" className={inputCls} aria-label="Course name" />
+              <input type="date" value={completedDate} onChange={e => setCompletedDate(e.target.value)} className={inputCls} aria-label="Completed date" />
+              <input type="date" value={expiresDate} onChange={e => setExpiresDate(e.target.value)} className={inputCls} aria-label="Expires date" />
+              <button className="flex items-center justify-center gap-1 px-3 py-1.5 rounded bg-[#0176D3] text-white text-[13px] font-medium hover:bg-[#0b5cab]">
+                <Plus size={14} /> Add training
+              </button>
+            </form>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-1.5 font-medium text-gray-800 text-[13px] mb-2">
+              <ClipboardCheck size={15} className="text-gray-500" /> OHSP clearance
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {OHSP_STATUSES.map(status => (
+                <button
+                  key={status}
+                  onClick={() => setOhspStatus(status)}
+                  className={[
+                    "px-3 py-1 rounded-full text-[12px] font-medium border",
+                    ohsp?.status === status
+                      ? "bg-[#032D60] text-white border-[#032D60]"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50",
+                  ].join(" ")}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+            {ohsp?.reviewed_date && (
+              <div className="text-[11px] text-gray-500 mt-1.5">
+                Last reviewed {ohsp.reviewed_date}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PersonnelPanel({ roles }: { roles: Role[] }) {
+  const [personnel, setPersonnel] = useState<Personnel[]>([]);
+  const [compliance, setCompliance] = useState<Record<number, PersonnelCompliance>>({});
+  const [form, setForm] = useState<PersonnelFormState>({ name: "", email: "", role_id: "" });
+  const [error, setError] = useState<string | null>(null);
+  const [managing, setManaging] = useState<Personnel | null>(null);
+
   const load = () => api.listPersonnel().then(setPersonnel).catch(err => setError(errorMessage(err)));
-  useEffect(() => { load(); }, []);
+  const loadCompliance = () => api.listPersonnelCompliance()
+    .then(rows => {
+      const map: Record<number, PersonnelCompliance> = {};
+      for (const row of rows) map[row.id] = row;
+      setCompliance(map);
+    })
+    .catch(() => {});
+  useEffect(() => {
+    load();
+    loadCompliance();
+  }, []);
 
   useEffect(() => {
     if (!form.role_id && roles.length > 0) {
@@ -228,27 +425,52 @@ function PersonnelPanel({ roles }: { roles: Role[] }) {
       </form>
       {error && <div className="px-4 py-2 text-[12px] text-red-600">{error}</div>}
       <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
-        {personnel.map(p => (
-          <div key={p.id} className="px-4 py-2.5 flex items-center justify-between text-[13px]">
-            <div>
-              <div className="text-gray-900 font-medium">{p.name}</div>
-              <div className="text-gray-500 text-[12px] flex items-center gap-1.5">
-                {p.role_name}
-                {!!p.is_committee && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-[#E6F1FB] text-[#185FA5] text-[11px] font-medium">
-                    Committee
-                  </span>
+        {personnel.map(p => {
+          const c = compliance[p.id];
+          return (
+            <div key={p.id} className="px-4 py-2.5 flex items-center justify-between text-[13px]">
+              <div className="min-w-0">
+                <div className="text-gray-900 font-medium">{p.name}</div>
+                <div className="text-gray-500 text-[12px] flex items-center gap-1.5">
+                  {p.role_name}
+                  {!!p.is_committee && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-[#E6F1FB] text-[#185FA5] text-[11px] font-medium">
+                      Committee
+                    </span>
+                  )}
+                  {p.email && <span>· {p.email}</span>}
+                </div>
+                {c && (
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    {trainingStatusChip(c.training_status)}
+                    {ohspStatusChip(c.ohsp_status)}
+                  </div>
                 )}
-                {p.email && <span>· {p.email}</span>}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setManaging(p)}
+                  className="px-2.5 py-1 rounded border border-gray-300 bg-white text-[#0176D3] text-[12px] font-medium hover:bg-gray-50"
+                >
+                  Manage compliance
+                </button>
+                <button onClick={() => remove(p.id)} className="text-gray-400 hover:text-red-600">
+                  <Trash2 size={14} />
+                </button>
               </div>
             </div>
-            <button onClick={() => remove(p.id)} className="text-gray-400 hover:text-red-600">
-              <Trash2 size={14} />
-            </button>
-          </div>
-        ))}
+          );
+        })}
         {personnel.length === 0 && <div className="px-4 py-6 text-center text-gray-400 text-[13px]">No personnel yet.</div>}
       </div>
+
+      {managing && (
+        <ComplianceModal
+          person={managing}
+          onClose={() => setManaging(null)}
+          onChanged={loadCompliance}
+        />
+      )}
     </Panel>
   );
 }
