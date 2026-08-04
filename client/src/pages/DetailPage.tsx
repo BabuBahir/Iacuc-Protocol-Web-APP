@@ -208,13 +208,19 @@ export default function DetailPage() {
 
           <SectionBlock icon={ClipboardList} title="Research plan">
             {protocol.research_steps.length > 0 ? (
-              <ol className="space-y-1.5">
-                {protocol.research_steps.map((step, i) => (
-                  <li key={i} className="flex gap-2 text-[13px] text-gray-800">
-                    <span className="font-medium text-gray-500 shrink-0">Step {i + 1}.</span>
-                    {step}
-                  </li>
-                ))}
+              <ol className="space-y-2">
+                {protocol.research_steps.map((step, i) => {
+                  const meta = [step.duration, step.frequency, step.species, step.location, step.personnel]
+                    .filter(Boolean)
+                    .join(" · ");
+                  return (
+                    <li key={i} className="text-[13px] text-gray-800">
+                      <span className="font-medium text-gray-500 mr-1.5">Step {i + 1}.</span>
+                      {step.description}
+                      {meta && <div className="text-[12px] text-gray-500 mt-0.5">{meta}</div>}
+                    </li>
+                  );
+                })}
               </ol>
             ) : (
               <div className="text-[13px] text-gray-400">No research steps recorded.</div>

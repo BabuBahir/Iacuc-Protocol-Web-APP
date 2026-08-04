@@ -139,7 +139,30 @@ describe("POST /api/protocols", () => {
         housing: "Group housing in ventilated cages",
         disposal: "Carbon dioxide euthanasia followed by carcass incineration",
         npg: "Sigma-Aldrich custom peptide (98% purity)",
-        research_steps: ["Habituate animals for 7 days", "Administer stressor for 21 days"],
+        research_steps: [
+          {
+            description: "Habituate animals for 7 days",
+            duration: "7 days",
+            frequency: "Daily",
+            species: "Mouse",
+            pain_category: "Category B",
+            anesthesia: "No",
+            location: "Behavior suite",
+            personnel: "Sam Whitfield",
+            notes: "Gentle handling",
+          },
+          {
+            description: "Administer stressor for 21 days",
+            duration: "21 days",
+            frequency: "Daily",
+            species: "Mouse",
+            pain_category: "Category D",
+            anesthesia: "No",
+            location: "Vivarium",
+            personnel: "Dr. New",
+            notes: "",
+          },
+        ],
       });
     assert.equal(res.status, 201);
     assert.equal(res.body.pi_proxy, "Sam Whitfield");
@@ -148,7 +171,30 @@ describe("POST /api/protocols", () => {
     assert.equal(res.body.anesthesia_required, 1);
     assert.equal(res.body.housing, "Group housing in ventilated cages");
     assert.equal(res.body.npg, "Sigma-Aldrich custom peptide (98% purity)");
-    assert.deepEqual(res.body.research_steps, ["Habituate animals for 7 days", "Administer stressor for 21 days"]);
+    assert.deepEqual(res.body.research_steps, [
+      {
+        description: "Habituate animals for 7 days",
+        duration: "7 days",
+        frequency: "Daily",
+        species: "Mouse",
+        pain_category: "Category B",
+        anesthesia: "No",
+        location: "Behavior suite",
+        personnel: "Sam Whitfield",
+        notes: "Gentle handling",
+      },
+      {
+        description: "Administer stressor for 21 days",
+        duration: "21 days",
+        frequency: "Daily",
+        species: "Mouse",
+        pain_category: "Category D",
+        anesthesia: "No",
+        location: "Vivarium",
+        personnel: "Dr. New",
+        notes: "",
+      },
+    ]);
   });
 
   test("stores the Appendix A summary fields on create", async () => {
@@ -203,12 +249,95 @@ describe("PATCH /api/protocols/:id", () => {
         housing: "Individually ventilated cages",
         disposal: "Injectable overdose then incineration",
         npg: "Vendored lot no. 4471",
-        research_steps: ["Pre-test on 2 animals", "Run the procedure"],
+        research_steps: [
+          {
+            description: "Pre-test on 2 animals",
+            duration: "1 day",
+            frequency: "Once",
+            species: "Mouse",
+            pain_category: "Category C",
+            anesthesia: "Yes",
+            location: "Procedure room",
+            personnel: "Sam Whitfield",
+            notes: "Aseptic prep",
+          },
+          {
+            description: "Run the procedure",
+            duration: "~2 hours",
+            frequency: "Once",
+            species: "Mouse",
+            pain_category: "Category D",
+            anesthesia: "Yes",
+            location: "Surgical suite",
+            personnel: "Dr. New",
+            notes: "",
+          },
+        ],
       });
     assert.equal(res.status, 200);
     assert.equal(res.body.pi_proxy, "Sam Whitfield");
     assert.equal(res.body.anesthesia_required, 1);
-    assert.deepEqual(res.body.research_steps, ["Pre-test on 2 animals", "Run the procedure"]);
+    assert.deepEqual(res.body.research_steps, [
+      {
+        description: "Pre-test on 2 animals",
+        duration: "1 day",
+        frequency: "Once",
+        species: "Mouse",
+        pain_category: "Category C",
+        anesthesia: "Yes",
+        location: "Procedure room",
+        personnel: "Sam Whitfield",
+        notes: "Aseptic prep",
+      },
+      {
+        description: "Run the procedure",
+        duration: "~2 hours",
+        frequency: "Once",
+        species: "Mouse",
+        pain_category: "Category D",
+        anesthesia: "Yes",
+        location: "Surgical suite",
+        personnel: "Dr. New",
+        notes: "",
+      },
+    ]);
+  });
+
+  test("normalizes legacy string research_steps into structured objects on read", async () => {
+    insertProtocol();
+    const res = await request(app)
+      .post("/api/protocols")
+      .send({
+        id: "LEGACY-0001",
+        title: "Legacy study",
+        pi: "Dr. Old",
+        research_steps: ["Step one", "Step two"],
+      });
+    assert.equal(res.status, 201);
+    assert.deepEqual(res.body.research_steps, [
+      {
+        description: "Step one",
+        duration: "",
+        frequency: "",
+        species: "",
+        pain_category: "",
+        anesthesia: "No",
+        location: "",
+        personnel: "",
+        notes: "",
+      },
+      {
+        description: "Step two",
+        duration: "",
+        frequency: "",
+        species: "",
+        pain_category: "",
+        anesthesia: "No",
+        location: "",
+        personnel: "",
+        notes: "",
+      },
+    ]);
   });
 
   test(

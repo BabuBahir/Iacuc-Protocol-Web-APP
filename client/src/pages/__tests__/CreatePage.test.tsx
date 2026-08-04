@@ -136,7 +136,10 @@ describe("CreatePage", () => {
         npg: "Dextran sulfate, purity 95%, Sigma",
         housing: "Individually caged, enrichments",
         disposal: "CO2 euthanasia, incineration",
-        research_steps: ["Habituate animals to handling", "Apply chronic stress paradigm"],
+        research_steps: [
+          expect.objectContaining({ description: "Habituate animals to handling" }),
+          expect.objectContaining({ description: "Apply chronic stress paradigm" }),
+        ],
       }));
     });
     expect(navigate).toHaveBeenCalledWith("/protocols/IACUC-2026-0999");

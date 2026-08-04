@@ -1,6 +1,30 @@
 // Shared client-side types mirroring the Express API response shapes
 // (server/src/routes/protocols.js, admin.js, committee.js).
 
+// A single step of the research procedure plan. The server normalizes legacy
+// free-text steps (stored as plain strings in old databases) into this shape on
+// read, so the client can always treat steps as structured objects.
+export interface ResearchStep {
+  description: string;
+  duration: string;
+  frequency: string;
+  species: string;
+  pain_category: string;
+  anesthesia: "Yes" | "No";
+  location: string;
+  personnel: string;
+  notes: string;
+}
+
+export const STEP_FREQUENCIES = [
+  "Once",
+  "Daily",
+  "Weekly",
+  "Monthly",
+  "As needed",
+  "Continuous",
+] as const;
+
 export interface Protocol {
   id: string;
   title: string;
@@ -16,7 +40,7 @@ export interface Protocol {
   housing: string | null;
   disposal: string | null;
   npg: string | null;
-  research_steps: string[];
+  research_steps: ResearchStep[];
   purpose_summary: string | null;
   harm_benefit_analysis: string | null;
   scientific_summary: string | null;
@@ -172,7 +196,7 @@ export interface ProtocolInput {
   housing: string | null;
   disposal: string | null;
   npg: string | null;
-  research_steps: string[];
+  research_steps: ResearchStep[];
   purpose_summary: string | null;
   harm_benefit_analysis: string | null;
   scientific_summary: string | null;
@@ -191,7 +215,7 @@ export interface ProtocolUpdateInput {
   housing: string | null;
   disposal: string | null;
   npg: string | null;
-  research_steps: string[];
+  research_steps: ResearchStep[];
   purpose_summary: string | null;
   harm_benefit_analysis: string | null;
   scientific_summary: string | null;
