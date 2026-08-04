@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import swaggerUi from "swagger-ui-express";
+import { openapiSpec } from "./openapi.js";
 import { router as protocolsRouter } from "./routes/protocols.js";
 import { router as protocolFormRouter } from "./routes/protocol-form.js";
 import { router as animalUsageRouter } from "./routes/animal-usage.js";
@@ -15,6 +17,8 @@ export function createApp() {
   app.use(express.json());
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
+  app.get("/api-docs/spec.json", (_req, res) => res.json(openapiSpec));
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openapiSpec));
   app.use("/api/protocols", protocolsRouter);
   app.use("/api/protocols", protocolFormRouter);
   app.use("/api/protocols", animalUsageRouter);

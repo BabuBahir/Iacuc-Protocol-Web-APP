@@ -207,6 +207,19 @@ is part of the workflow — run it after any client change. Vite resolves
 `.js` before `.ts`/`.tsx`, so if you ever reintroduce a plain-`.js` file next
 to a `.ts`/`.tsx` one, imports will silently pick up the wrong file.
 
+### API documentation (Swagger UI)
+
+`server/src/openapi.js` exports `openapiSpec` (OpenAPI 3.0.3), served by
+`swagger-ui-express` at `/api-docs/` (raw spec at `/api-docs/spec.json`,
+which is registered **before** the swagger mount in `app.js` so
+`express.static`'s trailing-slash redirect doesn't shadow it). The spec is
+hand-written and only documents endpoints that actually exist — the
+"Planned / future" endpoints in README are deliberately absent. Keep it in
+sync when adding a route: new paths/schemas go in `openapi.js`, and the
+`routes-docs.test.js` endpoint-list assertion is the backstop. Note
+`/api-docs` (no trailing slash) 301-redirects to `/api-docs/`, so tests
+must hit the trailing-slash URL.
+
 ### Database
 
 - Uses **`node:sqlite`** (Node's built-in module, Node ≥22.5), not
