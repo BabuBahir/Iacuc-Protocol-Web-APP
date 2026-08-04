@@ -218,7 +218,8 @@ the demo. Keep that audience in mind whenever you touch the README:
   has an application, review records, and a usage ledger) before any *how*
   (SQL, foreign keys, npm commands). Avoid jargon where a plain word works.
 - **Don't let the README balloon with implementation detail.** Technical
-  depth belongs in this file (AGENTS.md), in code comments, and in
+  depth belongs in this file (AGENTS.md), in code comments, in
+  `docs/DEVELOPER.md` (setup/run/architecture/deployment), and in
   `server/src/db.js` / `server/src/openapi.js` — not in the README.
 - **Large tables and code blocks must be collapsible** (`<details>`) or
   linked out of line. The API endpoint tables are collapsed; the database
