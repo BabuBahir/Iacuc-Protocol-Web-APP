@@ -11,12 +11,9 @@ import { personnelRouter, protocolPersonnelRouter } from "./routes/compliance.js
 import { router as facilitiesRouter } from "./routes/facilities.js";
 import { router as pamRouter, pamRouter as pamAuditsRouter } from "./routes/pam.js";
 import { router as amendmentsRouter } from "./routes/amendments.js";
-import "./db.js"; // ensures schema exists as soon as the app is built
-import cors from "cors";
+import "./db.js"; // ensures schema exists as soon as the app is built 
 export function createApp() {
-  const app = express();
-
-  app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:5173" }));
+  const app = express(); 
   app.use(express.json());
 
     // Inside createApp()
