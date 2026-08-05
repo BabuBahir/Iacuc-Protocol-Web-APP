@@ -8,7 +8,7 @@ export default defineConfig({
     proxy: {
       // lets the client call fetch('/api/...') without hardcoding a host
       "/api": {
-        target: "http://localhost:4000",
+        target: "https://iacuc-protocol-web-app.onrender.com",
         changeOrigin: true,
       },
     },
