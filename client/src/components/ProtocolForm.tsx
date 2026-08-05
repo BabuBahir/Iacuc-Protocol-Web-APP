@@ -317,7 +317,14 @@ export default function ProtocolForm({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.pi.trim() || (showProtocolNumber && !form.id.trim())) return;
+    const missing: string[] = [];
+    if (showProtocolNumber && !form.id.trim()) missing.push("a protocol number");
+    if (!form.title.trim()) missing.push("a title");
+    if (!form.pi.trim()) missing.push("a principal investigator");
+    if (missing.length > 0) {
+      setError(`Please fill in ${missing.join(", ")} before saving.`);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {

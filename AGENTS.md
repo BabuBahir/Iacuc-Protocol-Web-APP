@@ -334,7 +334,7 @@ hit the 5s wall when vitest runs the nine files in parallel under CPU
 contention. The failing test always passed standalone, so it was a timeout,
 not an assertion failure.
 
-**E2E: 32 Playwright tests, all passing** (`npm run test:e2e` from the
+**E2E: 35 Playwright tests, all passing** (`npm run test:e2e` from the
 repo root). Infra lives in `e2e/`: `playwright.config.mjs`, specs in
 `e2e/tests/`, plus a dedicated API server (`e2e/seed-and-server.mjs`) on
 port 4100 that seeds a throwaway `e2e/e2e.db` and a Vite dev server
@@ -433,6 +433,25 @@ from building it:
   `await expect(roleSelect).not.toHaveValue("")` before clicking. If you add
   another early-return guard to a form like that, give its e2e spec the same
   wait-for-ready treatment.
+- `e2e/tests/create.spec.js` (3 tests) drives the real "create protocol" UI
+  flow that nothing else covered: it fills `/protocols/new`, submits, asserts
+  it lands on the new Draft's detail page (with a research step carried
+  through), asserts the empty-submit inline error, and asserts the duplicate-ID
+  409 stays on the page. It created protocols 0999/0997 — safe IDs that don't
+  collide with the seeded six or the e2e invariants. **The create flow's one
+  real bug was a silent no-op**: `ProtocolForm.tsx`'s submit guard returned
+  early on missing protocol number/title/PI with no message, no disabled
+  button, and no `required` attributes, so clicking "Create protocol" on an
+  incomplete form did literally nothing. Fixed by collecting the missing
+  labels into a visible inline error ("Please fill in …"). Same guard is used
+  by the detail page's Edit modal, so it covers "Save changes" too.
+- Watch out for hand-mangled test fixtures: commit `0fa2676` (navigation)
+  accidentally corrupted two lines in `InspectionsPage.test.tsx` — `id:` with
+  no value and `toHaveBeenCalledWith(10, )` — which broke `npm run typecheck`
+  (TS1109). Both were restored to their pre-commit values (`id: 20`,
+  `toHaveBeenCalledWith(10, 20)`). If typecheck ever throws a syntax error in
+  a file you didn't touch, diff it against the last commit before assuming the
+  error is yours.
 
 **Test isolation pattern** (see `server/test/helpers.js`): Node's test
 runner isolates each test *file* into its own process by default, so a
