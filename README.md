@@ -8,7 +8,7 @@
 
 ## Demo
 
-Access the demo at [demo.iacuc.com](https://iacuc-protocol-review-case-study-cl.vercel.app/).
+Access the demo at <a href="https://iacuc-protocol-review-case-study-cl.vercel.app/" target="_blank" rel="noopener noreferrer">demo.iacuc.com</a>.
 
 
 
