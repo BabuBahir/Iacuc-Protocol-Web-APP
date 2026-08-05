@@ -15,7 +15,7 @@ export default defineConfig({
     proxy: {
       // lets the client call fetch('/api/...') without hardcoding a host
       "/api": {
-        target: process.env.URL || "http://localhost:4000",
+        target: process.env.API_BASE_URL || "http://localhost:4000",
         changeOrigin: true,
       },
     },
