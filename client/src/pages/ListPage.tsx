@@ -42,6 +42,13 @@ export default function ListPage() {
       .finally(() => setLoading(false));
   };
 
+  useEffect(() => {
+    // Debug aid for prod: shows which API base URL the bundle was built with.
+    // Blank means the env var wasn't set at `vite build` time (dev relies on
+    // the Vite proxy, so "(not set)" is expected locally).
+    console.log("[front page] API base URL:", process.env.API_BASE_URL || process.env.api_base_url || "(not set)");
+  }, []);
+
   useEffect(load, [query]);
 
   return (
