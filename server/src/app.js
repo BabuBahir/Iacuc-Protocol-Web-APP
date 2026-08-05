@@ -19,7 +19,7 @@ export function createApp() {
     // Inside createApp()
   app.use(
     cors({
-      origin: process.env.CLIENT_ORIGIN || "*", // Allows requests from your Vercel frontend URL
+      origin: "*", // Allows requests from your Vercel frontend URL
       credentials: true,
     })
   );
