@@ -529,6 +529,199 @@ export interface ValidationResult {
   };
 }
 
+// ---- Domain F: facilities & semi-annual inspections ----
+
+export const FACILITY_TYPES = ["Housing Room", "Lab", "Surgical Suite"] as const;
+export type FacilityType = (typeof FACILITY_TYPES)[number];
+
+export const INSPECTION_RESULTS = ["Pending", "Pass", "Fail", "Re-inspection required"] as const;
+export type InspectionResult = (typeof INSPECTION_RESULTS)[number];
+
+export const DEFICIENCY_SEVERITIES = ["Minor", "Major"] as const;
+export type DeficiencySeverity = (typeof DEFICIENCY_SEVERITIES)[number];
+
+export interface Facility {
+  id: number;
+  name: string;
+  type: FacilityType;
+  species: string | null;
+}
+
+export interface FacilityInput {
+  name: string;
+  type: FacilityType;
+  species?: string | null;
+}
+
+export interface Inspection {
+  id: number;
+  facility_id: number;
+  facility_name: string;
+  inspection_date: string;
+  report: string | null;
+  result: InspectionResult;
+  created_at: string | null;
+}
+
+export interface InspectionInput {
+  facility_id: number;
+  inspection_date: string;
+  report?: string | null;
+  result?: InspectionResult;
+}
+
+export interface InspectionDeficiency {
+  id: number;
+  inspection_id: number;
+  severity: DeficiencySeverity;
+  description: string;
+  remediation_deadline: string | null;
+  remediated_at: string | null;
+}
+
+export interface InspectionDetail extends Inspection {
+  deficiencies: InspectionDeficiency[];
+}
+
+export interface DeficiencyInput {
+  severity: DeficiencySeverity;
+  description: string;
+  remediation_deadline?: string | null;
+}
+
+// ---- Domain E: PAM & incident reporting ----
+
+export const INCIDENT_TYPES = [
+  "Adverse Event",
+  "Deviation",
+  "Noncompliance",
+  "Unanticipated Problem",
+] as const;
+export type IncidentType = (typeof INCIDENT_TYPES)[number];
+
+export const INCIDENT_SEVERITIES = ["Minor", "Major", "Immediate"] as const;
+export type IncidentSeverity = (typeof INCIDENT_SEVERITIES)[number];
+
+export const INCIDENT_STATUSES = ["Open", "CAPA", "Closed"] as const;
+export type IncidentStatus = (typeof INCIDENT_STATUSES)[number];
+
+export interface Incident {
+  id: number;
+  protocol_id: string | null;
+  type: IncidentType;
+  description: string;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  corrective_action: string | null;
+  closed_at: string | null;
+  reported_by: number | null;
+  reported_by_name: string | null;
+  assigned_to: number | null;
+  assigned_to_name: string | null;
+  created_at: string | null;
+}
+
+export interface IncidentInput {
+  protocol_id?: string | null;
+  type: IncidentType;
+  description: string;
+  severity?: IncidentSeverity;
+  reported_by?: number | null;
+  assigned_to?: number | null;
+}
+
+export interface IncidentUpdateInput {
+  status?: IncidentStatus;
+  corrective_action?: string | null;
+  assigned_to?: number | null;
+}
+
+export interface PamAudit {
+  id: number;
+  protocol_id: string;
+  audit_date: string;
+  auditor_id: number | null;
+  auditor_name: string | null;
+  site_visits: string | null;
+  findings: string | null;
+  report: string | null;
+  created_at: string | null;
+}
+
+export interface PamAuditInput {
+  audit_date: string;
+  auditor_id?: number | null;
+  site_visits?: string | null;
+  findings?: string | null;
+  report?: string | null;
+}
+
+// ---- Domain B: amendments & annual renewals ----
+
+export const AMENDMENT_STATUSES = ["Pending", "Approved", "Rejected"] as const;
+export type AmendmentStatus = (typeof AMENDMENT_STATUSES)[number];
+
+export interface AmendmentChange {
+  id: number;
+  amendment_id: number;
+  section: string;
+  field: string;
+  previous_value: string | null;
+  new_value: string | null;
+  created_at: string | null;
+}
+
+export interface Amendment {
+  id: number;
+  protocol_id: string;
+  reason: string;
+  status: AmendmentStatus;
+  created_at: string | null;
+  changes: AmendmentChange[];
+}
+
+export interface AmendmentInput {
+  reason: string;
+}
+
+export interface AmendmentChangeInput {
+  section: string;
+  field: string;
+  previous_value?: string | null;
+  new_value?: string | null;
+}
+
+export interface ProtocolVersion {
+  id: number;
+  protocol_id: string;
+  version_number: string;
+  source: "New Document" | "Amendment Document" | "De Novo Document";
+  approved_date: string | null;
+  expiration_date: string | null;
+  version_date: string | null;
+}
+
+export const RENEWAL_TYPES = ["Continuing Review", "De Novo Review"] as const;
+export type RenewalType = (typeof RENEWAL_TYPES)[number];
+
+export const RENEWAL_STATUSES = ["Pending", "Approved", "Rejected"] as const;
+export type RenewalStatus = (typeof RENEWAL_STATUSES)[number];
+
+export interface Renewal {
+  id: number;
+  protocol_id: string;
+  type: RenewalType;
+  status: RenewalStatus;
+  submitted_date: string | null;
+  decision_date: string | null;
+  approved_until: string | null;
+  created_at: string | null;
+}
+
+export interface RenewalInput {
+  type: RenewalType;
+}
+
 // ---- constants shared across the UI ----
 
 export const PAIN_CATEGORIES = ["Category A", "Category B", "Category C", "Category D", "Category E"];

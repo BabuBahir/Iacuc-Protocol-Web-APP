@@ -8,13 +8,24 @@ import { router as animalUsageRouter } from "./routes/animal-usage.js";
 import { router as adminRouter } from "./routes/admin.js";
 import { router as committeeRouter } from "./routes/committee.js";
 import { personnelRouter, protocolPersonnelRouter } from "./routes/compliance.js";
+import { router as facilitiesRouter } from "./routes/facilities.js";
+import { router as pamRouter, pamRouter as pamAuditsRouter } from "./routes/pam.js";
+import { router as amendmentsRouter } from "./routes/amendments.js";
 import "./db.js"; // ensures schema exists as soon as the app is built
-
+import cors from "cors";
 export function createApp() {
   const app = express();
 
   app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:5173" }));
   app.use(express.json());
+
+    // Inside createApp()
+  app.use(
+    cors({
+      origin: process.env.CLIENT_ORIGIN || "*", // Allows requests from your Vercel frontend URL
+      credentials: true,
+    })
+  );
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
   app.get("/api-docs/spec.json", (_req, res) => res.json(openapiSpec));
@@ -26,6 +37,10 @@ export function createApp() {
   app.use("/api/committee", committeeRouter);
   app.use("/api/personnel", personnelRouter);
   app.use("/api/protocols", protocolPersonnelRouter);
+  app.use("/api", facilitiesRouter);
+  app.use("/api", pamRouter);
+  app.use("/api/protocols", pamAuditsRouter);
+  app.use("/api/protocols", amendmentsRouter);
 
   return app;
 }

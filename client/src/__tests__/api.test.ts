@@ -332,4 +332,160 @@ describe("api.ts request wrapper", () => {
     await api.getProtocolPersonnel("P-1");
     expect(fetch).toHaveBeenCalledWith("/api/protocols/P-1/personnel", expect.anything());
   });
+
+  test("facility & inspection endpoints hit the correct paths", async () => {
+    mockFetchOnce(200, []);
+    await api.listFacilities();
+    expect(fetch).toHaveBeenCalledWith("/api/facilities", expect.anything());
+
+    mockFetchOnce(201, { id: 1, name: "Rodent Housing" });
+    await api.createFacility({ name: "Rodent Housing", type: "Housing Room", species: "Mouse" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/facilities",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Rodent Housing", type: "Housing Room", species: "Mouse" }) })
+    );
+
+    mockFetchOnce(204, null);
+    await api.deleteFacility(1);
+    expect(fetch).toHaveBeenCalledWith("/api/facilities/1", expect.objectContaining({ method: "DELETE" }));
+
+    mockFetchOnce(200, []);
+    await api.listInspections();
+    expect(fetch).toHaveBeenCalledWith("/api/inspections", expect.anything());
+
+    mockFetchOnce(201, { id: 1, deficiencies: [] });
+    await api.createInspection({ facility_id: 1, inspection_date: "2026-07-01", result: "Pass" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/inspections",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ facility_id: 1, inspection_date: "2026-07-01", result: "Pass" }) })
+    );
+
+    mockFetchOnce(200, { id: 1, deficiencies: [] });
+    await api.getInspection(1);
+    expect(fetch).toHaveBeenCalledWith("/api/inspections/1", expect.anything());
+
+    mockFetchOnce(200, []);
+    await api.listDeficiencies(1);
+    expect(fetch).toHaveBeenCalledWith("/api/inspections/1/deficiencies", expect.anything());
+
+    mockFetchOnce(201, { id: 1, severity: "Major" });
+    await api.createDeficiency(1, { severity: "Major", description: "Cage flood." });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/inspections/1/deficiencies",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ severity: "Major", description: "Cage flood." }) })
+    );
+
+    mockFetchOnce(200, { id: 1, remediated_at: "2026-07-02" });
+    await api.remediateDeficiency(1, 1);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/inspections/1/deficiencies/1",
+      expect.objectContaining({ method: "PATCH" })
+    );
+  });
+
+  test("PAM & incident endpoints hit the correct paths", async () => {
+    mockFetchOnce(200, []);
+    await api.listIncidents();
+    expect(fetch).toHaveBeenCalledWith("/api/incidents", expect.anything());
+
+    mockFetchOnce(201, { id: 1 });
+    await api.createIncident({ protocol_id: "P-1", type: "Adverse Event", description: "A" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/incidents",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ protocol_id: "P-1", type: "Adverse Event", description: "A" }) })
+    );
+
+    mockFetchOnce(200, { id: 1 });
+    await api.getIncident(1);
+    expect(fetch).toHaveBeenCalledWith("/api/incidents/1", expect.anything());
+
+    mockFetchOnce(200, { id: 1, status: "CAPA" });
+    await api.updateIncident(1, { corrective_action: "Fix." });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/incidents/1",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ corrective_action: "Fix." }) })
+    );
+
+    mockFetchOnce(200, []);
+    await api.listPamAudits("P-1");
+    expect(fetch).toHaveBeenCalledWith("/api/protocols/P-1/pam-audits", expect.anything());
+
+    mockFetchOnce(201, { id: 1 });
+    await api.createPamAudit("P-1", { audit_date: "2026-07-01" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/pam-audits",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ audit_date: "2026-07-01" }) })
+    );
+
+    mockFetchOnce(200, []);
+    await api.listPamAuditsForAll();
+    expect(fetch).toHaveBeenCalledWith("/api/pam-audits", expect.anything());
+  });
+
+  test("amendment & renewal endpoints hit the correct nested paths", async () => {
+    mockFetchOnce(200, []);
+    await api.listAmendments("P-1");
+    expect(fetch).toHaveBeenCalledWith("/api/protocols/P-1/amendments", expect.anything());
+
+    mockFetchOnce(201, { id: 1, reason: "Add strain" });
+    await api.createAmendment("P-1", { reason: "Add strain" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/amendments",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ reason: "Add strain" }) })
+    );
+
+    mockFetchOnce(200, { id: 1, changes: [] });
+    await api.getAmendment("P-1", 1);
+    expect(fetch).toHaveBeenCalledWith("/api/protocols/P-1/amendments/1", expect.anything());
+
+    mockFetchOnce(200, { id: 1, status: "Approved" });
+    await api.updateAmendmentStatus("P-1", 1, "Approved", "2027-01-01");
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/amendments/1",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "Approved", expiration_date: "2027-01-01" }) })
+    );
+
+    mockFetchOnce(200, { id: 1, status: "Rejected" });
+    await api.updateAmendmentStatus("P-1", 1, "Rejected");
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/amendments/1",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "Rejected" }) })
+    );
+
+    mockFetchOnce(201, { id: 1 });
+    await api.addAmendmentChange("P-1", 1, { section: "drugs", field: "dose", previous_value: "10", new_value: "5" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/amendments/1/changes",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ section: "drugs", field: "dose", previous_value: "10", new_value: "5" }) })
+    );
+
+    mockFetchOnce(200, []);
+    await api.listProtocolVersions("P-1");
+    expect(fetch).toHaveBeenCalledWith("/api/protocols/P-1/versions", expect.anything());
+
+    mockFetchOnce(200, []);
+    await api.listRenewals("P-1");
+    expect(fetch).toHaveBeenCalledWith("/api/protocols/P-1/renewals", expect.anything());
+
+    mockFetchOnce(201, { id: 1, type: "Continuing Review" });
+    await api.createRenewal("P-1", { type: "Continuing Review" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/renewals",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ type: "Continuing Review" }) })
+    );
+
+    mockFetchOnce(200, { id: 1, status: "Approved" });
+    await api.updateRenewalStatus("P-1", 1, "Approved", "2029-01-01");
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/renewals/1",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "Approved", approved_until: "2029-01-01" }) })
+    );
+
+    mockFetchOnce(200, { id: 1, status: "Rejected" });
+    await api.updateRenewalStatus("P-1", 1, "Rejected");
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/protocols/P-1/renewals/1",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "Rejected" }) })
+    );
+  });
 });
