@@ -1565,7 +1565,7 @@ export const openapiSpec = {
     description:
       "API for IACUC protocol CRUD, the Appendix A application content, the animal usage register, admin lookup lists, the committee review workflow, personnel compliance, the facility & semi-annual inspection program, PAM & incident reporting, and amendments & annual renewals. Every endpoint documented here is implemented (see README for the full ✓/✗ status tables).",
   },
-  servers: [{ url: process.env.API_BASE_URL || "http://localhost:4000", description: "Local dev server" }],
+  servers: [{ url: import.meta.env.VITE_API_BASE_URL || "http://localhost:4000", description: "Local dev server" }],
   tags: [
     { name: "Core protocol CRUD", description: "Dashboard list, detail, create, edit, delete" },
     { name: "Appendix A application content (per protocol)", description: "Procedures, drugs, animal-use, experiments, 3 Rs, alternatives, validation" },
