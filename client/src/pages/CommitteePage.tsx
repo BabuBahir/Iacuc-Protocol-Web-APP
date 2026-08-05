@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import {
-  LayoutGrid,
   Gavel,
   PawPrint,
   ThumbsUp,
@@ -12,6 +10,7 @@ import {
   MessageSquareText,
   type LucideIcon,
 } from "lucide-react";
+import AppHeader from "../components/AppHeader";
 import StatusBadge from "../components/StatusBadge";
 import { api } from "../api";
 import {
@@ -388,17 +387,7 @@ export default function CommitteePage() {
 
   return (
     <div>
-      <div className="bg-[#032D60] text-white px-4 py-2 flex items-center gap-4">
-        <Link to="/" className="flex items-center gap-2 font-semibold text-[14px] hover:opacity-90">
-          <LayoutGrid size={16} />
-          IACUC Protocols
-        </Link>
-        <div className="flex items-center gap-5 text-[13px] text-gray-200 ml-4">
-          <Link to="/" className="hover:text-white">Protocols</Link>
-          <span className="text-white border-b-2 border-white pb-2 -mb-2 pt-2">Committee</span>
-          <Link to="/admin" className="hover:text-white">Admin</Link>
-        </div>
-      </div>
+      <AppHeader active="committee" />
 
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="flex items-center gap-2">

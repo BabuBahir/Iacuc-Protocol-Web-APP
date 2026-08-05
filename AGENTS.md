@@ -196,7 +196,7 @@ iacuc-app/
       committee.js          FCR voting on protocols in review
   client/              Vite + React + TypeScript + react-router-dom
     src/pages/            ListPage, DetailPage, AdminPage, CommitteePage, CreatePage
-    src/components/       StatusBadge, ProtocolForm (shared)
+    src/components/       AppHeader, StatusBadge, ProtocolForm (shared)
     src/api.ts            thin typed fetch wrapper, one function per endpoint
     src/types.ts          Protocol/Dashboard/Admin/Committee types + shared constants
 ```
@@ -206,6 +206,16 @@ mode is on (`client/tsconfig.json`) and `npm run typecheck` (`tsc --noEmit`)
 is part of the workflow — run it after any client change. Vite resolves
 `.js` before `.ts`/`.tsx`, so if you ever reintroduce a plain-`.js` file next
 to a `.ts`/`.tsx` one, imports will silently pick up the wrong file.
+
+**Shared navigation:** every page with the dark header bar (List, Committee,
+Inspections, PAM, Amendments, Admin) renders the same `AppHeader` component
+(`client/src/components/AppHeader.tsx`) with the same six tabs —
+Protocols/Committee/Inspections/PAM/Amendments/Admin — highlighting the active
+one via the `active` prop (`NavKey`). Don't add a new page with an inline
+header, and don't add a new top-level tab without adding it to `NAV_TABS`.
+Detail/Create/Application pages intentionally use the white breadcrumb bar
+instead. Note `AppHeader` hardcodes the "EM" avatar; it's a placeholder for
+whatever auth/persona UI comes later (see §1.5).
 
 ### Documentation audience (README = non-technical first)
 

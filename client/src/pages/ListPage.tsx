@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { Search, LayoutGrid, Plus, ShieldCheck, Clock, AlertTriangle, CheckCircle2, FileText, PawPrint, type LucideIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Search, Plus, ShieldCheck, Clock, AlertTriangle, CheckCircle2, FileText, PawPrint, type LucideIcon } from "lucide-react";
+import AppHeader from "../components/AppHeader";
 import StatusBadge from "../components/StatusBadge";
 import { api } from "../api";
 import type { Protocol, Summary } from "../types";
@@ -45,22 +46,7 @@ export default function ListPage() {
 
   return (
     <div>
-      <div className="bg-[#032D60] text-white px-4 py-2 flex items-center gap-4">
-        <div className="flex items-center gap-2 font-semibold text-[14px]">
-          <LayoutGrid size={16} />
-          IACUC Protocols
-        </div>
-        <div className="flex items-center gap-5 text-[13px] text-gray-200 ml-4">
-          <span className="text-white border-b-2 border-white pb-2 -mb-2 pt-2">Protocols</span>
-          <Link to="/committee" className="hover:text-white">Committee</Link>
-          <Link to="/inspections" className="hover:text-white">Inspections</Link>
-          <Link to="/pam" className="hover:text-white">PAM</Link>
-          <Link to="/amendments" className="hover:text-white">Amendments</Link>
-          <Link to="/admin" className="hover:text-white">Admin</Link>
-        </div>
-        <div className="flex-1" />
-        <div className="w-7 h-7 rounded-full bg-[#0176D3] flex items-center justify-center text-[12px] font-semibold">EM</div>
-      </div>
+      <AppHeader active="protocols" />
 
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="flex items-center justify-between">

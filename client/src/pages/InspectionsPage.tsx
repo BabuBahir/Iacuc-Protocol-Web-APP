@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import {
-  LayoutGrid, Building2, Plus, Trash2, ClipboardCheck, Check,
+  Building2, Plus, Trash2, ClipboardCheck, Check,
   ChevronDown, ChevronRight,
 } from "lucide-react";
+import AppHeader from "../components/AppHeader";
 import { api } from "../api";
 import type {
   DeficiencySeverity, Facility, FacilityType, Inspection, InspectionDetail,
@@ -13,28 +13,6 @@ import { DEFICIENCY_SEVERITIES, FACILITY_TYPES, INSPECTION_RESULTS } from "../ty
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
-}
-
-function Header({ active }: { active: string }) {
-  return (
-    <div className="bg-[#032D60] text-white px-4 py-2 flex items-center gap-4">
-      <Link to="/" className="flex items-center gap-2 font-semibold text-[14px] hover:opacity-90">
-        <LayoutGrid size={16} />
-        IACUC Protocols
-      </Link>
-      <div className="flex items-center gap-5 text-[13px] text-gray-200 ml-4">
-        <Link to="/" className="hover:text-white">Protocols</Link>
-        <Link to="/committee" className="hover:text-white">Committee</Link>
-        {active === "inspections" ? (
-          <span className="text-white border-b-2 border-white pb-2 -mb-2 pt-2">Inspections</span>
-        ) : (
-          <Link to="/inspections" className="hover:text-white">Inspections</Link>
-        )}
-        <Link to="/pam" className="hover:text-white">PAM</Link>
-        <Link to="/admin" className="hover:text-white">Admin</Link>
-      </div>
-    </div>
-  );
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
@@ -363,7 +341,7 @@ function InspectionsPanel() {
 export default function InspectionsPage() {
   return (
     <div>
-      <Header active="inspections" />
+      <AppHeader active="inspections" />
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <h1 className="text-xl font-semibold text-gray-900">Facilities & semi-annual inspections</h1>
         <p className="text-[13px] text-gray-500 mt-1">
