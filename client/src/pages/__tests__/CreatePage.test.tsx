@@ -167,7 +167,7 @@ describe("CreatePage", () => {
     expect(screen.getByLabelText("Protocol number")).toBeInTheDocument();
   });
 
-  test("submitting an empty form does not call createProtocol", async () => {
+  test("submitting an empty form shows a required-field message and does not call createProtocol", async () => {
     api.listSpecies.mockResolvedValue([{ id: 1, name: "Mouse" }]);
     const user = userEvent.setup();
 
@@ -177,5 +177,7 @@ describe("CreatePage", () => {
     await user.click(screen.getByRole("button", { name: "Create protocol" }));
 
     expect(api.createProtocol).not.toHaveBeenCalled();
+    expect(screen.getByText(/Please fill in a protocol number, a title, a principal investigator/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Protocol number")).toBeInTheDocument();
   });
 });

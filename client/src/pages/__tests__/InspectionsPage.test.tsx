@@ -34,7 +34,7 @@ const INSPECTIONS: Inspection[] = [
 const DETAIL: InspectionDetail = {
   ...INSPECTIONS[0],
   deficiencies: [
-    { id: , inspection_id: 10, severity: "Minor", description: "Slightly worn gasket on cage rack.", remediation_deadline: "2026-08-01", remediated_at: null },
+    { id: 20, inspection_id: 10, severity: "Minor", description: "Slightly worn gasket on cage rack.", remediation_deadline: "2026-08-01", remediated_at: null },
   ],
 };
 
@@ -278,7 +278,7 @@ describe("InspectionsPage — inspections panel", () => {
     await user.click(screen.getByRole("button", { name: /Mark remediated/ }));
 
     await waitFor(() => {
-      expect(api.remediateDeficiency).toHaveBeenCalledWith(10, );
+      expect(api.remediateDeficiency).toHaveBeenCalledWith(10, 20);
     });
     await waitFor(() => expect(screen.getByText(/· remediated/)).toBeInTheDocument());
   });
