@@ -12,12 +12,20 @@ import { router as facilitiesRouter } from "./routes/facilities.js";
 import { router as pamRouter, pamRouter as pamAuditsRouter } from "./routes/pam.js";
 import { router as amendmentsRouter } from "./routes/amendments.js";
 import "./db.js"; // ensures schema exists as soon as the app is built
-
+import cors from "cors";
 export function createApp() {
   const app = express();
 
   app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:5173" }));
   app.use(express.json());
+
+    // Inside createApp()
+  app.use(
+    cors({
+      origin: process.env.CLIENT_ORIGIN || "*", // Allows requests from your Vercel frontend URL
+      credentials: true,
+    })
+  );
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
   app.get("/api-docs/spec.json", (_req, res) => res.json(openapiSpec));
