@@ -34,7 +34,7 @@ const INSPECTIONS: Inspection[] = [
 const DETAIL: InspectionDetail = {
   ...INSPECTIONS[0],
   deficiencies: [
-    { id: 20, inspection_id: 10, severity: "Minor", description: "Slightly worn gasket on cage rack.", remediation_deadline: "2026-08-01", remediated_at: null },
+    { id: , inspection_id: 10, severity: "Minor", description: "Slightly worn gasket on cage rack.", remediation_deadline: "2026-08-01", remediated_at: null },
   ],
 };
 
@@ -266,8 +266,8 @@ describe("InspectionsPage — inspections panel", () => {
     const user = userEvent.setup();
     mockLoad();
     api.getInspection.mockResolvedValueOnce(DETAIL)
-      .mockResolvedValueOnce({ ...DETAIL, deficiencies: [{ ...DETAIL.deficiencies[0], remediated_at: "2026-07-20 12:00:00" }] });
-    api.remediateDeficiency.mockResolvedValue({ ...DETAIL.deficiencies[0], remediated_at: "2026-07-20 12:00:00" });
+      .mockResolvedValueOnce({ ...DETAIL, deficiencies: [{ ...DETAIL.deficiencies[0], remediated_at: "2026-07- 12:00:00" }] });
+    api.remediateDeficiency.mockResolvedValue({ ...DETAIL.deficiencies[0], remediated_at: "2026-07- 12:00:00" });
 
     renderPage();
     await waitFor(() => expect(screen.getByText("Inspected 2026-06-15")).toBeInTheDocument());
@@ -278,7 +278,7 @@ describe("InspectionsPage — inspections panel", () => {
     await user.click(screen.getByRole("button", { name: /Mark remediated/ }));
 
     await waitFor(() => {
-      expect(api.remediateDeficiency).toHaveBeenCalledWith(10, 20);
+      expect(api.remediateDeficiency).toHaveBeenCalledWith(10, );
     });
     await waitFor(() => expect(screen.getByText(/· remediated/)).toBeInTheDocument());
   });

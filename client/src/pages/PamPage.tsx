@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  LayoutGrid, Plus, ShieldAlert, ClipboardList,
+  Plus, ShieldAlert, ClipboardList,
 } from "lucide-react";
+import AppHeader from "../components/AppHeader";
 import { api } from "../api";
 import type {
   Incident, IncidentSeverity, IncidentStatus, IncidentType, PamAudit,
@@ -14,28 +15,6 @@ import {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
-}
-
-function Header({ active }: { active: string }) {
-  return (
-    <div className="bg-[#032D60] text-white px-4 py-2 flex items-center gap-4">
-      <Link to="/" className="flex items-center gap-2 font-semibold text-[14px] hover:opacity-90">
-        <LayoutGrid size={16} />
-        IACUC Protocols
-      </Link>
-      <div className="flex items-center gap-5 text-[13px] text-gray-200 ml-4">
-        <Link to="/" className="hover:text-white">Protocols</Link>
-        <Link to="/committee" className="hover:text-white">Committee</Link>
-        <Link to="/inspections" className="hover:text-white">Inspections</Link>
-        {active === "pam" ? (
-          <span className="text-white border-b-2 border-white pb-2 -mb-2 pt-2">PAM</span>
-        ) : (
-          <Link to="/pam" className="hover:text-white">PAM</Link>
-        )}
-        <Link to="/admin" className="hover:text-white">Admin</Link>
-      </div>
-    </div>
-  );
 }
 
 function Panel({ title, icon: Icon, children }: { title: string; icon: React.ComponentType<{ size?: number | string; className?: string }>; children: React.ReactNode }) {
@@ -334,7 +313,7 @@ export default function PamPage() {
 
   return (
     <div>
-      <Header active="pam" />
+      <AppHeader active="pam" />
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <h1 className="text-xl font-semibold text-gray-900">Post-Approval Monitoring & incident reporting</h1>
         <p className="text-[13px] text-gray-500 mt-1">
