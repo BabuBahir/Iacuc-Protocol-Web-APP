@@ -33,7 +33,15 @@ export default function AppHeader({ active }: { active?: NavKey }) {
         )}
       </div>
       <div className="flex-1" />
-      <div className="w-7 h-7 rounded-full bg-[#0176D3] flex items-center justify-center text-[12px] font-semibold">EM</div>
+      <a
+        href="https://github.com/BabuBahir/Iacuc-Protocol-Web-APP"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="GitHub repository"
+        className="hover:opacity-80"
+      >
+        <div className="w-7 h-7 rounded-full bg-[#0176D3] flex items-center justify-center text-[12px] font-semibold">Feedback !!</div>
+      </a>
     </div>
   );
 }
