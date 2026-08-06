@@ -8,11 +8,8 @@ const { createApp } = await import("../src/app.js");
 const { db } = await import("../src/db.js");
 const app = createApp();
 
-function insertProtocol(overrides = {}) {
-  db.prepare(`
-    INSERT INTO protocols (id, title, pi, species, status, animals, pain_category)
-    VALUES (@id, @title, @pi, @species, @status, @animals, @pain_category)
-  `).run({
+async function insertProtocol(overrides = {}) {
+  const params = {
     id: "TEST-0001",
     title: "Test protocol",
     pi: "Dr. Test",
@@ -21,11 +18,18 @@ function insertProtocol(overrides = {}) {
     animals: 10,
     pain_category: "Category B",
     ...overrides,
-  });
+  };
+  await db.run(
+    `
+    INSERT INTO protocols (id, title, pi, species, status, animals, pain_category)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+  `,
+    [params.id, params.title, params.pi, params.species, params.status, params.animals, params.pain_category]
+  );
 }
 
 async function insertPersonnel(name, roleName, isCommittee) {
-  let roleId = db.prepare("SELECT id FROM roles WHERE name = ?").get(roleName)?.id;
+  let roleId = (await db.get("SELECT id FROM roles WHERE name = $1", [roleName]))?.id;
   if (!roleId) {
     const role = await request(app)
       .post("/api/admin/roles")
@@ -39,12 +43,12 @@ async function insertPersonnel(name, roleName, isCommittee) {
 }
 
 describe("GET /api/committee/protocols", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("only returns protocols in a review stage", async () => {
-    insertProtocol({ id: "IN-REVIEW", status: "IACUC Review" });
-    insertProtocol({ id: "ACTIVE", status: "Active" });
-    insertProtocol({ id: "DRAFT", status: "Draft" });
+    await insertProtocol({ id: "IN-REVIEW", status: "IACUC Review" });
+    await insertProtocol({ id: "ACTIVE", status: "Active" });
+    await insertProtocol({ id: "DRAFT", status: "Draft" });
 
     const res = await request(app).get("/api/committee/protocols");
     assert.equal(res.status, 200);
@@ -53,7 +57,7 @@ describe("GET /api/committee/protocols", () => {
   });
 
   test("includes a vote tally with zero counts when no votes exist", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app).get("/api/committee/protocols");
     assert.equal(res.body[0].totalVotes, 0);
     assert.equal(res.body[0].counts.Approve, 0);
@@ -61,7 +65,7 @@ describe("GET /api/committee/protocols", () => {
 });
 
 describe("GET /api/committee/voters", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("only returns personnel whose role is committee-eligible", async () => {
     await insertPersonnel("Dr. PI", "Principal Investigator", false);
@@ -75,10 +79,10 @@ describe("GET /api/committee/voters", () => {
 });
 
 describe("GET /api/committee/protocols/:id/votes", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("returns the protocol and its tally", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app).get("/api/committee/protocols/TEST-0001/votes");
     assert.equal(res.status, 200);
     assert.equal(res.body.protocol.id, "TEST-0001");
@@ -92,10 +96,10 @@ describe("GET /api/committee/protocols/:id/votes", () => {
 });
 
 describe("POST /api/committee/protocols/:id/votes", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("a committee-eligible person can cast a vote", async () => {
-    insertProtocol();
+    await insertProtocol();
     const voterId = await insertPersonnel("Dr. Committee", "Committee Member", true);
 
     const res = await request(app)
@@ -110,7 +114,7 @@ describe("POST /api/committee/protocols/:id/votes", () => {
   test(
     "regression: a non-committee role is rejected with 403, not silently allowed to vote",
     async () => {
-      insertProtocol();
+      await insertProtocol();
       const piId = await insertPersonnel("Dr. PI", "Principal Investigator", false);
 
       const res = await request(app)
@@ -124,7 +128,7 @@ describe("POST /api/committee/protocols/:id/votes", () => {
   test(
     "regression: voting again as the same person updates the existing vote instead of duplicating it",
     async () => {
-      insertProtocol();
+      await insertProtocol();
       const voterId = await insertPersonnel("Dr. Committee", "Committee Member", true);
 
       await request(app)
@@ -143,7 +147,7 @@ describe("POST /api/committee/protocols/:id/votes", () => {
   );
 
   test("rejects an invalid vote value", async () => {
-    insertProtocol();
+    await insertProtocol();
     const voterId = await insertPersonnel("Dr. Committee", "Committee Member", true);
 
     const res = await request(app)
@@ -154,7 +158,7 @@ describe("POST /api/committee/protocols/:id/votes", () => {
   });
 
   test("400s when personnel_id or vote is missing", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app)
       .post("/api/committee/protocols/TEST-0001/votes")
       .send({ vote: "Approve" }); // missing personnel_id
@@ -170,7 +174,7 @@ describe("POST /api/committee/protocols/:id/votes", () => {
   });
 
   test("400s for an unknown personnel_id", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app)
       .post("/api/committee/protocols/TEST-0001/votes")
       .send({ personnel_id: 99999, vote: "Approve" });
@@ -178,7 +182,7 @@ describe("POST /api/committee/protocols/:id/votes", () => {
   });
 
   test("multiple different voters accumulate in the tally", async () => {
-    insertProtocol();
+    await insertProtocol();
     const voter1 = await insertPersonnel("Dr. One", "Committee Member", true);
     const voter2 = await insertPersonnel("Dr. Two", "Committee Member", true);
 
@@ -197,7 +201,7 @@ describe("POST /api/committee/protocols/:id/votes", () => {
     "regression: vote comments round-trip through the list and tally endpoints " +
       "(they were previously dropped from the tally query, so the UI could never show them)",
     async () => {
-      insertProtocol();
+      await insertProtocol();
       const voterId = await insertPersonnel("Dr. Commenter", "Committee Member", true);
       await request(app)
         .post("/api/committee/protocols/TEST-0001/votes")
@@ -213,10 +217,10 @@ describe("POST /api/committee/protocols/:id/votes", () => {
 });
 
 describe("review workflow depth (Domain A)", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("GET /protocols includes review_method, assignments, and comments per protocol", async () => {
-    insertProtocol();
+    await insertProtocol();
     const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
     const commenterId = await insertPersonnel("Dr. Comment", "Committee Member", true);
 
@@ -239,7 +243,7 @@ describe("review workflow depth (Domain A)", () => {
   });
 
   test("PATCH review-method sets FCR or DMR on the protocol", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app)
       .patch("/api/committee/protocols/TEST-0001/review-method")
       .send({ review_method: "DMR" });
@@ -251,7 +255,7 @@ describe("review workflow depth (Domain A)", () => {
   });
 
   test("PATCH review-method rejects unknown methods and unknown protocols", async () => {
-    insertProtocol();
+    await insertProtocol();
     const bad = await request(app)
       .patch("/api/committee/protocols/TEST-0001/review-method")
       .send({ review_method: "EMAIL" });
@@ -269,7 +273,7 @@ describe("review workflow depth (Domain A)", () => {
   });
 
   test("PATCH assign creates a reviewer assignment and upserts instead of duplicating", async () => {
-    insertProtocol();
+    await insertProtocol();
     const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
 
     const first = await request(app)
@@ -284,12 +288,12 @@ describe("review workflow depth (Domain A)", () => {
       .send({ personnel_id: reviewerId, role: "Designated Member" });
     assert.equal(second.body.role, "Designated Member");
 
-    const count = db.prepare("SELECT COUNT(*) AS c FROM protocol_review_assignments").get();
+    const count = await db.get("SELECT COUNT(*) AS c FROM protocol_review_assignments");
     assert.equal(count.c, 1);
   });
 
   test("PATCH assign validates role, personnel, and protocol", async () => {
-    insertProtocol();
+    await insertProtocol();
     const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
 
     let res = await request(app)
@@ -319,7 +323,7 @@ describe("review workflow depth (Domain A)", () => {
   });
 
   test("POST comments adds a section-specific comment", async () => {
-    insertProtocol();
+    await insertProtocol();
     const commenterId = await insertPersonnel("Dr. Comment", "Committee Member", true);
 
     const res = await request(app)
@@ -332,7 +336,7 @@ describe("review workflow depth (Domain A)", () => {
   });
 
   test("POST comments validates section, comment text, personnel, and protocol", async () => {
-    insertProtocol();
+    await insertProtocol();
     const commenterId = await insertPersonnel("Dr. Comment", "Committee Member", true);
 
     let res = await request(app)
@@ -357,7 +361,7 @@ describe("review workflow depth (Domain A)", () => {
   });
 
   test("GET reviews returns the full review history", async () => {
-    insertProtocol();
+    await insertProtocol();
     const voterId = await insertPersonnel("Dr. Voter", "Committee Member", true);
     const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
 
@@ -384,7 +388,7 @@ describe("review workflow depth (Domain A)", () => {
   });
 
   test("POST reviews casts a vote and returns the full history", async () => {
-    insertProtocol();
+    await insertProtocol();
     const voterId = await insertPersonnel("Dr. Voter", "Committee Member", true);
 
     const res = await request(app)
@@ -399,7 +403,7 @@ describe("review workflow depth (Domain A)", () => {
   });
 
   test("POST reviews rejects a non-committee reviewer with 403", async () => {
-    insertProtocol();
+    await insertProtocol();
     const piId = await insertPersonnel("Dr. PI", "Principal Investigator", false);
 
     const res = await request(app)
@@ -409,7 +413,7 @@ describe("review workflow depth (Domain A)", () => {
   });
 
   test("deleting a protocol cascades its assignments and comments", async () => {
-    insertProtocol();
+    await insertProtocol();
     const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
 
     await request(app)
@@ -419,9 +423,11 @@ describe("review workflow depth (Domain A)", () => {
       .post("/api/committee/protocols/TEST-0001/comments")
       .send({ personnel_id: reviewerId, section: "overall", comment: "Great." });
 
-    db.prepare("DELETE FROM protocols WHERE id = ?").run("TEST-0001");
+    await db.run("DELETE FROM protocols WHERE id = $1", ["TEST-0001"]);
 
-    assert.equal(db.prepare("SELECT COUNT(*) AS c FROM protocol_review_assignments").get().c, 0);
-    assert.equal(db.prepare("SELECT COUNT(*) AS c FROM protocol_review_comments").get().c, 0);
+    const assignments = await db.get("SELECT COUNT(*) AS c FROM protocol_review_assignments");
+    const comments = await db.get("SELECT COUNT(*) AS c FROM protocol_review_comments");
+    assert.equal(assignments.c, 0);
+    assert.equal(comments.c, 0);
   });
 });

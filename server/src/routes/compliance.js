@@ -12,12 +12,12 @@ export const protocolPersonnelRouter = Router();
 
 export const OHSP_STATUSES = ["Pending", "Cleared", "Denied"];
 
-function requirePersonnel(req, res) {
-  const person = db.prepare(`
+async function requirePersonnel(req, res) {
+  const person = await db.get(`
     SELECT personnel.id, personnel.name, personnel.email, personnel.role_id, roles.name AS role_name
     FROM personnel JOIN roles ON roles.id = personnel.role_id
-    WHERE personnel.id = ?
-  `).get(Number(req.params.id));
+    WHERE personnel.id = $1
+  `, [Number(req.params.id)]);
   if (!person) {
     res.status(404).json({ error: "Personnel not found" });
     return null;
@@ -34,32 +34,35 @@ function recordStatus(record) {
   return expiry >= today ? "Current" : "Expired";
 }
 
-function trainingFor(person) {
-  const rows = db.prepare(`
+async function trainingFor(person) {
+  const rows = await db.all(`
     SELECT id, personnel_id, course, completed_date, expires_date
     FROM personnel_training
-    WHERE personnel_id = ?
+    WHERE personnel_id = $1
     ORDER BY completed_date DESC
-  `).all(person.id);
+  `, [person.id]);
   return rows.map(r => ({ ...r, status: recordStatus(r) }));
 }
 
 // Overall training status: current if at least one record is still valid;
 // expired if records exist but none are valid; otherwise no records on file.
-function trainingStatus(person) {
-  const rows = trainingFor(person);
+async function trainingStatus(person) {
+  const rows = await trainingFor(person);
   if (rows.length === 0) return "No records";
   return rows.some(r => r.status === "Current") ? "Current" : "Expired";
 }
 
-function ohspFor(person) {
-  const row = db.prepare("SELECT personnel_id, status, reviewed_date, notes FROM personnel_ohsp WHERE personnel_id = ?").get(person.id);
+async function ohspFor(person) {
+  const row = await db.get(
+    "SELECT personnel_id, status, reviewed_date, notes FROM personnel_ohsp WHERE personnel_id = $1",
+    [person.id]
+  );
   return row ?? { personnel_id: person.id, status: "Pending", reviewed_date: null, notes: null };
 }
 
-export function complianceFor(person) {
-  const ts = trainingStatus(person);
-  const ohsp = ohspFor(person);
+export async function complianceFor(person) {
+  const ts = await trainingStatus(person);
+  const ohsp = await ohspFor(person);
   return {
     training_status: ts,
     ohsp_status: ohsp.status,
@@ -69,56 +72,57 @@ export function complianceFor(person) {
 
 // ---- list all personnel with compliance (admin page) ----
 
-personnelRouter.get("/compliance", (_req, res) => {
-  const rows = db.prepare(`
+personnelRouter.get("/compliance", async (_req, res) => {
+  const rows = await db.all(`
     SELECT personnel.id, personnel.name, personnel.role_id, roles.name AS role_name
     FROM personnel JOIN roles ON roles.id = personnel.role_id
     ORDER BY personnel.name
-  `).all();
-  res.json(rows.map(row => {
+  `);
+  const out = [];
+  for (const row of rows) {
     const person = { id: row.id, name: row.name, role_name: row.role_name };
-    return { ...person, ...complianceFor(person) };
-  }));
+    out.push({ ...person, ...(await complianceFor(person)) });
+  }
+  res.json(out);
 });
 
 // ---- per-person training records ----
 
-personnelRouter.get("/:id/training", (req, res) => {
-  const person = requirePersonnel(req, res);
+personnelRouter.get("/:id/training", async (req, res) => {
+  const person = await requirePersonnel(req, res);
   if (!person) return;
   res.json({
     personnel: { id: person.id, name: person.name, role_name: person.role_name },
-    courses: trainingFor(person),
-    overall_status: trainingStatus(person),
+    courses: await trainingFor(person),
+    overall_status: await trainingStatus(person),
   });
 });
 
 // body: { course, completed_date, expires_date? }
-personnelRouter.post("/:id/training", (req, res) => {
-  const person = requirePersonnel(req, res);
+personnelRouter.post("/:id/training", async (req, res) => {
+  const person = await requirePersonnel(req, res);
   if (!person) return;
   const { course, completed_date, expires_date } = req.body || {};
   if (!course || !String(course).trim()) return res.status(400).json({ error: "course is required" });
   if (!completed_date) return res.status(400).json({ error: "completed_date is required" });
 
-  const result = db.prepare(`
-    INSERT INTO personnel_training (personnel_id, course, completed_date, expires_date)
-    VALUES (?, ?, ?, ?)
-  `).run(person.id, String(course).trim(), completed_date, expires_date || null);
-
-  const row = db.prepare(`
-    SELECT id, personnel_id, course, completed_date, expires_date
-    FROM personnel_training WHERE id = ?
-  `).get(Number(result.lastInsertRowid));
+  const row = await db.get(
+    `INSERT INTO personnel_training (personnel_id, course, completed_date, expires_date)
+    VALUES ($1, $2, $3, $4)
+    RETURNING id, personnel_id, course, completed_date, expires_date`,
+    [person.id, String(course).trim(), completed_date, expires_date || null]
+  );
   res.status(201).json({ ...row, status: recordStatus(row) });
 });
 
 // body: any of { course, completed_date, expires_date }
-personnelRouter.patch("/:id/training/:trainingId", (req, res) => {
-  const person = requirePersonnel(req, res);
+personnelRouter.patch("/:id/training/:trainingId", async (req, res) => {
+  const person = await requirePersonnel(req, res);
   if (!person) return;
-  const record = db.prepare("SELECT * FROM personnel_training WHERE id = ? AND personnel_id = ?")
-    .get(Number(req.params.trainingId), person.id);
+  const record = await db.get(
+    "SELECT * FROM personnel_training WHERE id = $1 AND personnel_id = $2",
+    [Number(req.params.trainingId), person.id]
+  );
   if (!record) return res.status(404).json({ error: "Training record not found" });
 
   const { course, completed_date, expires_date } = req.body || {};
@@ -129,54 +133,61 @@ personnelRouter.patch("/:id/training/:trainingId", (req, res) => {
   if (fields.course === "") return res.status(400).json({ error: "course cannot be empty" });
   if (fields.completed_date === "") return res.status(400).json({ error: "completed_date cannot be empty" });
 
-  db.prepare(`
+  await db.run(`
     UPDATE personnel_training
-    SET course = @course, completed_date = @completed_date, expires_date = @expires_date
-    WHERE id = @id
-  `).run({ id: record.id, course: record.course, completed_date: record.completed_date, expires_date: record.expires_date, ...fields });
+    SET course = $1, completed_date = $2, expires_date = $3
+    WHERE id = $4
+  `, [
+    fields.course ?? record.course,
+    fields.completed_date ?? record.completed_date,
+    fields.expires_date ?? record.expires_date,
+    record.id,
+  ]);
 
-  const row = db.prepare(`
-    SELECT id, personnel_id, course, completed_date, expires_date
-    FROM personnel_training WHERE id = ?
-  `).get(record.id);
+  const row = await db.get(
+    "SELECT id, personnel_id, course, completed_date, expires_date FROM personnel_training WHERE id = $1",
+    [record.id]
+  );
   res.json({ ...row, status: recordStatus(row) });
 });
 
-personnelRouter.delete("/:id/training/:trainingId", (req, res) => {
-  const person = requirePersonnel(req, res);
+personnelRouter.delete("/:id/training/:trainingId", async (req, res) => {
+  const person = await requirePersonnel(req, res);
   if (!person) return;
-  const result = db.prepare("DELETE FROM personnel_training WHERE id = ? AND personnel_id = ?")
-    .run(Number(req.params.trainingId), person.id);
+  const result = await db.run(
+    "DELETE FROM personnel_training WHERE id = $1 AND personnel_id = $2",
+    [Number(req.params.trainingId), person.id]
+  );
   if (result.changes === 0) return res.status(404).json({ error: "Training record not found" });
   res.status(204).end();
 });
 
 // ---- per-person OHSP clearance ----
 
-personnelRouter.get("/:id/ohsp", (req, res) => {
-  const person = requirePersonnel(req, res);
+personnelRouter.get("/:id/ohsp", async (req, res) => {
+  const person = await requirePersonnel(req, res);
   if (!person) return;
-  res.json(ohspFor(person));
+  res.json(await ohspFor(person));
 });
 
 // body: { status, reviewed_date?, notes? } — upsert
-personnelRouter.post("/:id/ohsp", (req, res) => {
-  const person = requirePersonnel(req, res);
+personnelRouter.post("/:id/ohsp", async (req, res) => {
+  const person = await requirePersonnel(req, res);
   if (!person) return;
   const { status, reviewed_date, notes } = req.body || {};
   if (!OHSP_STATUSES.includes(status)) {
     return res.status(400).json({ error: `status must be one of: ${OHSP_STATUSES.join(", ")}` });
   }
-  db.prepare(`
+  await db.run(`
     INSERT INTO personnel_ohsp (personnel_id, status, reviewed_date, notes)
-    VALUES (?, ?, ?, ?)
+    VALUES ($1, $2, $3, $4)
     ON CONFLICT(personnel_id) DO UPDATE SET
       status = excluded.status,
       reviewed_date = excluded.reviewed_date,
       notes = excluded.notes,
-      updated_at = datetime('now')
-  `).run(person.id, status, reviewed_date || null, notes || null);
-  res.json(ohspFor(person));
+      updated_at = CURRENT_TIMESTAMP
+  `, [person.id, status, reviewed_date || null, notes || null]);
+  res.json(await ohspFor(person));
 });
 
 // ---- computed protocol personnel compliance ----
@@ -184,30 +195,32 @@ personnelRouter.post("/:id/ohsp", (req, res) => {
 // Maps a related_items "Personnel" label ("Dr. Elena Marsh — PI") to the
 // personnel row it names, then returns per-person compliance. A person with no
 // matching personnel profile is flagged as non-compliant ("No profile").
-protocolPersonnelRouter.get("/:id/personnel", (req, res) => {
-  const protocol = requireProtocol(req, res);
+protocolPersonnelRouter.get("/:id/personnel", async (req, res) => {
+  const protocol = await requireProtocol(req, res);
   if (!protocol) return;
 
-  const labels = db.prepare(`
+  const labels = (await db.all(`
     SELECT label FROM related_items
-    WHERE protocol_id = ? AND list_name = 'Personnel'
+    WHERE protocol_id = $1 AND list_name = 'Personnel'
     ORDER BY id
-  `).all(protocol.id).map(r => r.label);
+  `, [protocol.id])).map(r => r.label);
 
-  const personnel = labels.map(label => {
+  const personnel = [];
+  for (const label of labels) {
     const [name, role] = label.split(" — ").map(s => (s || "").trim());
-    const person = db.prepare("SELECT * FROM personnel WHERE name = ?").get(name);
+    const person = await db.get("SELECT * FROM personnel WHERE name = $1", [name]);
     if (!person) {
-      return {
+      personnel.push({
         label, name, role: role || null, personnel_id: null,
         compliance: { training_status: "No profile", ohsp_status: "No profile", compliant: false },
-      };
+      });
+    } else {
+      personnel.push({
+        label, name, role: role || null, personnel_id: person.id,
+        compliance: await complianceFor(person),
+      });
     }
-    return {
-      label, name, role: role || null, personnel_id: person.id,
-      compliance: complianceFor(person),
-    };
-  });
+  }
 
   res.json({
     protocol_id: protocol.id,

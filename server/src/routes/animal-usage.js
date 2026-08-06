@@ -15,22 +15,22 @@ const PROCEDURE_KEY_SET = new Set(PROCEDURE_KEYS.map(p => p.key));
 
 // ---- animal usage register (actual orders/uses against the approved allowance) ----
 
-router.get("/:id/animal-usage", (req, res) => {
-  if (!requireProtocol(req, res)) return;
+router.get("/:id/animal-usage", async (req, res) => {
+  if (!(await requireProtocol(req, res))) return;
   const protocolId = req.params.id;
 
-  const transactions = db.prepare(`
+  const transactions = await db.all(`
     SELECT * FROM animal_usage_transactions
-    WHERE protocol_id = ? ORDER BY transaction_date DESC, id DESC
-  `).all(protocolId);
+    WHERE protocol_id = $1 ORDER BY transaction_date DESC, id DESC
+  `, [protocolId]);
 
   // The approved allowance per species is the sum of the *planned* animal-use
   // table's max_count (protocol_animal_use), kept distinct from the ledger.
-  const allowanceRows = db.prepare(`
+  const allowanceRows = await db.all(`
     SELECT species_strain, SUM(max_count) AS allowance
     FROM protocol_animal_use
-    WHERE protocol_id = ? GROUP BY species_strain
-  `).all(protocolId);
+    WHERE protocol_id = $1 GROUP BY species_strain
+  `, [protocolId]);
   const allowanceBySpecies = new Map(allowanceRows.map(r => [r.species_strain, r.allowance]));
 
   const bySpeciesMap = new Map();
@@ -77,8 +77,8 @@ router.get("/:id/animal-usage", (req, res) => {
 });
 
 // body: { transaction_date, species_strain, pain_level, quantity, type, procedure_key, notes }
-router.post("/:id/animal-usage", (req, res) => {
-  if (!requireProtocol(req, res)) return;
+router.post("/:id/animal-usage", async (req, res) => {
+  if (!(await requireProtocol(req, res))) return;
   const protocolId = req.params.id;
   const { transaction_date, species_strain, pain_level, quantity, type, procedure_key, notes } = req.body;
 
@@ -97,11 +97,11 @@ router.post("/:id/animal-usage", (req, res) => {
     return res.status(400).json({ error: "unknown procedure_key" });
   }
 
-  const result = db.prepare(`
+  const row = await db.get(`
     INSERT INTO animal_usage_transactions
       (protocol_id, transaction_date, species_strain, pain_level, quantity, type, procedure_key, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+  `, [
     protocolId,
     transaction_date,
     species_strain,
@@ -110,7 +110,7 @@ router.post("/:id/animal-usage", (req, res) => {
     type || "use",
     procedure_key || null,
     notes || null,
-  );
+  ]);
 
-  res.status(201).json(db.prepare("SELECT * FROM animal_usage_transactions WHERE id = ?").get(Number(result.lastInsertRowid)));
+  res.status(201).json(row);
 });

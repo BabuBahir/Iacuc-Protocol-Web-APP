@@ -8,11 +8,8 @@ const { createApp } = await import("../src/app.js");
 const { db } = await import("../src/db.js");
 const app = createApp();
 
-function insertProtocol(overrides = {}) {
-  db.prepare(`
-    INSERT INTO protocols (id, title, pi, species, status, animals, pain_category)
-    VALUES (@id, @title, @pi, @species, @status, @animals, @pain_category)
-  `).run({
+async function insertProtocol(overrides = {}) {
+  const params = {
     id: "TEST-0001",
     title: "Test protocol",
     pi: "Dr. Test",
@@ -21,22 +18,32 @@ function insertProtocol(overrides = {}) {
     animals: 240,
     pain_category: "Category D",
     ...overrides,
-  });
+  };
+  await db.run(
+    `
+    INSERT INTO protocols (id, title, pi, species, status, animals, pain_category)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+  `,
+    [params.id, params.title, params.pi, params.species, params.status, params.animals, params.pain_category]
+  );
 }
 
-function insertAllowance(species_strain, max_count) {
-  db.prepare(`
+async function insertAllowance(species_strain, max_count) {
+  await db.run(
+    `
     INSERT INTO protocol_animal_use (protocol_id, species_strain, max_count)
-    VALUES (?, ?, ?)
-  `).run("TEST-0001", species_strain, max_count);
+    VALUES ($1, $2, $3)
+  `,
+    ["TEST-0001", species_strain, max_count]
+  );
 }
 
 describe("animal usage register", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("GET returns empty tallies for a protocol with no transactions", async () => {
-    insertProtocol();
-    insertAllowance("C57BL/6 mouse", 240);
+    await insertProtocol();
+    await insertAllowance("C57BL/6 mouse", 240);
 
     const res = await request(app).get("/api/protocols/TEST-0001/animal-usage");
     assert.equal(res.status, 200);
@@ -47,8 +54,8 @@ describe("animal usage register", () => {
   });
 
   test("POST creates a transaction and GET splits ordered vs used per species", async () => {
-    insertProtocol();
-    insertAllowance("C57BL/6 mouse", 240);
+    await insertProtocol();
+    await insertAllowance("C57BL/6 mouse", 240);
 
     const order = await request(app)
       .post("/api/protocols/TEST-0001/animal-usage")
@@ -92,8 +99,8 @@ describe("animal usage register", () => {
   });
 
   test("flags a species as over its allowance when total transactions exceed it", async () => {
-    insertProtocol();
-    insertAllowance("Rabbit", 60);
+    await insertProtocol();
+    await insertAllowance("Rabbit", 60);
 
     await request(app)
       .post("/api/protocols/TEST-0001/animal-usage")
@@ -109,7 +116,7 @@ describe("animal usage register", () => {
   });
 
   test("POST defaults type to 'use' when omitted", async () => {
-    insertProtocol();
+    await insertProtocol();
 
     const res = await request(app)
       .post("/api/protocols/TEST-0001/animal-usage")
@@ -120,7 +127,7 @@ describe("animal usage register", () => {
   });
 
   test("POST validates required fields and enums", async () => {
-    insertProtocol();
+    await insertProtocol();
 
     let res = await request(app).post("/api/protocols/TEST-0001/animal-usage").send({ species_strain: "Mouse", quantity: 1 });
     assert.equal(res.status, 400);
@@ -164,15 +171,15 @@ describe("animal usage register", () => {
   });
 
   test("deleting a protocol cascades its usage transactions", async () => {
-    insertProtocol();
-    insertAllowance("C57BL/6 mouse", 240);
+    await insertProtocol();
+    await insertAllowance("C57BL/6 mouse", 240);
     await request(app)
       .post("/api/protocols/TEST-0001/animal-usage")
       .send({ transaction_date: "2026-07-01", species_strain: "C57BL/6 mouse", quantity: 10, type: "use" });
 
-    db.prepare("DELETE FROM protocols WHERE id = ?").run("TEST-0001");
+    await db.run("DELETE FROM protocols WHERE id = $1", ["TEST-0001"]);
 
-    const count = db.prepare("SELECT COUNT(*) AS c FROM animal_usage_transactions").get();
+    const count = await db.get("SELECT COUNT(*) AS c FROM animal_usage_transactions");
     assert.equal(count.c, 0);
   });
 });

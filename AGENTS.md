@@ -297,7 +297,38 @@ must hit the trailing-slash URL.
 npm test              # runs both suites
 npm run test:server   # node:test + supertest, coverage via --experimental-test-coverage
 npm run test:client   # vitest + React Testing Library, coverage via v8
+npm run test:pg       # same route tests, but against Postgres — requires DATABASE_URL (see server/.env.example)
 ```
+
+The whole server suite also runs against **Postgres** (the SQLite suite covers
+the same route files; `db.test.js` is SQLite-only). `test:pg` =
+`node scripts/test-pg.mjs` in `server/`, which runs `routes-*.test.js` serially
+(`--test-concurrency=1 --test-force-exit`). It was validated 2026-08-06 against
+a live Supabase project: **232/232 pass** there, 235/235 on SQLite. Gotchas
+learned building it:
+
+- **`--test-force-exit` is mandatory on the PG path.** Each test-file process
+  opens a `pg.Pool` that no test ever closes; idle keep-alive sockets keep the
+  event loop alive, so without the flag the runner never exits and serial mode
+  stalls on the first file forever.
+- **`resetTables()` uses one `TRUNCATE TABLE ... RESTART IDENTITY CASCADE` on
+  PG** instead of 26 sequential `DELETE FROM` (see `server/test/helpers.js`;
+  it branches on `db.dialect`, which the facade exports). 26 round-trips at
+  ~150ms of remote latency per test made the PG suite take ~15 min; TRUNCATE
+  cut it to ~6 min. Don't "simplify" it back to the loop.
+- **The SQLite suite hides setup races that are real on PG.** Non-awaited
+  `insertProtocol(...)` calls resolve deterministically on SQLite (the sync
+  driver commits before the next HTTP request is processed) but race on PG
+  (each insert is a real async round-trip, so a following GET can read stale
+  state). Symptom: a test that passes on SQLite flips to a 404 or a 0-count on
+  PG. Always `await` setup helpers. Fixing this surfaced `insertProtocol()` at
+  routes-protocols.test.js lines 58/59/67/79-82/235 and routes-protocol-form
+  lines 399/406/412/418.
+- **Pool config hardens against wedged pooler sockets** (`server/src/db.js`):
+  `connectionTimeoutMillis: 10000`, `query_timeout: 30000`, `idleTimeoutMillis:
+  30000`, `keepAlive: true`. Supabase's PgBouncer can silently half-open an idle
+  session; without a query timeout a single `pool.query()` blocked for 23
+  minutes instead of failing and reconnecting.
 
 **Backend: 158 tests, 99.55% lines / 91.94% branches / 96.00% functions**
 (measured on `server/src/`, excluding `test/`). Every route file — protocols,
