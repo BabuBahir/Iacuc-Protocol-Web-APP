@@ -16,6 +16,9 @@ The API endpoints  <a href="https://iacuc-protocol-web-app.onrender.com/api-docs
 > This environment is not intended for use in production. It is refreshed daily, and the data entered is accessible to everyone.
 
 
+[![GitHub stars](https://img.shields.io/github/stars/BabuBahir/Iacuc-Protocol-Web-APP?style=social)](https://github.com/BabuBahir/Iacuc-Protocol-Web-APP)
+
+*If this project helps you, please consider giving it a ⭐ star or sponsoring the repository to support ongoing development!*
 
 ## What this is
 
