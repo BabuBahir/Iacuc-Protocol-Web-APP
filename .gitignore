@@ -3,7 +3,6 @@ dist/
 coverage/
 server/data/*.db
 server/data/*.db-*
-.env
 
 # Playwright e2e
 test-results/
@@ -12,3 +11,4 @@ e2e/e2e.db
 
 # Local run/test logs
 *.log
+config.bat
