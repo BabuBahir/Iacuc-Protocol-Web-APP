@@ -9,7 +9,7 @@
 ## Demo
 
 Access the demo at <a href="https://iacuc-protocol-review-case-study-cl.vercel.app/" target="_blank" rel="noopener noreferrer">demo.iacuc.com</a>.
-
+The API endpoints  <a href="https://iacuc-protocol-web-app.onrender.com/api-docs" target="_blank" rel="noopener noreferrer">Swagger</a>.
 
 
 > [!IMPORTANT]
