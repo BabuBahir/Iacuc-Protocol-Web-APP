@@ -1,5 +1,5 @@
-import { describe, test, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, test, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
 
@@ -52,5 +52,30 @@ describe("App routing", () => {
   test("renders a not-found message for unknown paths", () => {
     renderAt("/definitely/not/a/route");
     expect(screen.getByText("Page not found.")).toBeInTheDocument();
+  });
+});
+
+describe("App disclaimer", () => {
+  beforeEach(() => {
+    localStorage.removeItem("iacuc_demo_disclaimer_dismissed");
+  });
+
+  test("shows the educational disclaimer on init", () => {
+    renderAt("/");
+    expect(screen.getByText("Educational Demo — Not for Live Use")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "I understand" })).toBeInTheDocument();
+  });
+
+  test("dismissing the disclaimer hides it and persists the flag", () => {
+    renderAt("/");
+    fireEvent.click(screen.getByRole("button", { name: "I understand" }));
+    expect(screen.queryByText("Educational Demo — Not for Live Use")).not.toBeInTheDocument();
+    expect(localStorage.getItem("iacuc_demo_disclaimer_dismissed")).toBe("1");
+  });
+
+  test("does not show the disclaimer once dismissed in this browser", () => {
+    localStorage.setItem("iacuc_demo_disclaimer_dismissed", "1");
+    renderAt("/");
+    expect(screen.queryByText("Educational Demo — Not for Live Use")).not.toBeInTheDocument();
   });
 });

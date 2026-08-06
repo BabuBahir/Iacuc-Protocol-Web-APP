@@ -12,6 +12,7 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:4173",
     trace: "retain-on-failure",
+    storageState: path.join(__dirname, "storageState.json"),
   },
   webServer: [
     {
