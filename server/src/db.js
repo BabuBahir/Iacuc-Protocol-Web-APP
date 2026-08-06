@@ -344,6 +344,24 @@ CREATE TABLE IF NOT EXISTS renewals (
   approved_until TEXT, -- new expiration date when approved
   created_at     TEXT DEFAULT (datetime('now'))
 );
+
+-- Transfer Ownership (AGENTS.md §1.1): its own approval workflow. A request
+-- sits Pending in the transfer queue until the IACUC office approves it, and
+-- requires a reason. Approval reassigns the protocol's PI (protocols.pi + the
+-- related_items 'Personnel' label). from_pi is a snapshot of protocols.pi at
+-- request time. One pending request per protocol at a time (query-enforced).
+CREATE TABLE IF NOT EXISTS protocol_transfers (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  protocol_id     TEXT NOT NULL REFERENCES protocols(id) ON DELETE CASCADE,
+  from_pi         TEXT NOT NULL,
+  to_personnel_id INTEGER NOT NULL REFERENCES personnel(id) ON DELETE RESTRICT,
+  reason          TEXT NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'Pending', -- 'Pending' | 'Approved' | 'Rejected'
+  created_at      TEXT DEFAULT (datetime('now')),
+  decision_date   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_protocol_transfers_protocol ON protocol_transfers(protocol_id);
 `);
 
 // ---- lightweight migration for databases created before these columns existed ----

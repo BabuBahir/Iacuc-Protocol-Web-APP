@@ -203,7 +203,8 @@ describe("AmendmentsPage — starting & recording changes", () => {
       APPROVED_AMENDMENT,
     ]);
 
-    await user.click(screen.getByRole("button", { name: /Record change/ }));
+    // Typing marks the form dirty, which swaps the submit button for Save/Cancel.
+    await user.click(screen.getByRole("button", { name: /Save change/ }));
 
     await waitFor(() => {
       expect(api.addAmendmentChange).toHaveBeenCalledWith("IACUC-2026-0142", 1, {
@@ -214,6 +215,61 @@ describe("AmendmentsPage — starting & recording changes", () => {
       });
     });
     await waitFor(() => expect(screen.getByText("animal_use · species_strain")).toBeInTheDocument());
+  });
+});
+
+describe("AmendmentsPage — three-pane live diff & save/cancel guard", () => {
+  test("switches between Live Changes, Previous Version, and Changes tabs", async () => {
+    const user = userEvent.setup();
+    mockLoadData();
+    renderAmendmentsPage();
+
+    await waitFor(() => expect(screen.getByText("Switch analgesic.")).toBeInTheDocument());
+    await user.click(screen.getByText("Switch analgesic."));
+
+    // Changes tab is the default — shows both sides of the delta.
+    expect(screen.getByText("drugs · dose")).toBeInTheDocument();
+    expect(screen.getByText("10 mg/kg")).toBeInTheDocument();
+    expect(screen.getByText("5 mg/kg")).toBeInTheDocument();
+
+    // Live Changes highlights only the proposed (new) value.
+    await user.click(screen.getByRole("tab", { name: "Live Changes" }));
+    expect(screen.getByText("drugs · dose")).toBeInTheDocument();
+    expect(screen.getByText("5 mg/kg")).toBeInTheDocument();
+    expect(screen.queryByText("10 mg/kg")).not.toBeInTheDocument();
+
+    // Previous Version shows only the pre-amendment value.
+    await user.click(screen.getByRole("tab", { name: "Previous Version" }));
+    expect(screen.getByText("drugs · dose")).toBeInTheDocument();
+    expect(screen.getByText("10 mg/kg")).toBeInTheDocument();
+    expect(screen.queryByText("5 mg/kg")).not.toBeInTheDocument();
+  });
+
+  test("unsaved edits are blocked until Save or Cancel", async () => {
+    const user = userEvent.setup();
+    mockLoadData();
+    renderAmendmentsPage();
+
+    await waitFor(() => expect(screen.getByText("Add a second mouse strain.")).toBeInTheDocument());
+    await user.click(screen.getByText("Add a second mouse strain."));
+
+    // Not dirty yet: Record change, no guard message, protocol select enabled.
+    expect(screen.getByRole("button", { name: /Record change/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("Protocol")).not.toBeDisabled();
+
+    // Typing one field makes the form dirty.
+    await user.type(screen.getByPlaceholderText("Section, e.g. animal_use"), "drugs");
+    expect(screen.getByRole("button", { name: /Save change/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Record change/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/Unsaved changes/)).toBeInTheDocument();
+    // Can't switch protocols while a change is unsaved.
+    expect(screen.getByLabelText("Protocol")).toBeDisabled();
+
+    // Cancel clears the form and re-enables the selector.
+    await user.click(screen.getByRole("button", { name: /Cancel/ }));
+    expect(screen.getByRole("button", { name: /Record change/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Unsaved changes/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Protocol")).not.toBeDisabled();
   });
 });
 

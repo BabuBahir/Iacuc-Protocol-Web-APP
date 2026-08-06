@@ -426,6 +426,18 @@ from building it:
   protocol's personnel list, so flipping her to fully compliant can't disturb
   the committee/register/detail invariants. Elena/Raj/Sam/Marcus/Jordan keep
   their seeded states because other specs assert on or near them.
+- Transfer ownership seeds two `protocol_transfers` fixtures: 0155 → Dr. Hana
+  Sato (Pending — 0155's PI is Dr. Wen Liu, who is deliberately *not* a
+  personnel persona, which is exactly why `from_pi` is a text snapshot rather
+  than an FK) and 0023 → Dr. Priya Nair (Rejected). The transfer recipient
+  (`to`) **must** be a real personnel row — the first e2e run crashed in
+  `seed.js` because the Rejected fixture targeted "Dr. Wen Liu". Also, the
+  transfer panel's personnel dropdown renders every persona as an `<option>`,
+  so `getByText("<person name>")` strict-mode resolves to both the list row and
+  the option — admin.spec.js scopes those assertions with `.first()` (the list
+  row renders before the transfer panel in DOM order). The same collision
+  forced `getAllByText(name)[0]` in `AdminPage.test.tsx` and made the roles
+  test's bare `getByRole("checkbox")` ambiguous (now scoped by label).
 - The "adding a personnel member" admin spec was flaky under full-suite load:
   it clicked submit before the roles fetch populated the form's `role_id`,
   and `add()` in `AdminPage.tsx` returns early while `role_id` is empty — so
@@ -668,11 +680,45 @@ lines; server/client tests + 5 e2e tests (`e2e/tests/compliance.spec.js`)
 cover reads and two mutations on Dr. Hana Sato (a safe mutation target — she's
 on no protocol's personnel list).
 
+**Transfer ownership (AGENTS.md §1.1):** a real approval workflow, not an
+instant reassignment. Schema: `protocol_transfers` (protocol_id, `from_pi` —
+a text snapshot of `protocols.pi` at request time, so it survives the source
+person leaving the org — `to_personnel_id`, `reason`, status
+`Pending`/`Approved`/`Rejected`, created_at, decision_date) with "one Pending
+per protocol" enforced by a pre-insert `SELECT ... WHERE status='Pending'`
+query rather than a partial unique index. Server (`server/src/routes/
+transfers.js`): `GET /api/transfers?status=` (the IACUC-office queue;
+`decorate()` joins protocol_title + recipient name), `POST /api/transfers`
+(bulk, all-or-nothing via explicit BEGIN/COMMIT/ROLLBACK), `POST
+/api/protocols/:id/transfers`, `PATCH /api/transfers/:id` (Approve reassigns
+`protocols.pi`, rewrites the protocol's related-items "Personnel" PI label to
+the recipient, and appends an "Approval history" entry; Reject just closes
+the request). Client: a `TransferOwnershipModal` on the detail page
+("Transfer ownership" button — shows an amber already-pending notice instead
+of the form when a request is in flight) and a `TransferQueuePanel` on the
+admin page (Pending queue with Approve/Reject plus a bulk form that selects
+multiple protocols, the new PI, and a required reason). `protocol_transfers`
+was added to the FK-safe `resetTables` order in `server/test/helpers.js`;
+`routes-transfers.test.js` (15 tests) covers create/bulk/decide including the
+409 in-flight and 404 paths, and transfers.js is at 100% lines.
+
+**Three-pane amendment live-diff (AGENTS.md §1.1):** the amendment card on
+`AmendmentsPage.tsx` now shows the three Loyola views as tabs — **Live
+Changes** (proposed `new_value`, highlighted), **Previous Version**
+(pre-amendment `previous_value`, struck through), **Changes** (an inline
+delta between the two). Editing a field (Record Change / Save change) marks
+the card dirty: the submit button swaps to **Save**/**Cancel**, an "Unsaved
+changes" warning renders, and the card collapse, the protocol selector, and
+the Approve/Reject actions are disabled until the change is explicitly saved
+or cancelled; the page also attaches a window `beforeunload` guard while a
+card is dirty. Covered by 2 new client tests in `AmendmentsPage.test.tsx`
+(tab switching + save/cancel guard).
+
 Not implemented (see §1 above for the domain detail on each): conditional/
-dynamic Table of Contents, Continuing Review vs. De Novo Review as
-distinct recurring events, amendment workflow with live-diff view and
-protocol versioning, auth or role-based
-access control, search filter-builder, compliance reports.
+dynamic Table of Contents, auth or role-based
+access control, search filter-builder, compliance reports. (Amendments now
+have the three-pane live-diff; protocol version lineage, renewals, and
+Transfer Ownership are all implemented above.)
 
 ## 3. HIPAA, PHI, and AI-safety guardrails
 

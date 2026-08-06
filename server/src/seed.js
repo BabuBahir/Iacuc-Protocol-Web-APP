@@ -799,6 +799,15 @@ const renewalsSeed = [
   { protocol_id: "IACUC-2025-0098", type: "Continuing Review", status: "Pending", submitted_date: "2026-07-20" },
 ];
 
+// ---- Transfer ownership (Domain B depth): its own approval workflow ----
+// One pending request (0155 -> Dr. Hana Sato) so the transfer queue renders,
+// and one rejected (0023) so decided state is visible. Neither touches the
+// e2e-critical protocols (0142/0064/0158/0021 invariants).
+const transfersSeed = [
+  { protocol_id: "IACUC-2026-0155", from_pi: "Dr. Wen Liu", to: "Dr. Hana Sato", reason: "Dr. Liu is relocating; the corneal transplantation study will be continued by Dr. Sato.", status: "Pending", decision_date: null },
+  { protocol_id: "IACUC-2024-0023", from_pi: "Dr. Raj Patel", to: "Dr. Priya Nair", reason: "Requested by the lab manager, but the IACUC office requires PI consent for the transfer.", status: "Rejected", decision_date: "2026-07-25" },
+];
+
 const insertProtocol = db.prepare(`
   INSERT INTO protocols (
     id, title, pi, species, status, animals, pain_category, submitted, expires,
@@ -919,9 +928,13 @@ const insertRenewal = db.prepare(`
   INSERT INTO renewals (protocol_id, type, status, submitted_date)
   VALUES (?, ?, ?, ?)
 `);
+const insertTransfer = db.prepare(`
+  INSERT INTO protocol_transfers (protocol_id, from_pi, to_personnel_id, reason, status, decision_date)
+  VALUES (?, ?, ?, ?, ?, ?)
+`);
 
 let procCount = 0, drugCount = 0, animalUseCount = 0, alternativesCount = 0, experimentCount = 0, rrrCount = 0, usageCount = 0, assignmentCount = 0, commentCount = 0, trainingCount = 0, ohspCount = 0;
-let facilityCount = 0, inspectionCount = 0, deficiencyCount = 0, incidentCount = 0, pamCount = 0, amendmentCount = 0, changeCount = 0, versionCount = 0, renewalCount = 0;
+let facilityCount = 0, inspectionCount = 0, deficiencyCount = 0, incidentCount = 0, pamCount = 0, amendmentCount = 0, changeCount = 0, versionCount = 0, renewalCount = 0, transferCount = 0;
 
 db.exec("BEGIN");
 try {
@@ -933,6 +946,7 @@ try {
   db.exec("DELETE FROM personnel_training; DELETE FROM personnel_ohsp;");
   db.exec("DELETE FROM amendment_changes; DELETE FROM amendments;");
   db.exec("DELETE FROM protocol_versions; DELETE FROM renewals;");
+  db.exec("DELETE FROM protocol_transfers;");
   db.exec("DELETE FROM incidents; DELETE FROM pam_audits;");
   db.exec("DELETE FROM inspection_deficiencies; DELETE FROM inspections; DELETE FROM facilities;");
   db.exec("DELETE FROM personnel; DELETE FROM roles; DELETE FROM species;");
@@ -1104,6 +1118,10 @@ try {
     insertRenewal.run(rn.protocol_id, rn.type, rn.status, rn.submitted_date);
     renewalCount++;
   }
+  for (const t of transfersSeed) {
+    insertTransfer.run(t.protocol_id, t.from_pi, getPersonnelId.get(t.to).id, t.reason, t.status, t.decision_date);
+    transferCount++;
+  }
 
   db.exec("COMMIT");
 } catch (err) {
@@ -1116,5 +1134,5 @@ console.log(
   `${species.length} species, ${roles.length} roles, ${personnel.length} personnel, ` +
   `${procCount} procedures, ${drugCount} drugs, ${animalUseCount} animal-use rows, ` +
   `${experimentCount} experiments, ${alternativesCount} alternatives rows, ${rrrCount} 3Rs entries, ${votesSeed.length} votes, ${usageCount} usage transactions, ${assignmentCount} assignments, ${commentCount} review comments, ${trainingCount} training records, ${ohspCount} OHSP clearances, ` +
-  `${facilityCount} facilities, ${inspectionCount} inspections, ${deficiencyCount} deficiencies, ${incidentCount} incidents, ${pamCount} PAM audits, ${amendmentCount} amendments, ${changeCount} amendment changes, ${versionCount} protocol versions, ${renewalCount} renewals.`
+  `${facilityCount} facilities, ${inspectionCount} inspections, ${deficiencyCount} deficiencies, ${incidentCount} incidents, ${pamCount} PAM audits, ${amendmentCount} amendments, ${changeCount} amendment changes, ${versionCount} protocol versions, ${renewalCount} renewals, ${transferCount} transfers.`
 );

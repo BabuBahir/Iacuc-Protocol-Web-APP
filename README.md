@@ -248,6 +248,22 @@ searchable interactive reference with a "try it" button is available at
 | GET    | /api/protocols/:id/personnel                  | Per-listed-person compliance + `all_compliant` for a protocol | ✓ |
 </details>
 
+<details>
+<summary><b> Transfer ownership </b> (Click to expand)</summary>
+
+Transfers are an approval workflow, not an instant reassignment: the request
+sits in the IACUC-office queue (`Pending`) until approved, and approving
+reassigns the protocol's principal investigator.
+
+| Method | Path                      | Description                                          | Status |
+|--------|---------------------------|-------------------------------------------------------|--------|
+| GET    | /api/transfers            | The transfer queue, optional `?status=` filter        | ✓ |
+| POST   | /api/transfers            | Bulk-transfer multiple protocols to one new PI (all-or-nothing) | ✓ |
+| POST   | /api/protocols/:id/transfers | Request a transfer for a single protocol             | ✓ |
+| PATCH  | /api/transfers/:id        | Decide a request (`Approved` reassigns the PI / `Rejected`) | ✓ |
+
+</details>
+
 ### Planned / future endpoints
 
 <details>
@@ -259,14 +275,14 @@ lands.
 
 | Domain | Planned endpoint(s)                                                         | Source | Status |
 |--------|-----------------------------------------------------------------------------|--------|--------|
-| B. Amendments & renewals | `POST` / `GET /api/protocols/:id/amendments`, `POST /api/protocols/:id/renewals` | UI-EXPANSION-PLAN §B, ROADMAP items 2–3 | ✗ |
-| E. PAM & incidents | `POST /api/incidents`, `GET /api/protocols/:id/pam-audits`, `PATCH /api/incidents/:id` | UI-EXPANSION-PLAN §E | ✗ |
-| F. Facilities & inspections | `GET /api/facilities`, `POST /api/inspections`, `GET /api/inspections/:id/deficiencies` | UI-EXPANSION-PLAN §F | ✗ |
-| Transfer ownership | Approval-queue reassignment of a protocol to another PI (required reason, audit trail) | ROADMAP item 10 | ✗ |
 | File attachments | Real uploads for protocol narratives, SOPs, training certs | ROADMAP item 7 | ✗ |
 | Search filter-builder + CSV export | Stackable field/operator/value filters across protocols & the register; CSV on every result set | ROADMAP item 8 | ✗ |
 | AAALAC compliance reports | Restraint/euthanasia/surgery/drug reports by species | ROADMAP item 9 | ✗ |
 | Audit logging | Who accessed/changed what, when (prerequisite for the AI-safety guardrails in AGENTS.md §3) | ROADMAP item 11 | ✗ |
+
+Amendments & renewals, PAM & incidents, facilities & inspections, and
+transfer ownership were previously listed here but are now implemented —
+see the API reference tables above and `docs/UI-EXPANSION-PLAN.md`.
 
 </details>
 
