@@ -34,7 +34,7 @@ export default function AppHeader({ active }: { active?: NavKey }) {
       </div>
       <div className="flex-1" />
       <a
-        href="https://github.com/BabuBahir/Iacuc-Protocol-Web-APP/discussions"
+        href="https://github.com/BabuBahir/Iacuc-Protocol-Web-APP/discussions/40"
         target="_blank"
         rel="noopener noreferrer"
         title="GitHub repository"
