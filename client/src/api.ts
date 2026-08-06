@@ -67,14 +67,20 @@ import type {
 
 // Thin wrapper around fetch calls to the Express API.
 // In dev, Vite proxies /api -> http://localhost:4000 (see vite.config.js),
-// so no base URL is needed here.
+// so no base URL is needed here. In production the vite `define` block bakes
+// process.env.API_BASE_URL into the bundle at build time, so a deployed SPA
+// (e.g. Vercel) calls the API host directly instead of a same-origin /api
+// path that no dev proxy exists to forward. With the env unset, API_BASE is
+// "" and requests stay same-origin, preserving the dev flow.
+
+const API_BASE = process.env.API_BASE_URL || process.env.api_base_url || "";
 
 interface ErrorBody {
   error?: string;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
