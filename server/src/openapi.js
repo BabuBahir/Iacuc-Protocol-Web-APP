@@ -926,6 +926,21 @@ const schemas = {
     required: ["status"],
     properties: { status: { type: "string", enum: ["Approved", "Rejected"] } },
   },
+
+  AuditEntry: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+      action: { type: "string", description: "e.g. protocol.updated, vote.cast, transfer.approved" },
+      entity_type: { type: "string" },
+      entity_id: { type: ["string", "null"] },
+      actor: { type: "string", default: "system", description: "Best-effort person name; 'system' when no identity was carried by the request" },
+      actor_key: { type: ["string", "null"], description: "Reserved for auth identity (Roadmap item 4)" },
+      details: { type: ["object", "null"], description: "Changed-field map, e.g. { status: [\"IACUC Review\", \"Approved\"] }" },
+      provenance: { type: "string", enum: ["human", "ai", "system"] },
+      created_at: { type: "string", format: "date-time" },
+    },
+  },
 };
 
 const paths = {
@@ -1642,6 +1657,27 @@ const paths = {
       responses: { 201: json(REF("ProtocolTransfer"), "Created pending transfer"), 400: json(REF("Error"), "Missing fields or unknown personnel"), 409: json(REF("Error"), "A transfer is already pending"), ...notFound() },
     },
   },
+
+  "/api/audit": {
+    get: {
+      tags: ["Audit log"],
+      summary: "Append-only audit trail of mutations (most recent first)",
+      description:
+        "Every successful write across the app logs an entry: what changed, when, and a best-effort actor. `actor`/`actor_key` resolve to a real person's name when the request carries identity (votes, comments, assignments, reporters, auditors) and to 'system' otherwise — real auth is Roadmap item 4.",
+      parameters: [
+        { name: "entity_type", in: "query", required: false, schema: { type: "string" }, description: "e.g. protocol, transfer, vote, species" },
+        { name: "entity_id", in: "query", required: false, schema: { type: "string" }, description: "Row id to narrow by" },
+        { name: "actor", in: "query", required: false, schema: { type: "string" }, description: "Substring match on the actor name" },
+        { name: "action", in: "query", required: false, schema: { type: "string" }, description: "Substring match, e.g. protocol.updated, vote.cast" },
+        { name: "provenance", in: "query", required: false, schema: { type: "string", enum: ["human", "ai", "system"] }, description: "Filter by content origin (AI-generated content is flagged per AGENTS.md §3.2)" },
+        { name: "from", in: "query", required: false, schema: { type: "string", format: "date" }, description: "Inclusive start date (YYYY-MM-DD); must be paired with `to`" },
+        { name: "to", in: "query", required: false, schema: { type: "string", format: "date" }, description: "Inclusive end date (YYYY-MM-DD); must be paired with `from`" },
+        { name: "limit", in: "query", required: false, schema: { type: "integer", default: 100 }, description: "1–500" },
+        { name: "offset", in: "query", required: false, schema: { type: "integer", default: 0 }, description: "Pagination offset" },
+      ],
+      responses: { 200: json({ type: "array", items: REF("AuditEntry") }, "Audit entries, newest first"), 400: json(REF("Error"), "Invalid limit/offset/provenance or unpaired date filter") },
+    },
+  },
 };
 
 export const openapiSpec = {
@@ -1664,6 +1700,7 @@ export const openapiSpec = {
     { name: "Post-Approval Monitoring (PAM) & incidents", description: "Adverse events / deviations with the Open → CAPA → Closed lifecycle, plus PAM site-visit audits" },
     { name: "Amendments & annual renewals", description: "Versioned amendments, protocol version lineage, continuing & de novo review" },
     { name: "Transfer ownership", description: "PI transfer requests with their own IACUC-office approval queue (single + bulk)" },
+    { name: "Audit log", description: "Append-only trail of every mutation, with actor + provenance (Roadmap item 11)" },
   ],
   paths,
   components: { schemas },

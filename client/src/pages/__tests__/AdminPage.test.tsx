@@ -28,6 +28,7 @@ vi.mock("../../api", () => ({
     bulkCreateTransfers: vi.fn(),
     updateTransferStatus: vi.fn(),
     listProtocols: vi.fn(),
+    getAuditLog: vi.fn(),
   },
 }));
 
@@ -49,6 +50,7 @@ beforeEach(() => {
   api.listPersonnelCompliance.mockResolvedValue([]);
   api.listTransfers.mockResolvedValue([]);
   api.listProtocols.mockResolvedValue([]);
+  api.getAuditLog.mockResolvedValue([]);
 });
 
 describe("AdminPage — species panel", () => {
@@ -579,6 +581,74 @@ describe("AdminPage — transfer ownership", () => {
         to_personnel_id: 3,
         reason: "Merging labs",
       });
+    });
+  });
+});
+
+describe("AdminPage — audit log", () => {
+  test("renders audit entries with actor, action, entity, and provenance", async () => {
+    api.getAuditLog.mockResolvedValue([
+      {
+        id: 2,
+        action: "vote.cast",
+        entity_type: "protocol",
+        entity_id: "IACUC-2026-0142",
+        actor: "Dr. Amara Osei",
+        actor_key: null,
+        details: { vote: "Approve" },
+        provenance: "ai",
+        created_at: "2026-08-06T11:00:00.000Z",
+      },
+      {
+        id: 1,
+        action: "species.created",
+        entity_type: "species",
+        entity_id: "1",
+        actor: "Dr. Kim",
+        actor_key: null,
+        details: { name: "Ferret" },
+        provenance: "human",
+        created_at: "2026-08-06T10:00:00.000Z",
+      },
+    ]);
+
+    renderAdminPage();
+
+    await waitFor(() => expect(screen.getByText("vote.cast")).toBeInTheDocument());
+    expect(screen.getByText("species.created")).toBeInTheDocument();
+    expect(screen.getByText("Dr. Amara Osei")).toBeInTheDocument();
+    expect(screen.getByText(/protocol · IACUC-2026-0142/)).toBeInTheDocument();
+    // "ai"/"human" also appear as provenance-filter <option> labels, so scope
+    // the badge assertions to the entries list.
+    const entries = screen.getByTestId("audit-entries");
+    expect(within(entries).getByText("ai")).toBeInTheDocument();
+    expect(within(entries).getByText("human")).toBeInTheDocument();
+    expect(within(entries).getByText("name:")).toBeInTheDocument();
+    expect(within(entries).getByText("Ferret")).toBeInTheDocument();
+  });
+
+  test("shows an empty state when no entries match", async () => {
+    api.getAuditLog.mockResolvedValue([]);
+
+    renderAdminPage();
+
+    await waitFor(() => expect(screen.getByText("No audit entries match.")).toBeInTheDocument());
+  });
+
+  test("applying a filter refetches with the entered criteria", async () => {
+    const user = userEvent.setup();
+    api.getAuditLog.mockResolvedValue([]);
+
+    renderAdminPage();
+    await waitFor(() => expect(screen.getByText("No audit entries match.")).toBeInTheDocument());
+
+    await user.type(screen.getByLabelText("Filter by action"), "species");
+    await user.click(screen.getByRole("button", { name: /Apply/ }));
+
+    await waitFor(() => {
+      expect(api.getAuditLog).toHaveBeenLastCalledWith(
+        expect.objectContaining({ action: "species", limit: 100 }),
+      );
     });
   });
 });

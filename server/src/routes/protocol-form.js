@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "../db.js";
+import { audit, diffObject, resolveActor } from "../audit.js";
 
 export const router = Router();
 
@@ -111,6 +112,13 @@ router.put("/:id/procedures", (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 
+  audit({
+    action: "procedures.updated",
+    entityType: "protocol",
+    entityId: req.params.id,
+    actor: resolveActor(req),
+    details: { count: procedures.length },
+  });
   res.json({ ok: true });
 });
 
@@ -131,7 +139,15 @@ router.post("/:id/drugs", (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(req.params.id, reason_for_use || null, drug, dose || null, route || null, duration || null);
 
-  res.status(201).json(db.prepare("SELECT * FROM protocol_drugs WHERE id = ?").get(Number(result.lastInsertRowid)));
+  const rowId = Number(result.lastInsertRowid);
+  audit({
+    action: "drug.created",
+    entityType: "drug",
+    entityId: rowId,
+    actor: resolveActor(req),
+    details: { protocol_id: req.params.id, drug },
+  });
+  res.status(201).json(db.prepare("SELECT * FROM protocol_drugs WHERE id = ?").get(rowId));
 });
 
 router.patch("/:id/drugs/:drugId", (req, res) => {
@@ -149,14 +165,33 @@ router.patch("/:id/drugs/:drugId", (req, res) => {
   const setClause = updates.map(f => `${f} = @${f}`).join(", ");
   db.prepare(`UPDATE protocol_drugs SET ${setClause} WHERE id = @id`).run(params);
 
+  const changed = {};
+  for (const f of updates) changed[f] = params[f];
+  audit({
+    action: "drug.updated",
+    entityType: "drug",
+    entityId: Number(req.params.drugId),
+    actor: resolveActor(req),
+    details: diffObject(existing, changed),
+  });
+
   res.json(db.prepare("SELECT * FROM protocol_drugs WHERE id = ?").get(Number(req.params.drugId)));
 });
 
 router.delete("/:id/drugs/:drugId", (req, res) => {
   if (!requireProtocol(req, res)) return;
-  const result = db.prepare("DELETE FROM protocol_drugs WHERE id = ? AND protocol_id = ?")
+  const existing = db.prepare("SELECT drug FROM protocol_drugs WHERE id = ? AND protocol_id = ?")
+    .get(Number(req.params.drugId), req.params.id);
+  if (!existing) return res.status(404).json({ error: "Drug row not found" });
+  audit({
+    action: "drug.deleted",
+    entityType: "drug",
+    entityId: Number(req.params.drugId),
+    actor: resolveActor(req),
+    details: { protocol_id: req.params.id, drug: existing.drug },
+  });
+  db.prepare("DELETE FROM protocol_drugs WHERE id = ? AND protocol_id = ?")
     .run(Number(req.params.drugId), req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: "Drug row not found" });
   res.status(204).end();
 });
 
@@ -177,7 +212,15 @@ router.post("/:id/animal-use", (req, res) => {
     VALUES (?, ?, ?, ?, ?)
   `).run(req.params.id, species_strain, sex || null, approx_age || null, max_count ?? null);
 
-  res.status(201).json(db.prepare("SELECT * FROM protocol_animal_use WHERE id = ?").get(Number(result.lastInsertRowid)));
+  const rowId = Number(result.lastInsertRowid);
+  audit({
+    action: "animal_use.created",
+    entityType: "animal_use",
+    entityId: rowId,
+    actor: resolveActor(req),
+    details: { protocol_id: req.params.id, species_strain },
+  });
+  res.status(201).json(db.prepare("SELECT * FROM protocol_animal_use WHERE id = ?").get(rowId));
 });
 
 router.patch("/:id/animal-use/:rowId", (req, res) => {
@@ -195,14 +238,33 @@ router.patch("/:id/animal-use/:rowId", (req, res) => {
   const setClause = updates.map(f => `${f} = @${f}`).join(", ");
   db.prepare(`UPDATE protocol_animal_use SET ${setClause} WHERE id = @id`).run(params);
 
+  const changed = {};
+  for (const f of updates) changed[f] = params[f];
+  audit({
+    action: "animal_use.updated",
+    entityType: "animal_use",
+    entityId: Number(req.params.rowId),
+    actor: resolveActor(req),
+    details: diffObject(existing, changed),
+  });
+
   res.json(db.prepare("SELECT * FROM protocol_animal_use WHERE id = ?").get(Number(req.params.rowId)));
 });
 
 router.delete("/:id/animal-use/:rowId", (req, res) => {
   if (!requireProtocol(req, res)) return;
-  const result = db.prepare("DELETE FROM protocol_animal_use WHERE id = ? AND protocol_id = ?")
+  const existing = db.prepare("SELECT species_strain FROM protocol_animal_use WHERE id = ? AND protocol_id = ?")
+    .get(Number(req.params.rowId), req.params.id);
+  if (!existing) return res.status(404).json({ error: "Animal-use row not found" });
+  audit({
+    action: "animal_use.deleted",
+    entityType: "animal_use",
+    entityId: Number(req.params.rowId),
+    actor: resolveActor(req),
+    details: { protocol_id: req.params.id, species_strain: existing.species_strain },
+  });
+  db.prepare("DELETE FROM protocol_animal_use WHERE id = ? AND protocol_id = ?")
     .run(Number(req.params.rowId), req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: "Animal-use row not found" });
   res.status(204).end();
 });
 
@@ -236,7 +298,15 @@ router.post("/:id/experiments", (req, res) => {
     husbandry_exceptions || null,
   );
 
-  res.status(201).json(db.prepare("SELECT * FROM protocol_experiments WHERE id = ?").get(Number(result.lastInsertRowid)));
+  const rowId = Number(result.lastInsertRowid);
+  audit({
+    action: "experiment.created",
+    entityType: "experiment",
+    entityId: rowId,
+    actor: resolveActor(req),
+    details: { protocol_id: req.params.id, name },
+  });
+  res.status(201).json(db.prepare("SELECT * FROM protocol_experiments WHERE id = ?").get(rowId));
 });
 
 router.patch("/:id/experiments/:expId", (req, res) => {
@@ -258,14 +328,33 @@ router.patch("/:id/experiments/:expId", (req, res) => {
   const setClause = updates.map(f => `${f} = @${f}`).join(", ");
   db.prepare(`UPDATE protocol_experiments SET ${setClause} WHERE id = @id`).run(params);
 
+  const changed = {};
+  for (const f of updates) changed[f] = params[f];
+  audit({
+    action: "experiment.updated",
+    entityType: "experiment",
+    entityId: Number(req.params.expId),
+    actor: resolveActor(req),
+    details: diffObject(existing, changed),
+  });
+
   res.json(db.prepare("SELECT * FROM protocol_experiments WHERE id = ?").get(Number(req.params.expId)));
 });
 
 router.delete("/:id/experiments/:expId", (req, res) => {
   if (!requireProtocol(req, res)) return;
-  const result = db.prepare("DELETE FROM protocol_experiments WHERE id = ? AND protocol_id = ?")
+  const existing = db.prepare("SELECT name FROM protocol_experiments WHERE id = ? AND protocol_id = ?")
+    .get(Number(req.params.expId), req.params.id);
+  if (!existing) return res.status(404).json({ error: "Experiment row not found" });
+  audit({
+    action: "experiment.deleted",
+    entityType: "experiment",
+    entityId: Number(req.params.expId),
+    actor: resolveActor(req),
+    details: { protocol_id: req.params.id, name: existing.name },
+  });
+  db.prepare("DELETE FROM protocol_experiments WHERE id = ? AND protocol_id = ?")
     .run(Number(req.params.expId), req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: "Experiment row not found" });
   res.status(204).end();
 });
 
@@ -300,7 +389,15 @@ router.post("/:id/rrr", (req, res) => {
     VALUES (?, ?, ?, ?)
   `).run(req.params.id, rrr_type, method, explanation || null);
 
-  res.status(201).json(db.prepare("SELECT * FROM protocol_rrr_entries WHERE id = ?").get(Number(result.lastInsertRowid)));
+  const rowId = Number(result.lastInsertRowid);
+  audit({
+    action: "rrr.created",
+    entityType: "rrr",
+    entityId: rowId,
+    actor: resolveActor(req),
+    details: { protocol_id: req.params.id, rrr_type, method },
+  });
+  res.status(201).json(db.prepare("SELECT * FROM protocol_rrr_entries WHERE id = ?").get(rowId));
 });
 
 router.patch("/:id/rrr/:entryId", (req, res) => {
@@ -321,14 +418,33 @@ router.patch("/:id/rrr/:entryId", (req, res) => {
   const setClause = updates.map(f => `${f} = @${f}`).join(", ");
   db.prepare(`UPDATE protocol_rrr_entries SET ${setClause} WHERE id = @id`).run(params);
 
+  const changed = {};
+  for (const f of updates) changed[f] = params[f];
+  audit({
+    action: "rrr.updated",
+    entityType: "rrr",
+    entityId: Number(req.params.entryId),
+    actor: resolveActor(req),
+    details: diffObject(existing, changed),
+  });
+
   res.json(db.prepare("SELECT * FROM protocol_rrr_entries WHERE id = ?").get(Number(req.params.entryId)));
 });
 
 router.delete("/:id/rrr/:entryId", (req, res) => {
   if (!requireProtocol(req, res)) return;
-  const result = db.prepare("DELETE FROM protocol_rrr_entries WHERE id = ? AND protocol_id = ?")
+  const existing = db.prepare("SELECT rrr_type, method FROM protocol_rrr_entries WHERE id = ? AND protocol_id = ?")
+    .get(Number(req.params.entryId), req.params.id);
+  if (!existing) return res.status(404).json({ error: "RRR entry not found" });
+  audit({
+    action: "rrr.deleted",
+    entityType: "rrr",
+    entityId: Number(req.params.entryId),
+    actor: resolveActor(req),
+    details: { protocol_id: req.params.id, ...existing },
+  });
+  db.prepare("DELETE FROM protocol_rrr_entries WHERE id = ? AND protocol_id = ?")
     .run(Number(req.params.entryId), req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: "RRR entry not found" });
   res.status(204).end();
 });
 
@@ -380,10 +496,21 @@ router.patch("/:id/alternatives", (req, res) => {
   const updates = ALTERNATIVES_FIELDS.filter(f => f in req.body);
   if (updates.length === 0) return res.status(400).json({ error: "No updatable fields provided" });
 
+  const before = db.prepare("SELECT * FROM protocol_alternatives WHERE protocol_id = ?").get(req.params.id);
   const params = { protocol_id: req.params.id };
   for (const f of updates) params[f] = req.body[f];
   const setClause = updates.map(f => `${f} = @${f}`).join(", ");
   db.prepare(`UPDATE protocol_alternatives SET ${setClause} WHERE protocol_id = @protocol_id`).run(params);
+
+  const changed = {};
+  for (const f of updates) changed[f] = params[f];
+  audit({
+    action: "alternatives.updated",
+    entityType: "protocol",
+    entityId: req.params.id,
+    actor: resolveActor(req),
+    details: diffObject(before, changed),
+  });
 
   const protocol = db.prepare("SELECT * FROM protocols WHERE id = ?").get(req.params.id);
   const row = db.prepare("SELECT * FROM protocol_alternatives WHERE protocol_id = ?").get(req.params.id);

@@ -488,4 +488,24 @@ describe("api.ts request wrapper", () => {
       expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "Rejected" }) })
     );
   });
+
+  test("audit log endpoint omits empty filters and URL-encodes values", async () => {
+    mockFetchOnce(200, []);
+    await api.getAuditLog();
+    expect(fetch).toHaveBeenCalledWith("/api/audit", expect.anything());
+
+    mockFetchOnce(200, []);
+    await api.getAuditLog({ action: "species.created", provenance: "human", limit: 50 });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/audit?action=species.created&provenance=human&limit=50",
+      expect.anything()
+    );
+
+    mockFetchOnce(200, []);
+    await api.getAuditLog({ entity_type: "species", entity_id: "0142", actor: "", from: "2026-01-01", to: "2026-12-31" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/audit?entity_type=species&entity_id=0142&from=2026-01-01&to=2026-12-31",
+      expect.anything()
+    );
+  });
 });

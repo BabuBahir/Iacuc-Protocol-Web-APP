@@ -28,6 +28,17 @@ erDiagram
     personnel ||--o{ protocol_transfers : "requested as recipient"
     personnel ||--o{ incidents : "reported / assigned"
     personnel ||--o{ pam_audits : "conducts audits"
+    audit_log {
+        int id PK
+        string action
+        string entity_type
+        string entity_id
+        string actor
+        string actor_key
+        string details
+        string provenance
+        string created_at
+    }
 
     protocols {
         string id PK

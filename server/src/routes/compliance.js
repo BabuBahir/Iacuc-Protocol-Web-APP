@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "../db.js";
 import { requireProtocol } from "./protocol-form.js";
+import { audit } from "../audit.js";
 
 // Personnel compliance (Domain C): CITI-style training records and OHSP
 // (Occupational Health & Safety Program) clearance. Two routers are exported —
@@ -106,6 +107,14 @@ personnelRouter.post("/:id/training", (req, res) => {
     VALUES (?, ?, ?, ?)
   `).run(person.id, String(course).trim(), completed_date, expires_date || null);
 
+  audit({
+    action: "training.added",
+    entityType: "training",
+    entityId: Number(result.lastInsertRowid),
+    actor: person.name,
+    details: { personnel: person.name, course: String(course).trim() },
+  });
+
   const row = db.prepare(`
     SELECT id, personnel_id, course, completed_date, expires_date
     FROM personnel_training WHERE id = ?
@@ -135,6 +144,14 @@ personnelRouter.patch("/:id/training/:trainingId", (req, res) => {
     WHERE id = @id
   `).run({ id: record.id, course: record.course, completed_date: record.completed_date, expires_date: record.expires_date, ...fields });
 
+  audit({
+    action: "training.updated",
+    entityType: "training",
+    entityId: record.id,
+    actor: person.name,
+    details: { personnel: person.name, course: fields.course ?? record.course },
+  });
+
   const row = db.prepare(`
     SELECT id, personnel_id, course, completed_date, expires_date
     FROM personnel_training WHERE id = ?
@@ -145,9 +162,18 @@ personnelRouter.patch("/:id/training/:trainingId", (req, res) => {
 personnelRouter.delete("/:id/training/:trainingId", (req, res) => {
   const person = requirePersonnel(req, res);
   if (!person) return;
-  const result = db.prepare("DELETE FROM personnel_training WHERE id = ? AND personnel_id = ?")
+  const existing = db.prepare("SELECT course FROM personnel_training WHERE id = ? AND personnel_id = ?")
+    .get(Number(req.params.trainingId), person.id);
+  if (!existing) return res.status(404).json({ error: "Training record not found" });
+  audit({
+    action: "training.deleted",
+    entityType: "training",
+    entityId: Number(req.params.trainingId),
+    actor: person.name,
+    details: { personnel: person.name, course: existing.course },
+  });
+  db.prepare("DELETE FROM personnel_training WHERE id = ? AND personnel_id = ?")
     .run(Number(req.params.trainingId), person.id);
-  if (result.changes === 0) return res.status(404).json({ error: "Training record not found" });
   res.status(204).end();
 });
 
@@ -176,6 +202,13 @@ personnelRouter.post("/:id/ohsp", (req, res) => {
       notes = excluded.notes,
       updated_at = datetime('now')
   `).run(person.id, status, reviewed_date || null, notes || null);
+  audit({
+    action: "ohsp.updated",
+    entityType: "ohsp",
+    entityId: person.id,
+    actor: person.name,
+    details: { personnel: person.name, status },
+  });
   res.json(ohspFor(person));
 });
 

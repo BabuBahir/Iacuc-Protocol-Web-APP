@@ -339,8 +339,9 @@ close out).
   visits, findings, report). Status lifecycle (Open → CAPA → Closed) is
   straightforward server logic; tie `PATCH` CAPA into the incident status
   transition so closing requires a CAPA recorded.
-- Note: this is where compliance/inspections data starts to look like audit
-  trail material — see AGENTS.md §3.3 (audit logging not yet implemented).
+- Note: `incidents`/`pam_audits` are operational records, distinct from the
+  system-wide `audit_log` trail (AGENTS.md §3.3) that records every write
+  to the app itself.
 
 ### F. Facility & Semi-Annual Inspections
 

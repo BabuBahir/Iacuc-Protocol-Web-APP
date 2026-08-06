@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "../db.js";
 import { PROCEDURE_KEYS, requireProtocol } from "./protocol-form.js";
+import { audit, resolveActor } from "../audit.js";
 
 export const router = Router();
 
@@ -112,5 +113,13 @@ router.post("/:id/animal-usage", (req, res) => {
     notes || null,
   );
 
-  res.status(201).json(db.prepare("SELECT * FROM animal_usage_transactions WHERE id = ?").get(Number(result.lastInsertRowid)));
+  const rowId = Number(result.lastInsertRowid);
+  audit({
+    action: "animal_usage.created",
+    entityType: "animal_usage",
+    entityId: rowId,
+    actor: resolveActor(req),
+    details: { protocol_id: protocolId, species_strain, quantity, type: type || "use" },
+  });
+  res.status(201).json(db.prepare("SELECT * FROM animal_usage_transactions WHERE id = ?").get(rowId));
 });

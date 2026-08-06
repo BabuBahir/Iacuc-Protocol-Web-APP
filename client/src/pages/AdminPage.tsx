@@ -1,15 +1,15 @@
 import React, { useEffect, useState, type ReactNode } from "react";
 import {
   Plus, Trash2, PawPrint, Shield, Users, X, GraduationCap, ArrowRightLeft,
-  ClipboardCheck, type LucideIcon,
+  ClipboardCheck, History, RefreshCw, type LucideIcon,
 } from "lucide-react";
 import AppHeader from "../components/AppHeader";
 import { api } from "../api";
 import type {
-  Personnel, PersonnelCompliance, PersonnelOhsp, Protocol, ProtocolTransfer, Role, Species,
+  AuditEntry, AuditProvenance, Personnel, PersonnelCompliance, PersonnelOhsp, Protocol, ProtocolTransfer, Role, Species,
   OhspStatus, TrainingRecord,
 } from "../types";
-import { OHSP_STATUSES } from "../types";
+import { AUDIT_PROVENANCES, OHSP_STATUSES } from "../types";
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -606,6 +606,142 @@ function TransferQueuePanel() {
   );
 }
 
+function provenanceBadge(provenance: AuditProvenance) {
+  const tone =
+    provenance === "ai"
+      ? "bg-purple-50 text-purple-700"
+      : provenance === "system"
+      ? "bg-blue-50 text-blue-700"
+      : "bg-gray-100 text-gray-600";
+  return (
+    <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-medium ${tone}`}>
+      {provenance}
+    </span>
+  );
+}
+
+function detailsLines(details: Record<string, unknown> | null) {
+  if (!details) return null;
+  const lines: ReactNode[] = [];
+  for (const [field, value] of Object.entries(details)) {
+    const pair = Array.isArray(value) && value.length === 2 ? value as [unknown, unknown] : null;
+    if (pair) {
+      const [before, after] = pair;
+      lines.push(
+        <div key={field} className="truncate">
+          <span className="text-gray-400">{field}:</span>{" "}
+          <span className="line-through text-gray-400">{String(before ?? "—")}</span>{" "}
+          <span aria-hidden="true">→</span>{" "}
+          <span className="text-gray-700">{String(after ?? "—")}</span>
+        </div>
+      );
+    } else {
+      lines.push(
+        <div key={field} className="truncate">
+          <span className="text-gray-400">{field}:</span>{" "}
+          <span className="text-gray-700">{String(value ?? "")}</span>
+        </div>
+      );
+    }
+  }
+  return lines;
+}
+
+function AuditLogPanel() {
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [action, setAction] = useState("");
+  const [actor, setActor] = useState("");
+  const [entityType, setEntityType] = useState("");
+  const [provenance, setProvenance] = useState<AuditProvenance | "">("");
+  const [limit, setLimit] = useState(100);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => {
+    setError(null);
+    api.getAuditLog({
+      action: action.trim() || undefined,
+      actor: actor.trim() || undefined,
+      entity_type: entityType.trim() || undefined,
+      provenance: provenance || undefined,
+      limit,
+    })
+      .then(setEntries)
+      .catch(err => setError(errorMessage(err)));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const applyFilters = (e: React.FormEvent) => {
+    e.preventDefault();
+    load();
+  };
+
+  const inputCls = "bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-[13px] outline-none focus:border-[#0176D3]";
+
+  return (
+    <Panel title="Audit log" icon={History}>
+      <div className="px-4 py-3 border-b border-gray-100 text-[12px] text-gray-500">
+        Append-only record of changes made across the system. The actor is only reliable where
+        identity already flows through the request (votes, comments, assignments, personnel
+        actions); everything else is recorded as <code className="text-gray-700">system</code>.
+      </div>
+
+      <form onSubmit={applyFilters} className="px-4 py-3 border-b border-gray-100 space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          <input value={action} onChange={e => setAction(e.target.value)} placeholder="Filter by action" aria-label="Filter by action" className={inputCls} />
+          <input value={actor} onChange={e => setActor(e.target.value)} placeholder="Filter by actor" aria-label="Filter by actor" className={inputCls} />
+          <input value={entityType} onChange={e => setEntityType(e.target.value)} placeholder="Filter by entity" aria-label="Filter by entity" className={inputCls} />
+          <select value={provenance} onChange={e => setProvenance(e.target.value as AuditProvenance | "")} aria-label="Filter by provenance" className={inputCls}>
+            <option value="">Any provenance</option>
+            {AUDIT_PROVENANCES.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-[12px] text-gray-600">
+            Show
+            <select value={limit} onChange={e => setLimit(Number(e.target.value))} aria-label="Limit" className={inputCls}>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={200}>200</option>
+            </select>
+            entries
+          </label>
+          <button type="submit" className="flex items-center gap-1 px-3 py-1.5 rounded bg-[#0176D3] text-white text-[13px] font-medium hover:bg-[#0b5cab]">
+            <RefreshCw size={14} />
+            Apply
+          </button>
+        </div>
+      </form>
+
+      {error && <div className="px-4 py-2 text-[12px] text-red-600">{error}</div>}
+
+      <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto" data-testid="audit-entries">
+        {entries.map(e => (
+          <div key={e.id} className="px-4 py-2.5 text-[13px]">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex items-center gap-2">
+                <span className="text-[11px] text-gray-400 font-mono shrink-0">{e.created_at.replace("T", " ").slice(0, 19)}</span>
+                <span className="text-gray-900 font-medium truncate">{e.action}</span>
+                {provenanceBadge(e.provenance)}
+              </div>
+              <span className="text-gray-500 text-[12px] shrink-0">{e.actor}</span>
+            </div>
+            <div className="text-[12px] text-gray-500 mt-0.5">
+              {e.entity_type}{e.entity_id ? ` · ${e.entity_id}` : ""}
+            </div>
+            {detailsLines(e.details) && (
+              <div className="mt-1 space-y-0.5 text-[12px]">{detailsLines(e.details)}</div>
+            )}
+          </div>
+        ))}
+        {entries.length === 0 && (
+          <div className="px-4 py-6 text-center text-gray-400 text-[13px]">No audit entries match.</div>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
 export default function AdminPage() {
   const [roles, setRoles] = useState<Role[]>([]);
 
@@ -627,8 +763,9 @@ export default function AdminPage() {
         <PersonnelPanel roles={roles} />
       </div>
 
-      <div className="px-4 pb-4">
+      <div className="px-4 pb-4 space-y-4">
         <TransferQueuePanel />
+        <AuditLogPanel />
       </div>
     </div>
   );

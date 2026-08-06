@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "../db.js";
+import { audit, resolveActor } from "../audit.js";
 
 export const router = Router();
 
@@ -81,6 +82,14 @@ function castVote(protocolId, { personnel_id, vote, comment }) {
     personnel_id: Number(personnel_id),
     vote,
     comment: comment || null,
+  });
+
+  audit({
+    action: "vote.cast",
+    entityType: "protocol",
+    entityId: protocolId,
+    actor: voter.name,
+    details: { vote, comment: comment || null },
   });
 
   return { status: 201, body: tallyFor(protocolId) };
@@ -192,6 +201,14 @@ router.post("/protocols/:id/comments", (req, res) => {
     VALUES (?, ?, ?, ?)
   `).run(protocolId, Number(personnel_id), section, String(comment).trim());
 
+  audit({
+    action: "comment.added",
+    entityType: "protocol",
+    entityId: protocolId,
+    actor: person.name,
+    details: { section, comment: String(comment).trim() },
+  });
+
   const created = db.prepare(`
     SELECT protocol_review_comments.id, protocol_review_comments.section,
            protocol_review_comments.comment, protocol_review_comments.created_at,
@@ -230,6 +247,14 @@ router.patch("/protocols/:id/assign", (req, res) => {
       role = excluded.role, assigned_at = datetime('now')
   `).run({ protocol_id: protocolId, personnel_id: Number(personnel_id), role });
 
+  audit({
+    action: "assignment.updated",
+    entityType: "protocol",
+    entityId: protocolId,
+    actor: person.name,
+    details: { role, reviewer: person.name },
+  });
+
   const created = db.prepare(`
     SELECT protocol_review_assignments.role, protocol_review_assignments.assigned_at,
            personnel.id AS personnel_id, personnel.name AS reviewer_name
@@ -256,5 +281,12 @@ router.patch("/protocols/:id/review-method", (req, res) => {
   }
 
   db.prepare("UPDATE protocols SET review_method = ? WHERE id = ?").run(review_method, protocolId);
+  audit({
+    action: "review_method.updated",
+    entityType: "protocol",
+    entityId: protocolId,
+    actor: resolveActor(req),
+    details: { review_method },
+  });
   res.status(200).json(db.prepare("SELECT * FROM protocols WHERE id = ?").get(protocolId));
 });
