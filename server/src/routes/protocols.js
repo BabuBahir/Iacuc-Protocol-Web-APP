@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "../db.js";
 import { validateCompleteness } from "./protocol-form.js";
+import { audit, diffObject, resolveActor } from "../audit.js";
 
 export const router = Router();
 
@@ -135,6 +136,7 @@ router.post("/", (req, res) => {
       harm_benefit_analysis: req.body.harm_benefit_analysis ?? null,
       scientific_summary: req.body.scientific_summary ?? null,
     });
+    audit({ action: "protocol.created", entityType: "protocol", entityId: id, actor: resolveActor(req) });
     res.status(201).json(shape(db.prepare("SELECT * FROM protocols WHERE id = ?").get(id)));
   } catch (err) {
     res.status(409).json({ error: err.message });
@@ -178,12 +180,30 @@ router.patch("/:id", (req, res) => {
   db.prepare(`UPDATE protocols SET ${setClause}, updated_at = datetime('now') WHERE id = @id`)
     .run(params);
 
+  const changed = {};
+  for (const f of updates) changed[f] = params[f];
+  audit({
+    action: "protocol.updated",
+    entityType: "protocol",
+    entityId: req.params.id,
+    actor: resolveActor(req),
+    details: diffObject(existing, changed),
+  });
+
   res.json(shape(db.prepare("SELECT * FROM protocols WHERE id = ?").get(req.params.id)));
 });
 
 // DELETE /api/protocols/:id
 router.delete("/:id", (req, res) => {
-  const result = db.prepare("DELETE FROM protocols WHERE id = ?").run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: "Protocol not found" });
+  const existing = db.prepare("SELECT id, title FROM protocols WHERE id = ?").get(req.params.id);
+  if (!existing) return res.status(404).json({ error: "Protocol not found" });
+  audit({
+    action: "protocol.deleted",
+    entityType: "protocol",
+    entityId: req.params.id,
+    actor: resolveActor(req),
+    details: { title: existing.title },
+  });
+  db.prepare("DELETE FROM protocols WHERE id = ?").run(req.params.id);
   res.status(204).end();
 });

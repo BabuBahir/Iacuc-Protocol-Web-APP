@@ -11,6 +11,8 @@ import type {
   AnimalUsageTransaction,
   AnimalUseInput,
   AnimalUseRow,
+  AuditEntry,
+  AuditQuery,
   CommitteeProtocol,
   CommitteeReview,
   CommitteeTally,
@@ -283,4 +285,16 @@ export const api = {
     request("/transfers", { method: "POST", body: JSON.stringify(data) }),
   updateTransferStatus: (transferId: number, status: "Approved" | "Rejected"): Promise<ProtocolTransfer> =>
     request(`/transfers/${transferId}`, { method: "PATCH", body: JSON.stringify({ status }) }),
+
+  // ---- Audit log ----
+  getAuditLog: (params: AuditQuery = {}): Promise<AuditEntry[]> => {
+    const qs = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null && value !== "") {
+        qs.set(key, String(value));
+      }
+    }
+    const query = qs.toString();
+    return request(`/audit${query ? `?${query}` : ""}`);
+  },
 };

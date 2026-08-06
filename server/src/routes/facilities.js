@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "../db.js";
+import { audit, resolveActor } from "../audit.js";
 
 // Facility & semi-annual inspection program (Domain F): three standalone
 // tables with no protocol dependency. Facilities are the physical spaces
@@ -60,12 +61,27 @@ router.post("/facilities", (req, res) => {
 
   const result = db.prepare("INSERT INTO facilities (name, type, species) VALUES (?, ?, ?)")
     .run(String(name).trim(), type, species || null);
+  audit({
+    action: "facility.created",
+    entityType: "facility",
+    entityId: Number(result.lastInsertRowid),
+    actor: resolveActor(req),
+    details: { name: String(name).trim(), type },
+  });
   res.status(201).json(db.prepare("SELECT * FROM facilities WHERE id = ?").get(Number(result.lastInsertRowid)));
 });
 
 // DELETE /api/facilities/:id  (cascades to its inspections + deficiencies)
 router.delete("/facilities/:id", (req, res) => {
-  if (!requireFacility(req, res)) return;
+  const facility = requireFacility(req, res);
+  if (!facility) return;
+  audit({
+    action: "facility.deleted",
+    entityType: "facility",
+    entityId: Number(req.params.id),
+    actor: resolveActor(req),
+    details: { name: facility.name },
+  });
   db.prepare("DELETE FROM facilities WHERE id = ?").run(Number(req.params.id));
   res.status(204).end();
 });
@@ -95,6 +111,13 @@ router.post("/inspections", (req, res) => {
   `).run(Number(facility_id), inspection_date, report || null, result || "Pending");
 
   const created = db.prepare("SELECT * FROM inspections WHERE id = ?").get(Number(insert.lastInsertRowid));
+  audit({
+    action: "inspection.created",
+    entityType: "inspection",
+    entityId: Number(insert.lastInsertRowid),
+    actor: resolveActor(req),
+    details: { facility_id: Number(facility_id), result: result || "Pending" },
+  });
   res.status(201).json({ ...withFacilityName(created), deficiencies: [] });
 });
 
@@ -129,6 +152,14 @@ router.post("/inspections/:id/deficiencies", (req, res) => {
     VALUES (?, ?, ?, ?)
   `).run(inspection.id, severity, String(description).trim(), remediation_deadline || null);
 
+  audit({
+    action: "deficiency.created",
+    entityType: "deficiency",
+    entityId: Number(result.lastInsertRowid),
+    actor: resolveActor(req),
+    details: { inspection_id: inspection.id, severity, description: String(description).trim() },
+  });
+
   res.status(201).json(
     db.prepare("SELECT * FROM inspection_deficiencies WHERE id = ?").get(Number(result.lastInsertRowid))
   );
@@ -147,6 +178,13 @@ router.patch("/inspections/:id/deficiencies/:defId", (req, res) => {
     return res.status(400).json({ error: "Deficiency is already remediated" });
   }
   db.prepare("UPDATE inspection_deficiencies SET remediated_at = datetime('now') WHERE id = ?").run(deficiency.id);
+  audit({
+    action: "deficiency.remediated",
+    entityType: "deficiency",
+    entityId: deficiency.id,
+    actor: resolveActor(req),
+    details: { inspection_id: inspection.id, severity: deficiency.severity },
+  });
   res.status(200).json(
     db.prepare("SELECT * FROM inspection_deficiencies WHERE id = ?").get(deficiency.id)
   );

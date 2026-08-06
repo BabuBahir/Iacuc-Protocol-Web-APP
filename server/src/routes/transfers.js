@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "../db.js";
 import { requireProtocol } from "./protocol-form.js";
+import { audit, resolveActor } from "../audit.js";
 
 // Transfer Ownership (Domain B depth — AGENTS.md §1.1). Transfer is its own
 // approval workflow, not an instant reassignment: a request sits Pending in
@@ -25,7 +26,7 @@ function decorate(row) {
 
 // Create one pending transfer. Returns { ok, status, error?, row? }.
 // onFlightError: a protocol already has a pending transfer request.
-function createTransfer(protocolId, toPersonnelId, reason, onFlightError) {
+function createTransfer(protocolId, toPersonnelId, reason, onFlightError, req) {
   const protocol = db.prepare("SELECT id, pi FROM protocols WHERE id = ?").get(protocolId);
   if (!protocol) return { ok: false, status: 404, error: "Protocol not found" };
   const person = db.prepare("SELECT id, name FROM personnel WHERE id = ?").get(toPersonnelId);
@@ -43,6 +44,13 @@ function createTransfer(protocolId, toPersonnelId, reason, onFlightError) {
     INSERT INTO protocol_transfers (protocol_id, from_pi, to_personnel_id, reason)
     VALUES (?, ?, ?, ?)
   `).run(protocolId, protocol.pi, toPersonnelId, String(reason).trim());
+  audit({
+    action: "transfer.created",
+    entityType: "transfer",
+    entityId: Number(result.lastInsertRowid),
+    actor: resolveActor(req),
+    details: { protocol_id: protocolId, from_pi: protocol.pi, to: person.name },
+  });
   return { ok: true, row: decorate(db.prepare("SELECT * FROM protocol_transfers WHERE id = ?").get(Number(result.lastInsertRowid))) };
 }
 
@@ -84,7 +92,7 @@ router.post("/transfers", (req, res) => {
 
   const created = [];
   for (const pid of protocol_ids) {
-    const result = createTransfer(pid, to_personnel_id, reason, true);
+    const result = createTransfer(pid, to_personnel_id, reason, true, req);
     if (result.ok) created.push(result.row);
   }
   res.status(201).json(created);
@@ -96,7 +104,7 @@ router.post("/protocols/:id/transfers", (req, res) => {
   const { to_personnel_id, reason } = req.body || {};
   if (!to_personnel_id) return res.status(400).json({ error: "to_personnel_id is required" });
   if (!reason || !String(reason).trim()) return res.status(400).json({ error: "A reason for transfer is required" });
-  const result = createTransfer(req.params.id, Number(to_personnel_id), reason, false);
+  const result = createTransfer(req.params.id, Number(to_personnel_id), reason, false, req);
   if (!result.ok) return res.status(result.status).json({ error: result.error });
   res.status(201).json(result.row);
 });
@@ -135,6 +143,15 @@ router.patch("/transfers/:id", (req, res) => {
 
   db.prepare("UPDATE protocol_transfers SET status = ?, decision_date = ? WHERE id = ?")
     .run(status, new Date().toISOString().slice(0, 10), transfer.id);
+
+  const person = db.prepare("SELECT name FROM personnel WHERE id = ?").get(transfer.to_personnel_id);
+  audit({
+    action: status === "Approved" ? "transfer.approved" : "transfer.rejected",
+    entityType: "transfer",
+    entityId: transfer.id,
+    actor: resolveActor(req),
+    details: { protocol_id: transfer.protocol_id, from_pi: transfer.from_pi, to: person ? person.name : null },
+  });
 
   res.status(200).json(decorate(db.prepare("SELECT * FROM protocol_transfers WHERE id = ?").get(transfer.id)));
 });

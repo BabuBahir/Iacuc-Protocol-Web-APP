@@ -264,6 +264,21 @@ reassigns the protocol's principal investigator.
 
 </details>
 
+<details>
+<summary><b> Audit log (who changed what, when) </b> (Click to expand)</summary>
+
+Every write in the app records an entry in an append-only audit trail — the
+admin page's "Audit log" panel shows it. Because there is no login yet, the
+"who" is only trustworthy where a request already carries an identity (votes,
+comments, reviewer assignments, personnel/OHSP actions); everything else is
+recorded as `system`.
+
+| Method | Path                                      | Description                                          | Status |
+|--------|-------------------------------------------|-------------------------------------------------------|--------|
+| GET    | /api/audit                                | The trail, newest first; filters `entity_type`, `entity_id`, `actor`, `action`, `provenance`, `from`/`to`, `limit`, `offset` | ✓ |
+
+</details>
+
 ### Planned / future endpoints
 
 <details>
@@ -278,11 +293,11 @@ lands.
 | File attachments | Real uploads for protocol narratives, SOPs, training certs | ROADMAP item 7 | ✗ |
 | Search filter-builder + CSV export | Stackable field/operator/value filters across protocols & the register; CSV on every result set | ROADMAP item 8 | ✗ |
 | AAALAC compliance reports | Restraint/euthanasia/surgery/drug reports by species | ROADMAP item 9 | ✗ |
-| Audit logging | Who accessed/changed what, when (prerequisite for the AI-safety guardrails in AGENTS.md §3) | ROADMAP item 11 | ✗ |
 
-Amendments & renewals, PAM & incidents, facilities & inspections, and
-transfer ownership were previously listed here but are now implemented —
-see the API reference tables above and `docs/UI-EXPANSION-PLAN.md`.
+Amendments & renewals, PAM & incidents, facilities & inspections, transfer
+ownership, and audit logging were previously listed here but are now
+implemented — see the API reference tables above and
+`docs/UI-EXPANSION-PLAN.md`.
 
 </details>
 

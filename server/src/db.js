@@ -362,6 +362,31 @@ CREATE TABLE IF NOT EXISTS protocol_transfers (
 );
 
 CREATE INDEX IF NOT EXISTS idx_protocol_transfers_protocol ON protocol_transfers(protocol_id);
+
+-- ---- audit trail (Roadmap item 11) ----
+--
+-- Append-only log of every successful mutation across the app: what changed,
+-- when, and a best-effort "who". actor is a human-readable name; actor_key is
+-- reserved for the auth identity that Roadmap item 4 will slot in without a
+-- migration (deliberately NOT an FK to personnel, so audit rows survive the
+-- person being deleted). provenance marks AI-generated changes (AGENTS.md
+-- §3.2) so they can't be confused with human-entered data. details is a JSON
+-- snapshot (e.g. { status: ["IACUC Review", "Approved"] }).
+CREATE TABLE IF NOT EXISTS audit_log (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  action       TEXT NOT NULL,               -- 'protocol.created' | 'vote.cast' | 'transfer.approved' ...
+  entity_type  TEXT NOT NULL,               -- 'protocol' | 'vote' | 'transfer' | 'species' | ...
+  entity_id    TEXT,                        -- protocol id (TEXT) or numeric row id
+  actor        TEXT NOT NULL DEFAULT 'system', -- best-effort human-readable name
+  actor_key    TEXT,                        -- reserved: auth identity (Roadmap item 4)
+  details      TEXT,                        -- JSON snapshot of what changed
+  provenance   TEXT NOT NULL DEFAULT 'human' CHECK (provenance IN ('human', 'ai', 'system')),
+  created_at   TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity  ON audit_log(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_log_actor   ON audit_log(actor);
 `);
 
 // ---- lightweight migration for databases created before these columns existed ----
