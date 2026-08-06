@@ -40,7 +40,7 @@ export default function AppHeader({ active }: { active?: NavKey }) {
         title="GitHub repository"
         className="hover:opacity-80"
       >
-        <div className="w-7 h-7 rounded-full bg-[#0176D3] flex items-center justify-center text-[12px] font-semibold">Feedback !!</div>
+        <div className="rounded-full bg-[#0176D3] px-2 py-0.5 text-[10px] font-semibold leading-none animate-pulse">Feedback !!</div>
       </a>
     </div>
   );
