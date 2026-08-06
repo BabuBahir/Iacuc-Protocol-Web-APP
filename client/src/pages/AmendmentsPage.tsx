@@ -35,11 +35,24 @@ function statusStyles(status: AmendmentStatus | RenewalStatus): string {
   }
 }
 
-function AmendmentCard({ amendment, protocolId, onChanged }: { amendment: Amendment; protocolId: string; onChanged: () => void }) {
+type DiffView = "live" | "previous" | "changes";
+
+const DIFF_TABS: [DiffView, string][] = [
+  ["live", "Live Changes"],
+  ["previous", "Previous Version"],
+  ["changes", "Changes"],
+];
+
+function AmendmentCard({ amendment, protocolId, onChanged, onDirty }: { amendment: Amendment; protocolId: string; onChanged: () => void; onDirty: (dirty: boolean) => void }) {
   const [expanded, setExpanded] = useState(false);
+  const [view, setView] = useState<DiffView>("changes");
   const [error, setError] = useState<string | null>(null);
   const [expiration, setExpiration] = useState("");
   const [change, setChange] = useState({ section: "", field: "", previous_value: "", new_value: "" });
+
+  const dirty = [change.section, change.field, change.previous_value, change.new_value]
+    .some(v => v.trim() !== "");
+  useEffect(() => { onDirty(dirty); }, [dirty, onDirty]);
 
   const recordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,11 +82,15 @@ function AmendmentCard({ amendment, protocolId, onChanged }: { amendment: Amendm
     }
   };
 
+  const liveChanges = amendment.changes.filter(c => c.new_value);
+  const prevChanges = amendment.changes.filter(c => c.previous_value);
+
   return (
     <div className="border-b border-gray-100">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full px-4 py-2.5 flex items-center justify-between gap-2 text-left hover:bg-gray-50"
+        disabled={dirty}
+        className="w-full px-4 py-2.5 flex items-center justify-between gap-2 text-left hover:bg-gray-50 disabled:hover:bg-transparent disabled:cursor-not-allowed"
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[13px] text-gray-900 font-medium">
@@ -92,17 +109,66 @@ function AmendmentCard({ amendment, protocolId, onChanged }: { amendment: Amendm
       {expanded && (
         <div className="px-4 pb-3 space-y-3">
           {amendment.changes.length > 0 && (
-            <div className="divide-y divide-gray-50">
-              {amendment.changes.map(c => (
-                <div key={c.id} className="py-1.5 text-[12px]">
-                  <span className="text-gray-700 font-medium">{c.section} · {c.field}</span>
-                  <div className="text-gray-500">
-                    <span className="line-through">{c.previous_value || "—"}</span>
-                    {" → "}
-                    <span className="text-[#0176D3]">{c.new_value || "—"}</span>
-                  </div>
+            <div>
+              <div className="flex items-center gap-1 border-b border-gray-100 mb-2" role="tablist" aria-label="Amendment diff views">
+                {DIFF_TABS.map(([key, label]) => (
+                  <button
+                    key={key}
+                    role="tab"
+                    aria-selected={view === key}
+                    onClick={() => setView(key)}
+                    className={[
+                      "px-3 py-1.5 text-[12px] font-medium border-b-2 -mb-px",
+                      view === key ? "border-[#0176D3] text-[#0176D3]" : "border-transparent text-gray-500 hover:text-gray-700",
+                    ].join(" ")}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {view === "live" && (
+                <div className="space-y-1.5">
+                  {liveChanges.length === 0 && (
+                    <div className="text-[12px] text-gray-400">No proposed values recorded yet.</div>
+                  )}
+                  {liveChanges.map(c => (
+                    <div key={c.id} className="rounded bg-[#EBF5FC] border border-[#9BDAFF] px-2.5 py-1.5 text-[12px]">
+                      <span className="text-gray-500">{c.section} · {c.field}</span>
+                      <div className="text-gray-900 font-medium mt-0.5">{c.new_value}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+
+              {view === "previous" && (
+                <div className="space-y-1.5">
+                  {prevChanges.length === 0 && (
+                    <div className="text-[12px] text-gray-400">No previous values recorded.</div>
+                  )}
+                  {prevChanges.map(c => (
+                    <div key={c.id} className="rounded bg-gray-50 border border-gray-200 px-2.5 py-1.5 text-[12px]">
+                      <span className="text-gray-500">{c.section} · {c.field}</span>
+                      <div className="text-gray-500 mt-0.5 line-through decoration-gray-400">{c.previous_value}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {view === "changes" && (
+                <div className="divide-y divide-gray-50">
+                  {amendment.changes.map(c => (
+                    <div key={c.id} className="py-1.5 text-[12px]">
+                      <span className="text-gray-700 font-medium">{c.section} · {c.field}</span>
+                      <div className="text-gray-500">
+                        <span className="line-through">{c.previous_value || "—"}</span>
+                        {" → "}
+                        <span className="text-[#0176D3] font-medium">{c.new_value || "—"}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -135,30 +201,58 @@ function AmendmentCard({ amendment, protocolId, onChanged }: { amendment: Amendm
                     className="bg-white border border-gray-200 rounded px-3 py-1.5 text-[12px] outline-none focus:border-[#0176D3]"
                   />
                 </div>
-                <button className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-white border border-gray-300 text-[12px] font-medium hover:bg-gray-50">
-                  <Plus size={13} />
-                  Record change
-                </button>
+                <div className="flex items-center gap-2">
+                  {dirty ? (
+                    <>
+                      <button type="submit" className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-[#0176D3] text-white text-[12px] font-medium hover:bg-[#0b5cab]">
+                        <Check size={13} />
+                        Save change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setChange({ section: "", field: "", previous_value: "", new_value: "" })}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-white border border-gray-300 text-[12px] font-medium hover:bg-gray-50"
+                      >
+                        <X size={13} />
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-white border border-gray-300 text-[12px] font-medium hover:bg-gray-50">
+                      <Plus size={13} />
+                      Record change
+                    </button>
+                  )}
+                </div>
               </form>
+              {dirty && (
+                <div className="text-[11px] text-amber-700 flex items-center gap-1">
+                  <X size={12} />
+                  Unsaved changes — save or cancel before moving on.
+                </div>
+              )}
 
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   value={expiration}
                   onChange={e => setExpiration(e.target.value)}
                   type="date"
+                  disabled={dirty}
                   aria-label="Expiration date for amendment"
-                  className="bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-[12px] outline-none focus:border-[#0176D3]"
+                  className="bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-[12px] outline-none focus:border-[#0176D3] disabled:opacity-50"
                 />
                 <button
                   onClick={() => decide("Approved")}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-[#0176D3] text-white text-[12px] font-medium hover:bg-[#0b5cab]"
+                  disabled={dirty}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-[#0176D3] text-white text-[12px] font-medium hover:bg-[#0b5cab] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Check size={13} />
                   Approve amendment
                 </button>
                 <button
                   onClick={() => decide("Rejected")}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-gray-300 bg-white text-[#A32D2D] text-[12px] font-medium hover:bg-gray-50"
+                  disabled={dirty}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-gray-300 bg-white text-[#A32D2D] text-[12px] font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <X size={13} />
                   Reject
@@ -243,6 +337,18 @@ export default function AmendmentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [startReason, setStartReason] = useState("");
   const [renewalType, setRenewalType] = useState<RenewalType>("Continuing Review");
+  const [dirtyId, setDirtyId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (dirtyId !== null) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirtyId]);
 
   useEffect(() => {
     api.listProtocols().then(rows => {
@@ -301,12 +407,18 @@ export default function AmendmentsPage() {
             id="amendments-protocol"
             value={selectedId}
             onChange={e => setSelectedId(e.target.value)}
-            className="bg-white border border-gray-200 rounded px-3 py-1.5 text-[13px] outline-none focus:border-[#0176D3]"
+            disabled={dirtyId !== null}
+            className="bg-white border border-gray-200 rounded px-3 py-1.5 text-[13px] outline-none focus:border-[#0176D3] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {protocols.map(p => <option key={p.id} value={p.id}>{p.id}</option>)}
           </select>
           {selected && <span className="text-[12px] text-gray-500 truncate max-w-md">{selected.title}</span>}
         </div>
+        {dirtyId !== null && (
+          <div className="mt-2 text-[12px] text-amber-700">
+            Save or cancel the pending amendment change before switching protocols.
+          </div>
+        )}
       </div>
       {error && <div className="px-4 pt-4 text-[12px] text-red-600">{error}</div>}
 
@@ -327,7 +439,13 @@ export default function AmendmentsPage() {
             </form>
             <div className="divide-y divide-gray-100 max-h-[560px] overflow-y-auto">
               {amendments.map(a => (
-                <AmendmentCard key={a.id} amendment={a} protocolId={selectedId} onChanged={loadFor} />
+                <AmendmentCard
+                  key={a.id}
+                  amendment={a}
+                  protocolId={selectedId}
+                  onChanged={loadFor}
+                  onDirty={dirty => setDirtyId(prev => (dirty ? a.id : prev === a.id ? null : prev))}
+                />
               ))}
               {amendments.length === 0 && <div className="px-4 py-6 text-center text-gray-400 text-[13px]">No amendments for this protocol yet.</div>}
             </div>

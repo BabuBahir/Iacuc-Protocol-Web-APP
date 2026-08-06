@@ -885,6 +885,47 @@ const schemas = {
       approved_until: { type: "string", format: "date", description: "Required when approving" },
     },
   },
+
+  ProtocolTransfer: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+      protocol_id: { type: "string" },
+      protocol_title: { type: ["string", "null"] },
+      from_pi: { type: "string", description: "Snapshot of the protocol PI at request time" },
+      to_personnel_id: { type: "integer" },
+      to_name: { type: ["string", "null"] },
+      reason: { type: "string" },
+      status: { type: "string", enum: ["Pending", "Approved", "Rejected"] },
+      created_at: { type: "string", format: "date-time" },
+      decision_date: { type: ["string", "null"], format: "date" },
+    },
+  },
+
+  TransferInput: {
+    type: "object",
+    required: ["to_personnel_id", "reason"],
+    properties: {
+      to_personnel_id: { type: "integer" },
+      reason: { type: "string", description: "Reason for transfer — required" },
+    },
+  },
+
+  TransferBulkInput: {
+    type: "object",
+    required: ["protocol_ids", "to_personnel_id", "reason"],
+    properties: {
+      protocol_ids: { type: "array", items: { type: "string" }, description: "One or more protocol numbers" },
+      to_personnel_id: { type: "integer" },
+      reason: { type: "string" },
+    },
+  },
+
+  TransferDecision: {
+    type: "object",
+    required: ["status"],
+    properties: { status: { type: "string", enum: ["Approved", "Rejected"] } },
+  },
 };
 
 const paths = {
@@ -1555,6 +1596,52 @@ const paths = {
       responses: { 200: json(REF("Renewal"), "Updated renewal"), 400: json(REF("Error"), "Invalid status, already decided, or missing approved_until"), 404: json(REF("Error"), "Renewal not found"), ...notFound() },
     },
   },
+
+  // ---- Transfer ownership ----
+
+  "/api/transfers": {
+    get: {
+      tags: ["Transfer ownership"],
+      summary: "Transfer ownership queue (all requests, newest first)",
+      description: "Filter with ?status=Pending for the active IACUC-office queue.",
+      parameters: [
+        {
+          name: "status",
+          in: "query",
+          required: false,
+          schema: { type: "string", enum: ["Pending", "Approved", "Rejected"] },
+          description: "Filter by request status",
+        },
+      ],
+      responses: { 200: json({ type: "array", items: REF("ProtocolTransfer") }, "Transfer requests, newest first"), 400: json(REF("Error"), "Invalid status") },
+    },
+    post: {
+      tags: ["Transfer ownership"],
+      summary: "Bulk-transfer request: create one pending transfer per protocol",
+      requestBody: json(REF("TransferBulkInput"), "protocol_ids, to_personnel_id and reason are required"),
+      responses: { 201: json({ type: "array", items: REF("ProtocolTransfer") }, "Created transfers"), 400: json(REF("Error"), "Invalid payload or unknown personnel"), 404: json(REF("Error"), "Protocol not found"), 409: json(REF("Error"), "A transfer is already pending for a protocol") },
+    },
+  },
+
+  "/api/transfers/{transferId}": {
+    parameters: [numericPathParam("transferId", "Transfer request id")],
+    patch: {
+      tags: ["Transfer ownership"],
+      summary: "Approve (reassigns the protocol PI) or reject a pending transfer",
+      requestBody: json(REF("TransferDecision"), "status is required"),
+      responses: { 200: json(REF("ProtocolTransfer"), "Updated transfer"), 400: json(REF("Error"), "Invalid status or already decided"), 404: json(REF("Error"), "Transfer request not found") },
+    },
+  },
+
+  "/api/protocols/{id}/transfers": {
+    parameters: [protocolIdParam],
+    post: {
+      tags: ["Transfer ownership"],
+      summary: "Request to transfer a single protocol to a new PI",
+      requestBody: json(REF("TransferInput"), "to_personnel_id and reason are required"),
+      responses: { 201: json(REF("ProtocolTransfer"), "Created pending transfer"), 400: json(REF("Error"), "Missing fields or unknown personnel"), 409: json(REF("Error"), "A transfer is already pending"), ...notFound() },
+    },
+  },
 };
 
 export const openapiSpec = {
@@ -1576,6 +1663,7 @@ export const openapiSpec = {
     { name: "Facilities & semi-annual inspections", description: "Housing rooms / labs / surgical suites and their deficiency tracking" },
     { name: "Post-Approval Monitoring (PAM) & incidents", description: "Adverse events / deviations with the Open → CAPA → Closed lifecycle, plus PAM site-visit audits" },
     { name: "Amendments & annual renewals", description: "Versioned amendments, protocol version lineage, continuing & de novo review" },
+    { name: "Transfer ownership", description: "PI transfer requests with their own IACUC-office approval queue (single + bulk)" },
   ],
   paths,
   components: { schemas },

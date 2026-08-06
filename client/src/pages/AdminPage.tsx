@@ -1,12 +1,12 @@
 import React, { useEffect, useState, type ReactNode } from "react";
 import {
-  Plus, Trash2, PawPrint, Shield, Users, X, GraduationCap,
+  Plus, Trash2, PawPrint, Shield, Users, X, GraduationCap, ArrowRightLeft,
   ClipboardCheck, type LucideIcon,
 } from "lucide-react";
 import AppHeader from "../components/AppHeader";
 import { api } from "../api";
 import type {
-  Personnel, PersonnelCompliance, PersonnelOhsp, Role, Species,
+  Personnel, PersonnelCompliance, PersonnelOhsp, Protocol, ProtocolTransfer, Role, Species,
   OhspStatus, TrainingRecord,
 } from "../types";
 import { OHSP_STATUSES } from "../types";
@@ -475,6 +475,137 @@ function PersonnelPanel({ roles }: { roles: Role[] }) {
   );
 }
 
+function TransferQueuePanel() {
+  const [transfers, setTransfers] = useState<ProtocolTransfer[]>([]);
+  const [protocols, setProtocols] = useState<Protocol[]>([]);
+  const [personnel, setPersonnel] = useState<Personnel[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [toId, setToId] = useState("");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = () => api.listTransfers("Pending").then(setTransfers).catch(err => setError(errorMessage(err)));
+  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    api.listProtocols().then(setProtocols).catch(() => {});
+    api.listPersonnel().then(setPersonnel).catch(() => {});
+  }, []);
+
+  const decide = async (id: number, status: "Approved" | "Rejected") => {
+    setError(null);
+    try {
+      await api.updateTransferStatus(id, status);
+      load();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
+
+  const bulk = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedIds.length === 0 || !toId || !reason.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.bulkCreateTransfers({ protocol_ids: selectedIds, to_personnel_id: Number(toId), reason: reason.trim() });
+      setSelectedIds([]);
+      setToId("");
+      setReason("");
+      load();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggle = (id: string) =>
+    setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+
+  return (
+    <Panel title="Transfer ownership" icon={ArrowRightLeft}>
+      <div className="px-4 py-3 border-b border-gray-100 text-[12px] text-gray-500">
+        Transfer requests sit here until the IACUC office decides them. Approving reassigns the
+        protocol's principal investigator.
+      </div>
+      {error && <div className="px-4 py-2 text-[12px] text-red-600">{error}</div>}
+
+      <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+        {transfers.map(t => (
+          <div key={t.id} className="px-4 py-2.5 text-[13px]">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-gray-900 font-medium">{t.protocol_id}</div>
+                <div className="text-[12px] text-gray-500 truncate">{t.protocol_title}</div>
+                <div className="text-[12px] mt-0.5 text-gray-700">
+                  {t.from_pi} → <span className="font-medium">{t.to_name}</span>
+                </div>
+                <div className="text-[12px] text-gray-500 mt-0.5">{t.reason}</div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => decide(t.id, "Approved")}
+                  className="px-2.5 py-1 rounded bg-[#0176D3] text-white text-[12px] font-medium hover:bg-[#0b5cab]"
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => decide(t.id, "Rejected")}
+                  className="px-2.5 py-1 rounded border border-gray-300 bg-white text-[#A32D2D] text-[12px] font-medium hover:bg-gray-50"
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {transfers.length === 0 && (
+          <div className="px-4 py-6 text-center text-gray-400 text-[13px]">No pending transfer requests.</div>
+        )}
+      </div>
+
+      <form onSubmit={bulk} className="px-4 py-3 border-t border-gray-100 space-y-3">
+        <div className="text-[12px] font-medium text-gray-700">Bulk-transfer request (multiple protocols)</div>
+        <div className="max-h-40 overflow-y-auto border border-gray-200 rounded divide-y divide-gray-50 bg-gray-50/50">
+          {protocols.map(p => (
+            <label key={p.id} className="flex items-center gap-2 px-3 py-1.5 text-[12px] text-gray-700 cursor-pointer hover:bg-gray-50">
+              <input type="checkbox" checked={selectedIds.includes(p.id)} onChange={() => toggle(p.id)} />
+              <span className="font-medium">{p.id}</span>
+              <span className="text-gray-400 truncate">{p.title}</span>
+            </label>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <select
+            value={toId}
+            onChange={e => setToId(e.target.value)}
+            aria-label="New principal investigator"
+            className="bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-[13px] outline-none focus:border-[#0176D3]"
+          >
+            <option value="">Transfer to…</option>
+            {personnel.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <input
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder="Reason for transfer (required)"
+            className="bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-[13px] outline-none focus:border-[#0176D3]"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={busy || selectedIds.length === 0 || !toId || !reason.trim()}
+          className="flex items-center gap-1 px-3 py-1.5 rounded bg-[#0176D3] text-white text-[13px] font-medium hover:bg-[#0b5cab] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <ArrowRightLeft size={14} />
+          Request transfers
+        </button>
+      </form>
+    </Panel>
+  );
+}
+
 export default function AdminPage() {
   const [roles, setRoles] = useState<Role[]>([]);
 
@@ -494,6 +625,10 @@ export default function AdminPage() {
         <SpeciesPanel />
         <RolesPanel onRolesChange={setRoles} />
         <PersonnelPanel roles={roles} />
+      </div>
+
+      <div className="px-4 pb-4">
+        <TransferQueuePanel />
       </div>
     </div>
   );

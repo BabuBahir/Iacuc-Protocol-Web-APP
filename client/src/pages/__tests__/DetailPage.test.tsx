@@ -12,6 +12,9 @@ vi.mock("../../api", () => ({
     listSpecies: vi.fn(),
     updateProtocol: vi.fn(),
     getProtocolPersonnel: vi.fn(),
+    listPersonnel: vi.fn(),
+    listTransfers: vi.fn(),
+    createTransfer: vi.fn(),
   },
 }));
 
@@ -86,6 +89,8 @@ function renderDetailPage() {
 describe("DetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    api.listPersonnel.mockResolvedValue([]);
+    api.listTransfers.mockResolvedValue([]);
     api.getProtocolPersonnel.mockResolvedValue({
       protocol_id: "IACUC-2026-0142",
       personnel: [
@@ -354,5 +359,68 @@ describe("DetailPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Edit" }));
     expect(screen.getByLabelText("Status")).toHaveValue("Expiring soon");
+  });
+
+  test("Transfer ownership button opens the modal and submitting calls createTransfer", async () => {
+    api.getProtocol.mockResolvedValue(SAMPLE_PROTOCOL);
+    api.listPersonnel.mockResolvedValue([
+      { id: 3, name: "Dr. Hana Sato", email: null, role_id: 1, role_name: "Principal Investigator", is_committee: 0 },
+    ]);
+    api.createTransfer.mockResolvedValue({} as never);
+    const user = userEvent.setup();
+
+    renderDetailPage();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "IACUC-2026-0142" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Transfer ownership" }));
+    expect(screen.getByText("New principal investigator")).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("New principal investigator"), "3");
+    await user.type(
+      screen.getByLabelText("Reason for transfer (required)"),
+      "Dr. Marsh is leaving the institution."
+    );
+    await user.click(screen.getByRole("button", { name: "Request transfer" }));
+
+    await waitFor(() => {
+      expect(api.createTransfer).toHaveBeenCalledWith("IACUC-2026-0142", {
+        to_personnel_id: 3,
+        reason: "Dr. Marsh is leaving the institution.",
+      });
+    });
+    expect(api.listTransfers).toHaveBeenCalledWith("Pending");
+  });
+
+  test("transfer modal shows a pending-notice instead of the form when a request is in flight", async () => {
+    api.getProtocol.mockResolvedValue(SAMPLE_PROTOCOL);
+    api.listTransfers.mockResolvedValue([
+      {
+        id: 7,
+        protocol_id: "IACUC-2026-0142",
+        protocol_title: SAMPLE_PROTOCOL.title,
+        from_pi: SAMPLE_PROTOCOL.pi,
+        to_personnel_id: 3,
+        to_name: "Dr. Hana Sato",
+        reason: "PI is leaving.",
+        status: "Pending",
+        created_at: "2026-07-01",
+        decision_date: null,
+      },
+    ]);
+    const user = userEvent.setup();
+
+    renderDetailPage();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "IACUC-2026-0142" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Transfer ownership" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/already pending for this protocol/)).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: "Request transfer" })).not.toBeInTheDocument();
   });
 });

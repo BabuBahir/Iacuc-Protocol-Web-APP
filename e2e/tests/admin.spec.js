@@ -6,7 +6,9 @@ test("admin page lists seeded species, roles, and personnel", async ({ page }) =
   await expect(page.getByRole("heading", { name: "Admin" })).toBeVisible();
   await expect(page.getByText("Mouse")).toBeVisible();
   await expect(page.getByText("Attending Veterinarian").first()).toBeVisible();
-  await expect(page.getByText("Dr. Priya Nair")).toBeVisible();
+  // Personnel names also appear in the transfer panel's PI dropdown, so take
+  // the first match (the personnel list row renders before the options).
+  await expect(page.getByText("Dr. Priya Nair").first()).toBeVisible();
 });
 
 test("adding a species makes it appear in the lookup list", async ({ page }) => {
@@ -33,6 +35,8 @@ test("adding a personnel member and seeing them in the list", async ({ page }) =
   await expect(roleSelect).not.toHaveValue("");
   await personnelForm.getByRole("button").click();
 
-  await expect(page.getByText("Dr. E2E Reviewer")).toBeVisible();
+  // The new person also appears in the transfer panel's PI dropdown, so take
+  // the first match (the personnel list row renders before the options).
+  await expect(page.getByText("Dr. E2E Reviewer").first()).toBeVisible();
   await expect(page.getByText(/reviewer@university.edu/)).toBeVisible();
 });

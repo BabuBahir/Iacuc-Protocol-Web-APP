@@ -22,6 +22,7 @@ const TABLES_IN_DELETE_ORDER = [
   "amendments",
   "protocol_versions",
   "renewals",
+  "protocol_transfers",
   "incidents",
   "pam_audits",
   "inspection_deficiencies",

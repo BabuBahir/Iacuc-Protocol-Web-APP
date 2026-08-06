@@ -10,12 +10,24 @@ erDiagram
     protocols ||--o{ protocol_votes : "receives votes"
     protocols ||--o{ protocol_review_assignments : "has"
     protocols ||--o{ protocol_review_comments : "receives comments"
+    protocols ||--o{ amendments : "versioned documents"
+    protocols ||--o{ protocol_versions : "version lineage"
+    protocols ||--o{ renewals : "continuing / de novo review"
+    protocols ||--o{ protocol_transfers : "ownership requests"
+    protocols ||--o{ pam_audits : "PAM site visits"
+    protocols ||--o{ incidents : "reports adverse events"
+    facilities ||--o{ inspections : "inspected every six months"
+    inspections ||--o{ inspection_deficiencies : "found in"
+    amendments ||--o{ amendment_changes : "field-level changes"
     roles ||--o{ personnel : "occupies"
     personnel ||--o{ personnel_training : "has"
     personnel ||--o| personnel_ohsp : "has (0..1)"
     personnel ||--o{ protocol_votes : "casts"
     personnel ||--o{ protocol_review_assignments : "is assigned"
     personnel ||--o{ protocol_review_comments : "writes"
+    personnel ||--o{ protocol_transfers : "requested as recipient"
+    personnel ||--o{ incidents : "reported / assigned"
+    personnel ||--o{ pam_audits : "conducts audits"
 
     protocols {
         string id PK
@@ -115,4 +127,73 @@ erDiagram
         string species_strain
         int quantity
         string type
+    }
+    amendments {
+        int id PK
+        string protocol_id FK
+        string reason
+        string status
+    }
+    amendment_changes {
+        int id PK
+        int amendment_id FK
+        string section
+        string field
+        string previous_value
+        string new_value
+    }
+    protocol_versions {
+        int id PK
+        string protocol_id FK
+        string version_number
+        string source
+        string approved_date
+        string expiration_date
+    }
+    renewals {
+        int id PK
+        string protocol_id FK
+        string type
+        string status
+        string approved_until
+    }
+    protocol_transfers {
+        int id PK
+        string protocol_id FK
+        string from_pi
+        int to_personnel_id FK
+        string reason
+        string status
+        string decision_date
+    }
+    facilities {
+        int id PK
+        string name
+        string type
+        string species
+    }
+    inspections {
+        int id PK
+        int facility_id FK
+        string inspection_date
+        string result
+    }
+    inspection_deficiencies {
+        int id PK
+        int inspection_id FK
+        string severity
+        string description
+    }
+    incidents {
+        int id PK
+        string protocol_id FK
+        string type
+        string severity
+        string status
+    }
+    pam_audits {
+        int id PK
+        string protocol_id FK
+        int auditor_id FK
+        string audit_date
     }

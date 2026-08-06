@@ -11,6 +11,7 @@ import { personnelRouter, protocolPersonnelRouter } from "./routes/compliance.js
 import { router as facilitiesRouter } from "./routes/facilities.js";
 import { router as pamRouter, pamRouter as pamAuditsRouter } from "./routes/pam.js";
 import { router as amendmentsRouter } from "./routes/amendments.js";
+import { router as transfersRouter } from "./routes/transfers.js";
 import "./db.js"; // ensures schema exists as soon as the app is built 
 export function createApp() {
   const app = express(); 
@@ -38,6 +39,7 @@ export function createApp() {
   app.use("/api", pamRouter);
   app.use("/api/protocols", pamAuditsRouter);
   app.use("/api/protocols", amendmentsRouter);
+  app.use("/api", transfersRouter);
 
   return app;
 }

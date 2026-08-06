@@ -24,6 +24,10 @@ vi.mock("../../api", () => ({
     deleteTrainingRecord: vi.fn(),
     getPersonnelOhsp: vi.fn(),
     setPersonnelOhsp: vi.fn(),
+    listTransfers: vi.fn(),
+    bulkCreateTransfers: vi.fn(),
+    updateTransferStatus: vi.fn(),
+    listProtocols: vi.fn(),
   },
 }));
 
@@ -43,6 +47,8 @@ beforeEach(() => {
   api.listRoles.mockResolvedValue([{ id: 1, name: "Principal Investigator", is_committee: 0 }]);
   api.listPersonnel.mockResolvedValue([]);
   api.listPersonnelCompliance.mockResolvedValue([]);
+  api.listTransfers.mockResolvedValue([]);
+  api.listProtocols.mockResolvedValue([]);
 });
 
 describe("AdminPage — species panel", () => {
@@ -169,7 +175,7 @@ describe("AdminPage — roles panel actions", () => {
 
     const nameInput = screen.getByPlaceholderText("e.g. Attending Veterinarian");
     await user.type(nameInput, "IACUC Chair");
-    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("checkbox", { name: /Eligible to cast/ }));
 
     api.listRoles.mockResolvedValue([
       { id: 1, name: "Principal Investigator", is_committee: 0 },
@@ -259,9 +265,9 @@ describe("AdminPage — personnel panel actions", () => {
 
     renderAdminPage();
 
-    await waitFor(() => expect(screen.getByText("Dr. Harold Kim")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("Dr. Harold Kim")[0]).toBeInTheDocument());
     expect(screen.getByText(/· h.kim@university.edu/)).toBeInTheDocument();
-    expect(screen.getByText("Sam Whitfield")).toBeInTheDocument();
+    expect(screen.getAllByText("Sam Whitfield")[0]).toBeInTheDocument();
     // Committee badge appears next to committee-eligible roles AND personnel.
     const committeeBadges = document.querySelectorAll("span.rounded-full");
     expect(committeeBadges.length).toBeGreaterThanOrEqual(2);
@@ -342,9 +348,9 @@ describe("AdminPage — personnel panel actions", () => {
     api.deletePersonnel.mockResolvedValue(null);
 
     renderAdminPage();
-    await waitFor(() => expect(screen.getByText("Sam Whitfield")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("Sam Whitfield")[0]).toBeInTheDocument());
 
-    const row = screen.getByText("Sam Whitfield").closest(".px-4");
+    const row = screen.getAllByText("Sam Whitfield")[0].closest(".px-4");
     const trashButton = Array.from(within(row as HTMLElement).getAllByRole("button"))
       .find(b => b.querySelector("svg.lucide-trash-2"))!;
     await user.click(trashButton);
@@ -362,9 +368,9 @@ describe("AdminPage — personnel panel actions", () => {
     api.deletePersonnel.mockRejectedValue(new Error("Personnel has votes."));
 
     renderAdminPage();
-    await waitFor(() => expect(screen.getByText("Sam Whitfield")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("Sam Whitfield")[0]).toBeInTheDocument());
 
-    const row = screen.getByText("Sam Whitfield").closest(".px-4");
+    const row = screen.getAllByText("Sam Whitfield")[0].closest(".px-4");
     const trashButton = Array.from(within(row as HTMLElement).getAllByRole("button"))
       .find(b => b.querySelector("svg.lucide-trash-2"))!;
     await user.click(trashButton);
@@ -406,7 +412,7 @@ describe("AdminPage — personnel compliance", () => {
     api.getPersonnelOhsp.mockResolvedValue({ personnel_id: 1, status: "Cleared", reviewed_date: "2026-01-10", notes: null });
 
     renderAdminPage();
-    await waitFor(() => expect(screen.getByText("Dr. Elena Marsh")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("Dr. Elena Marsh")[0]).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Manage compliance" }));
 
@@ -436,7 +442,7 @@ describe("AdminPage — personnel compliance", () => {
     api.createTrainingRecord.mockResolvedValue({} as never);
 
     renderAdminPage();
-    await waitFor(() => expect(screen.getByText("Dr. Elena Marsh")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("Dr. Elena Marsh")[0]).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Manage compliance" }));
     await waitFor(() => expect(screen.getByText("No training records on file.")).toBeInTheDocument());
@@ -471,7 +477,7 @@ describe("AdminPage — personnel compliance", () => {
     api.setPersonnelOhsp.mockResolvedValue({ personnel_id: 1, status: "Cleared", reviewed_date: null, notes: null });
 
     renderAdminPage();
-    await waitFor(() => expect(screen.getByText("Dr. Elena Marsh")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("Dr. Elena Marsh")[0]).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Manage compliance" }));
     await waitFor(() => expect(screen.getByText("OHSP clearance")).toBeInTheDocument());
@@ -482,5 +488,97 @@ describe("AdminPage — personnel compliance", () => {
       expect(api.setPersonnelOhsp).toHaveBeenCalledWith(1, { status: "Cleared" });
     });
     expect(api.listPersonnelCompliance).toHaveBeenCalled();
+  });
+});
+
+describe("AdminPage — transfer ownership", () => {
+  const PENDING = {
+    id: 1,
+    protocol_id: "IACUC-2025-0155",
+    protocol_title: "Retinal stem cell therapy in mice",
+    from_pi: "Dr. Amara Osei",
+    to_personnel_id: 3,
+    to_name: "Dr. Hana Sato",
+    reason: "PI is leaving the institution.",
+    status: "Pending",
+    created_at: "2026-07-01",
+    decision_date: null,
+  } as const;
+
+  const PROTOCOL = {
+    id: "IACUC-2026-0021",
+    title: "Rabbit arthritis model",
+    pi: "Dr. Priya Nair",
+    pi_proxy: null,
+    ptm_member: null,
+    protocol_type: null,
+    species: null,
+    status: "Active",
+    animals: null,
+    pain_category: null,
+    anesthesia_required: null,
+    housing: null,
+    disposal: null,
+    npg: null,
+    research_steps: [],
+    purpose_summary: null,
+    harm_benefit_analysis: null,
+    scientific_summary: null,
+    submitted: null,
+    expires: null,
+  };
+
+  test("renders pending transfer requests with Approve/Reject actions", async () => {
+    api.listTransfers.mockResolvedValue([PENDING]);
+
+    renderAdminPage();
+
+    await waitFor(() => expect(screen.getByText("IACUC-2025-0155")).toBeInTheDocument());
+    expect(screen.getByText(/Retinal stem cell therapy/)).toBeInTheDocument();
+    expect(screen.getByText(/Dr. Amara Osei →/)).toBeInTheDocument();
+    expect(screen.getByText("PI is leaving the institution.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
+  });
+
+  test("approving a request calls the API and refreshes the queue", async () => {
+    const user = userEvent.setup();
+    api.listTransfers.mockResolvedValueOnce([PENDING]).mockResolvedValueOnce([]);
+    api.updateTransferStatus.mockResolvedValue({ ...PENDING, status: "Approved" });
+
+    renderAdminPage();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => {
+      expect(api.updateTransferStatus).toHaveBeenCalledWith(1, "Approved");
+    });
+    await waitFor(() => expect(screen.getByText("No pending transfer requests.")).toBeInTheDocument());
+  });
+
+  test("bulk transfer submits the selected protocols to the new PI", async () => {
+    const user = userEvent.setup();
+    api.listProtocols.mockResolvedValue([PROTOCOL]);
+    api.listPersonnel.mockResolvedValue([
+      { id: 3, name: "Dr. Hana Sato", email: null, role_id: 1, role_name: "Principal Investigator", is_committee: 0 },
+    ]);
+    api.bulkCreateTransfers.mockResolvedValue([]);
+
+    renderAdminPage();
+    await waitFor(() => expect(screen.getByText("IACUC-2026-0021")).toBeInTheDocument());
+
+    await user.click(screen.getByLabelText(/IACUC-2026-0021/));
+    await user.selectOptions(screen.getByLabelText("New principal investigator"), "3");
+    await user.type(screen.getByPlaceholderText("Reason for transfer (required)"), "Merging labs");
+    await user.click(screen.getByRole("button", { name: "Request transfers" }));
+
+    await waitFor(() => {
+      expect(api.bulkCreateTransfers).toHaveBeenCalledWith({
+        protocol_ids: ["IACUC-2026-0021"],
+        to_personnel_id: 3,
+        reason: "Merging labs",
+      });
+    });
   });
 });

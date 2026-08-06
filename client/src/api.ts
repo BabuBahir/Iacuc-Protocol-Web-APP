@@ -42,6 +42,7 @@ import type {
   ProtocolDetail,
   ProtocolInput,
   ProtocolPersonnelResponse,
+  ProtocolTransfer,
   ProtocolUpdateInput,
   ProtocolVersion,
   ProtocolVotesResponse,
@@ -60,6 +61,9 @@ import type {
   Summary,
   TrainingRecord,
   TrainingRecordInput,
+  TransferBulkInput,
+  TransferInput,
+  TransferStatus,
   ValidationResult,
   VoteInput,
   Voter,
@@ -269,4 +273,14 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status, ...(approvedUntil ? { approved_until: approvedUntil } : {}) }),
     }),
+
+  // ---- Transfer ownership ----
+  listTransfers: (status?: TransferStatus): Promise<ProtocolTransfer[]> =>
+    request(`/transfers${status ? `?status=${status}` : ""}`),
+  createTransfer: (id: string, data: TransferInput): Promise<ProtocolTransfer> =>
+    request(`/protocols/${id}/transfers`, { method: "POST", body: JSON.stringify(data) }),
+  bulkCreateTransfers: (data: TransferBulkInput): Promise<ProtocolTransfer[]> =>
+    request("/transfers", { method: "POST", body: JSON.stringify(data) }),
+  updateTransferStatus: (transferId: number, status: "Approved" | "Rejected"): Promise<ProtocolTransfer> =>
+    request(`/transfers/${transferId}`, { method: "PATCH", body: JSON.stringify({ status }) }),
 };

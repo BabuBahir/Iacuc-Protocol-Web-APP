@@ -722,6 +722,35 @@ export interface RenewalInput {
   type: RenewalType;
 }
 
+// ---- Transfer ownership (its own approval workflow) ----
+
+export const TRANSFER_STATUSES = ["Pending", "Approved", "Rejected"] as const;
+export type TransferStatus = (typeof TRANSFER_STATUSES)[number];
+
+export interface ProtocolTransfer {
+  id: number;
+  protocol_id: string;
+  protocol_title: string | null;
+  from_pi: string;
+  to_personnel_id: number;
+  to_name: string | null;
+  reason: string;
+  status: TransferStatus;
+  created_at: string | null;
+  decision_date: string | null;
+}
+
+export interface TransferInput {
+  to_personnel_id: number;
+  reason: string;
+}
+
+export interface TransferBulkInput {
+  protocol_ids: string[];
+  to_personnel_id: number;
+  reason: string;
+}
+
 // ---- constants shared across the UI ----
 
 export const PAIN_CATEGORIES = ["Category A", "Category B", "Category C", "Category D", "Category E"];
