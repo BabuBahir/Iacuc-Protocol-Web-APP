@@ -5,43 +5,59 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+// db.js is now a dual-driver facade (SQLite for tests, Postgres via DATABASE_URL
+// in production). These tests exercise the SQLite backend through the public
+// async facade API (db.all / db.get / db.run), which is the only interface
+// routes and tests should use.
+
+// Every table the schema must create. Probed by reading a zero-row slice —
+// the statement fails if the table does not exist, on either backend.
+const EXPECTED_TABLES = [
+  "protocols",
+  "related_items",
+  "species",
+  "roles",
+  "personnel",
+  "protocol_votes",
+  "protocol_review_assignments",
+  "protocol_review_comments",
+  "protocol_procedures",
+  "protocol_drugs",
+  "protocol_animal_use",
+  "protocol_experiments",
+  "protocol_rrr_entries",
+  "protocol_alternatives",
+  "animal_usage_transactions",
+  "personnel_training",
+  "personnel_ohsp",
+  "amendment_changes",
+  "amendments",
+  "protocol_versions",
+  "renewals",
+  "incidents",
+  "pam_audits",
+  "inspection_deficiencies",
+  "inspections",
+  "facilities",
+];
+
 describe("db.js schema", () => {
   test("creates all expected tables on a fresh in-memory database", async () => {
     process.env.DB_PATH = ":memory:";
     const { db } = await import(`../src/db.js?fresh=${Date.now()}-${Math.random()}`);
 
-    const tables = db
-      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
-      .all()
-      .map((t) => t.name);
-
-    for (const expected of [
-      "protocols",
-      "related_items",
-      "species",
-      "roles",
-      "personnel",
-      "protocol_votes",
-      "protocol_review_assignments",
-      "protocol_review_comments",
-      "protocol_procedures",
-      "protocol_drugs",
-      "protocol_animal_use",
-      "protocol_experiments",
-      "protocol_rrr_entries",
-      "protocol_alternatives",
-      "animal_usage_transactions",
-      "personnel_training",
-      "personnel_ohsp",
-    ]) {
-      assert.ok(tables.includes(expected), `expected table "${expected}" to exist`);
+    for (const expected of EXPECTED_TABLES) {
+      await assert.doesNotReject(
+        db.all(`SELECT * FROM ${expected} LIMIT 0`),
+        `expected table "${expected}" to exist`
+      );
     }
   });
 
-  test("PRAGMA foreign_keys is enabled", async () => {
+  test("PRAGMA foreign_keys is enabled (SQLite backend only)", async () => {
     process.env.DB_PATH = ":memory:";
     const { db } = await import(`../src/db.js?fresh=${Date.now()}-${Math.random()}`);
-    const result = db.prepare("PRAGMA foreign_keys").get();
+    const result = await db.get("PRAGMA foreign_keys");
     assert.equal(result.foreign_keys, 1);
   });
 
@@ -66,18 +82,18 @@ describe("db.js schema", () => {
     process.env.DB_PATH = tmpFile;
     const { db, closeDb } = await import(`../src/db.js?fresh=${Date.now()}-${Math.random()}`);
 
-    const columns = db.prepare("PRAGMA table_info(protocols)").all().map((c) => c.name);
+    const columns = (await db.all("PRAGMA table_info(protocols)")).map((c) => c.name);
     for (const col of ["purpose_summary", "harm_benefit_analysis", "scientific_summary", "review_method"]) {
       assert.ok(columns.includes(col), `expected migrated column "${col}"`);
     }
 
-    const row = db.prepare("SELECT * FROM protocols WHERE id = ?").get("LEGACY-1");
+    const row = await db.get("SELECT * FROM protocols WHERE id = $1", ["LEGACY-1"]);
     assert.equal(row.title, "legacy protocol");
     assert.equal(row.purpose_summary, null);
 
     // Release the file handle before deletion — on Windows the open SQLite
     // connection keeps the temp db locked, so rmSync fails with EPERM.
-    closeDb();
+    await closeDb();
     for (const file of [tmpFile, `${tmpFile}-wal`, `${tmpFile}-shm`]) {
       // Retry briefly: the OS may not release the lock instantly.
       for (let attempt = 0; attempt < 10; attempt++) {

@@ -23,11 +23,8 @@ async function insertPerson(name, roleName = "Lab Technician") {
   return person.body.id;
 }
 
-function insertProtocol(overrides = {}) {
-  db.prepare(`
-    INSERT INTO protocols (id, title, pi, species, status, animals, pain_category)
-    VALUES (@id, @title, @pi, @species, @status, @animals, @pain_category)
-  `).run({
+async function insertProtocol(overrides = {}) {
+  const params = {
     id: "TEST-0001",
     title: "Test protocol",
     pi: "Dr. Test",
@@ -36,25 +33,37 @@ function insertProtocol(overrides = {}) {
     animals: 10,
     pain_category: "Category B",
     ...overrides,
-  });
+  };
+  await db.run(
+    `
+    INSERT INTO protocols (id, title, pi, species, status, animals, pain_category)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+  `,
+    [params.id, params.title, params.pi, params.species, params.status, params.animals, params.pain_category]
+  );
 }
 
-function insertRelated(protocolId, label) {
-  db.prepare("INSERT INTO related_items (protocol_id, list_name, label) VALUES (?, 'Personnel', ?)")
-    .run(protocolId, label);
+async function insertRelated(protocolId, label) {
+  await db.run(
+    "INSERT INTO related_items (protocol_id, list_name, label) VALUES ($1, 'Personnel', $2)",
+    [protocolId, label]
+  );
 }
 
 describe("GET /api/personnel/compliance", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("lists every person with derived compliance status", async () => {
     const a = await insertPerson("Dr. A", "Principal Investigator");
     const b = await insertPerson("Dr. B", "Lab Technician");
     await request(app).post(`/api/personnel/${a}/ohsp`).send({ status: "Cleared" });
-    db.prepare(`
+    await db.run(
+      `
       INSERT INTO personnel_training (personnel_id, course, completed_date)
-      VALUES (?, ?, ?)
-    `).run(a, "Course", "2025-01-01");
+      VALUES ($1, $2, $3)
+    `,
+      [a, "Course", "2025-01-01"]
+    );
 
     const res = await request(app).get("/api/personnel/compliance");
     assert.equal(res.status, 200);
@@ -69,14 +78,17 @@ describe("GET /api/personnel/compliance", () => {
 });
 
 describe("GET /api/personnel/:id/training", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("returns the person with their training records and overall status", async () => {
     const id = await insertPerson("Dr. Alice", "Principal Investigator");
-    db.prepare(`
+    await db.run(
+      `
       INSERT INTO personnel_training (personnel_id, course, completed_date, expires_date)
-      VALUES (?, ?, ?, ?)
-    `).run(id, "Working with the IACUC", "2025-01-15", "2028-01-15");
+      VALUES ($1, $2, $3, $4)
+    `,
+      [id, "Working with the IACUC", "2025-01-15", "2028-01-15"]
+    );
 
     const res = await request(app).get(`/api/personnel/${id}/training`);
     assert.equal(res.status, 200);
@@ -88,10 +100,13 @@ describe("GET /api/personnel/:id/training", () => {
 
   test("marks a record with a past expiry as Expired and the overall status as Expired", async () => {
     const id = await insertPerson("Dr. Bob");
-    db.prepare(`
+    await db.run(
+      `
       INSERT INTO personnel_training (personnel_id, course, completed_date, expires_date)
-      VALUES (?, ?, ?, ?)
-    `).run(id, "Old Course", "2021-01-01", "2022-01-01");
+      VALUES ($1, $2, $3, $4)
+    `,
+      [id, "Old Course", "2021-01-01", "2022-01-01"]
+    );
 
     const res = await request(app).get(`/api/personnel/${id}/training`);
     assert.equal(res.body.overall_status, "Expired");
@@ -100,10 +115,13 @@ describe("GET /api/personnel/:id/training", () => {
 
   test("treats a record with no expiry as current forever", async () => {
     const id = await insertPerson("Dr. Carol");
-    db.prepare(`
+    await db.run(
+      `
       INSERT INTO personnel_training (personnel_id, course, completed_date)
-      VALUES (?, ?, ?)
-    `).run(id, "Refinement Course", "2025-01-15");
+      VALUES ($1, $2, $3)
+    `,
+      [id, "Refinement Course", "2025-01-15"]
+    );
 
     const res = await request(app).get(`/api/personnel/${id}/training`);
     assert.equal(res.body.overall_status, "Current");
@@ -124,7 +142,7 @@ describe("GET /api/personnel/:id/training", () => {
 });
 
 describe("POST /api/personnel/:id/training", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("adds a training record and derives its status", async () => {
     const id = await insertPerson("Dr. Eve");
@@ -155,7 +173,7 @@ describe("POST /api/personnel/:id/training", () => {
 });
 
 describe("PATCH /api/personnel/:id/training/:trainingId", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("updates a training record, e.g. extending an expiry", async () => {
     const id = await insertPerson("Dr. Grace");
@@ -199,7 +217,7 @@ describe("PATCH /api/personnel/:id/training/:trainingId", () => {
 });
 
 describe("DELETE /api/personnel/:id/training/:trainingId", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("removes a training record", async () => {
     const id = await insertPerson("Dr. Iris");
@@ -222,7 +240,7 @@ describe("DELETE /api/personnel/:id/training/:trainingId", () => {
 });
 
 describe("OHSP clearance", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("GET returns Pending by default when no clearance is on file", async () => {
     const id = await insertPerson("Dr. Kim");
@@ -263,21 +281,24 @@ describe("OHSP clearance", () => {
 });
 
 describe("GET /api/protocols/:id/personnel", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("computes per-person compliance and the all_compliant flag", async () => {
     const compliant = await insertPerson("Dr. Compliant");
-    db.prepare(`
+    await db.run(
+      `
       INSERT INTO personnel_training (personnel_id, course, completed_date, expires_date)
-      VALUES (?, ?, ?, ?)
-    `).run(compliant, "Course", "2025-01-01", "2028-01-01");
+      VALUES ($1, $2, $3, $4)
+    `,
+      [compliant, "Course", "2025-01-01", "2028-01-01"]
+    );
     await request(app).post(`/api/personnel/${compliant}/ohsp`).send({ status: "Cleared" });
 
     const missing = await insertPerson("Dr. Missing");
 
-    insertProtocol();
-    insertRelated("TEST-0001", "Dr. Compliant — PI");
-    insertRelated("TEST-0001", "Dr. Missing — Co-I");
+    await insertProtocol();
+    await insertRelated("TEST-0001", "Dr. Compliant — PI");
+    await insertRelated("TEST-0001", "Dr. Missing — Co-I");
 
     const res = await request(app).get("/api/protocols/TEST-0001/personnel");
     assert.equal(res.status, 200);
@@ -292,14 +313,17 @@ describe("GET /api/protocols/:id/personnel", () => {
   test("all_compliant is true only when every listed person is compliant", async () => {
     const a = await insertPerson("Dr. A");
     await request(app).post(`/api/personnel/${a}/ohsp`).send({ status: "Cleared" });
-    db.prepare(`
+    await db.run(
+      `
       INSERT INTO personnel_training (personnel_id, course, completed_date)
-      VALUES (?, ?, ?)
-    `).run(a, "Course", "2025-01-01");
+      VALUES ($1, $2, $3)
+    `,
+      [a, "Course", "2025-01-01"]
+    );
 
-    insertProtocol();
-    insertRelated("TEST-0001", "Dr. A — PI");
-    insertRelated("TEST-0001", "Someone not in the directory — Vet");
+    await insertProtocol();
+    await insertRelated("TEST-0001", "Dr. A — PI");
+    await insertRelated("TEST-0001", "Someone not in the directory — Vet");
 
     const res = await request(app).get("/api/protocols/TEST-0001/personnel");
     assert.equal(res.body.all_compliant, false);
@@ -310,13 +334,16 @@ describe("GET /api/protocols/:id/personnel", () => {
   test("all_compliant is true when every listed person is compliant", async () => {
     const a = await insertPerson("Dr. A");
     await request(app).post(`/api/personnel/${a}/ohsp`).send({ status: "Cleared" });
-    db.prepare(`
+    await db.run(
+      `
       INSERT INTO personnel_training (personnel_id, course, completed_date)
-      VALUES (?, ?, ?)
-    `).run(a, "Course", "2025-01-01");
+      VALUES ($1, $2, $3)
+    `,
+      [a, "Course", "2025-01-01"]
+    );
 
-    insertProtocol();
-    insertRelated("TEST-0001", "Dr. A — PI");
+    await insertProtocol();
+    await insertRelated("TEST-0001", "Dr. A — PI");
 
     const res = await request(app).get("/api/protocols/TEST-0001/personnel");
     assert.equal(res.body.all_compliant, true);

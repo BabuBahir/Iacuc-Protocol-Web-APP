@@ -9,7 +9,7 @@ const { db } = await import("../src/db.js");
 const app = createApp();
 
 describe("species", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("creates and lists species", async () => {
     const create = await request(app).post("/api/admin/species").send({ name: "Ferret" });
@@ -50,7 +50,7 @@ describe("species", () => {
 });
 
 describe("roles", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("creates a role with is_committee flag", async () => {
     const res = await request(app)
@@ -102,7 +102,7 @@ describe("roles", () => {
 });
 
 describe("personnel", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("creates personnel with a valid role and returns joined role info", async () => {
     const role = await request(app)

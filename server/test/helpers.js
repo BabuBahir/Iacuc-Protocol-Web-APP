@@ -36,8 +36,18 @@ const TABLES_IN_DELETE_ORDER = [
   "protocols",
 ];
 
-export function resetTables(db) {
+export async function resetTables(db) {
+  // Postgres: one round trip instead of 26 sequential DELETEs — each round
+  // trip to a remote DB costs ~150ms of latency, and resetTables runs on
+  // every test, so the loop version made the PG suite take ~15 minutes.
+  // TRUNCATE ... RESTART IDENTITY resets serials; CASCADE clears any table
+  // that references the listed ones (all tables are listed, so it's just
+  // insurance against ordering mistakes).
+  if (db.dialect === "postgres") {
+    await db.run(`TRUNCATE TABLE ${TABLES_IN_DELETE_ORDER.join(", ")} RESTART IDENTITY CASCADE`);
+    return;
+  }
   for (const table of TABLES_IN_DELETE_ORDER) {
-    db.exec(`DELETE FROM ${table}`);
+    await db.run(`DELETE FROM ${table}`);
   }
 }

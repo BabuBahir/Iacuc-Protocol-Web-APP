@@ -8,11 +8,8 @@ const { createApp } = await import("../src/app.js");
 const { db } = await import("../src/db.js");
 const app = createApp();
 
-function insertProtocol(overrides = {}) {
-  db.prepare(`
-    INSERT INTO protocols (id, title, pi, species, status, animals, pain_category, submitted, expires)
-    VALUES (@id, @title, @pi, @species, @status, @animals, @pain_category, @submitted, @expires)
-  `).run({
+async function insertProtocol(overrides = {}) {
+  const values = {
     id: "TEST-0001",
     title: "Test protocol",
     pi: "Dr. Test",
@@ -23,11 +20,25 @@ function insertProtocol(overrides = {}) {
     submitted: null,
     expires: null,
     ...overrides,
-  });
+  };
+  await db.run(`
+    INSERT INTO protocols (id, title, pi, species, status, animals, pain_category, submitted, expires)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+  `, [
+    values.id,
+    values.title,
+    values.pi,
+    values.species,
+    values.status,
+    values.animals,
+    values.pain_category,
+    values.submitted,
+    values.expires,
+  ]);
 }
 
 describe("GET /api/protocols", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("returns an empty array when no protocols exist", async () => {
     const res = await request(app).get("/api/protocols");
@@ -36,7 +47,7 @@ describe("GET /api/protocols", () => {
   });
 
   test("returns seeded protocols", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app).get("/api/protocols");
     assert.equal(res.status, 200);
     assert.equal(res.body.length, 1);
@@ -44,8 +55,8 @@ describe("GET /api/protocols", () => {
   });
 
   test("search matches species (regression: search previously ignored species/status)", async () => {
-    insertProtocol({ id: "A", title: "Foo", species: "Zebrafish", status: "Draft" });
-    insertProtocol({ id: "B", title: "Bar", species: "Mouse", status: "Draft" });
+    await insertProtocol({ id: "A", title: "Foo", species: "Zebrafish", status: "Draft" });
+    await insertProtocol({ id: "B", title: "Bar", species: "Mouse", status: "Draft" });
     const res = await request(app).get("/api/protocols?q=zebrafish");
     assert.equal(res.status, 200);
     assert.equal(res.body.length, 1);
@@ -53,7 +64,7 @@ describe("GET /api/protocols", () => {
   });
 
   test("search matches on id, title, and pi", async () => {
-    insertProtocol({ id: "IACUC-2026-0099", title: "Special study", pi: "Dr. Unique Name" });
+    await insertProtocol({ id: "IACUC-2026-0099", title: "Special study", pi: "Dr. Unique Name" });
     for (const q of ["2026-0099", "special", "unique name"]) {
       const res = await request(app).get(`/api/protocols?q=${encodeURIComponent(q)}`);
       assert.equal(res.body.length, 1, `expected a match for query "${q}"`);
@@ -62,13 +73,13 @@ describe("GET /api/protocols", () => {
 });
 
 describe("GET /api/protocols/summary", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("computes counts from actual protocol data", async () => {
-    insertProtocol({ id: "A", status: "Active" });
-    insertProtocol({ id: "B", status: "Active" });
-    insertProtocol({ id: "C", status: "IACUC Review" });
-    insertProtocol({ id: "D", status: "Approved" });
+    await insertProtocol({ id: "A", status: "Active" });
+    await insertProtocol({ id: "B", status: "Active" });
+    await insertProtocol({ id: "C", status: "IACUC Review" });
+    await insertProtocol({ id: "D", status: "Approved" });
 
     const res = await request(app).get("/api/protocols/summary");
     assert.equal(res.status, 200);
@@ -79,7 +90,7 @@ describe("GET /api/protocols/summary", () => {
 });
 
 describe("GET /api/protocols/:id", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("404s for an unknown protocol", async () => {
     const res = await request(app).get("/api/protocols/DOES-NOT-EXIST");
@@ -87,9 +98,11 @@ describe("GET /api/protocols/:id", () => {
   });
 
   test("returns the protocol with stages and grouped related items", async () => {
-    insertProtocol();
-    db.prepare("INSERT INTO related_items (protocol_id, list_name, label) VALUES (?, ?, ?)")
-      .run("TEST-0001", "Personnel", "Dr. Test — PI");
+    await insertProtocol();
+    await db.run(
+      "INSERT INTO related_items (protocol_id, list_name, label) VALUES ($1, $2, $3)",
+      ["TEST-0001", "Personnel", "Dr. Test — PI"]
+    );
 
     const res = await request(app).get("/api/protocols/TEST-0001");
     assert.equal(res.status, 200);
@@ -99,7 +112,7 @@ describe("GET /api/protocols/:id", () => {
 });
 
 describe("POST /api/protocols", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("creates a new protocol in Draft status", async () => {
     const res = await request(app)
@@ -115,7 +128,7 @@ describe("POST /api/protocols", () => {
   });
 
   test("rejects a duplicate id", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app)
       .post("/api/protocols")
       .send({ id: "TEST-0001", title: "Dup", pi: "Dr. Dup" });
@@ -216,10 +229,10 @@ describe("POST /api/protocols", () => {
 });
 
 describe("PATCH /api/protocols/:id", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("updates only the provided fields", async () => {
-    insertProtocol({ title: "Original title" });
+    await insertProtocol({ title: "Original title" });
     const res = await request(app)
       .patch("/api/protocols/TEST-0001")
       .send({ status: "Active" });
@@ -229,7 +242,7 @@ describe("PATCH /api/protocols/:id", () => {
   });
 
   test("updates the new Appendix A summary fields", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app)
       .patch("/api/protocols/TEST-0001")
       .send({ purpose_summary: "Lay purpose text", harm_benefit_analysis: "Harm/benefit text" });
@@ -239,7 +252,7 @@ describe("PATCH /api/protocols/:id", () => {
   });
 
   test("round-trips research_steps and the IACUC application fields through PATCH", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app)
       .patch("/api/protocols/TEST-0001")
       .send({
@@ -304,7 +317,7 @@ describe("PATCH /api/protocols/:id", () => {
   });
 
   test("normalizes legacy string research_steps into structured objects on read", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app)
       .post("/api/protocols")
       .send({
@@ -344,7 +357,7 @@ describe("PATCH /api/protocols/:id", () => {
     "regression: does not throw on extra unrelated body fields " +
       "(node:sqlite rejects unknown named params if the whole body is spread into params)",
     async () => {
-      insertProtocol();
+      await insertProtocol();
       const res = await request(app)
         .patch("/api/protocols/TEST-0001")
         .send({ status: "Active", some_unrelated_field_the_client_might_send: "whatever" });
@@ -359,42 +372,47 @@ describe("PATCH /api/protocols/:id", () => {
   });
 
   test("400s when no updatable fields are provided", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app).patch("/api/protocols/TEST-0001").send({});
     assert.equal(res.status, 400);
   });
 
-  function fillCompleteProtocol() {
-    insertProtocol();
-    db.prepare(`
+  async function fillCompleteProtocol() {
+    await insertProtocol();
+    await db.run(`
       UPDATE protocols SET
         purpose_summary = 'Lay purpose',
         harm_benefit_analysis = 'Harm/benefit',
         scientific_summary = 'Scientific'
       WHERE id = 'TEST-0001'
-    `).run();
-    db.prepare(`
+    `);
+    await db.run(`
       INSERT INTO protocol_drugs (protocol_id, reason_for_use, drug, dose, route, duration)
       VALUES ('TEST-0001', 'Anesthesia', 'Isoflurane', '2-3%', 'Inhalation', '15 min')
-    `).run();
-    db.prepare(`
+    `);
+    await db.run(`
       INSERT INTO protocol_animal_use (protocol_id, species_strain, sex, approx_age, max_count)
       VALUES ('TEST-0001', 'Mouse', 'F', '8 weeks', 10)
-    `).run();
-    db.prepare(`INSERT INTO protocol_experiments (protocol_id, name) VALUES ('TEST-0001', 'Main study')`).run();
-    db.prepare(`
+    `);
+    await db.run(`INSERT INTO protocol_experiments (protocol_id, name) VALUES ('TEST-0001', 'Main study')`);
+    await db.run(`
       INSERT INTO protocol_alternatives (protocol_id, lit_databases, lit_years_from, lit_years_to,
         lit_search_date, lit_keywords, lit_summary)
       VALUES ('TEST-0001', 'PubMed, AGRICOLA', '2019', '2026', '2026-06-01', 'alternatives', 'No full alternatives')
-    `).run();
-    const rrr = db.prepare(`INSERT INTO protocol_rrr_entries (protocol_id, rrr_type, method) VALUES (?, ?, ?)`);
-    rrr.run("TEST-0001", "replacement", "Cell culture models");
-    rrr.run("TEST-0001", "refinement", "Refined endpoints");
-    rrr.run("TEST-0001", "reduction", "Power analysis");
+    `);
+    await db.run("INSERT INTO protocol_rrr_entries (protocol_id, rrr_type, method) VALUES ($1, $2, $3)", [
+      "TEST-0001", "replacement", "Cell culture models",
+    ]);
+    await db.run("INSERT INTO protocol_rrr_entries (protocol_id, rrr_type, method) VALUES ($1, $2, $3)", [
+      "TEST-0001", "refinement", "Refined endpoints",
+    ]);
+    await db.run("INSERT INTO protocol_rrr_entries (protocol_id, rrr_type, method) VALUES ($1, $2, $3)", [
+      "TEST-0001", "reduction", "Power analysis",
+    ]);
   }
 
   test("rejects transitioning to Submitted while sections are incomplete", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app)
       .patch("/api/protocols/TEST-0001")
       .send({ status: "Submitted", submitted: "2026-07-15" });
@@ -407,7 +425,7 @@ describe("PATCH /api/protocols/:id", () => {
   });
 
   test("allows transitioning to Submitted once every section is complete", async () => {
-    fillCompleteProtocol();
+    await fillCompleteProtocol();
     const res = await request(app)
       .patch("/api/protocols/TEST-0001")
       .send({ status: "Submitted", submitted: "2026-07-15" });
@@ -417,13 +435,14 @@ describe("PATCH /api/protocols/:id", () => {
 });
 
 describe("DELETE /api/protocols/:id", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("deletes an existing protocol", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app).delete("/api/protocols/TEST-0001");
     assert.equal(res.status, 204);
-    assert.equal(db.prepare("SELECT * FROM protocols WHERE id = ?").get("TEST-0001"), undefined);
+    const row = await db.get("SELECT * FROM protocols WHERE id = $1", ["TEST-0001"]);
+    assert.equal(row, undefined);
   });
 
   test("404s for an unknown protocol", async () => {

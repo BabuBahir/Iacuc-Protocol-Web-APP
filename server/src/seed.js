@@ -1,5 +1,6 @@
 import "dotenv/config";
-import { db } from "./db.js";
+import { pathToFileURL } from "url";
+import { db, closeDb } from "./db.js";
 
 const protocols = [
   { id: "IACUC-2026-0142", title: "Neurobehavioral Effects of Chronic Stress in C57BL/6 Mice", pi: "Dr. Elena Marsh", species: "Mouse", status: "IACUC Review", animals: 240, pain_category: "Category D", submitted: "2026-06-30", expires: null, review_method: "DMR", pi_proxy: "Sam Whitfield", ptm_member: "Dr. Priya Nair", protocol_type: "Research", anesthesia_required: 1, housing: "Group-housed 5/cage in ventilated cages on a 12:12 light cycle.", disposal: "Carbon dioxide euthanasia; carcasses incinerated per SOP.", npg: "None", research_steps: [
@@ -799,65 +800,87 @@ const renewalsSeed = [
   { protocol_id: "IACUC-2025-0098", type: "Continuing Review", status: "Pending", submitted_date: "2026-07-20" },
 ];
 
-const insertProtocol = db.prepare(`
+// Helpers take the query scope `q` as their first argument so they run inside
+// the transaction below (the facade `db` must not be used there — a pg Pool
+// would route statements across connections and break the transaction).
+// SQL uses the shared Postgres-style dialect handled by db.js.
+const insertProtocol = (q, p) => q.run(`
   INSERT INTO protocols (
     id, title, pi, species, status, animals, pain_category, submitted, expires,
     pi_proxy, ptm_member, protocol_type, anesthesia_required, housing, disposal, npg, research_steps,
     purpose_summary, harm_benefit_analysis, scientific_summary, review_method
   )
-  VALUES (
-    @id, @title, @pi, @species, @status, @animals, @pain_category, @submitted, @expires,
-    @pi_proxy, @ptm_member, @protocol_type, @anesthesia_required, @housing, @disposal, @npg, @research_steps,
-    @purpose_summary, @harm_benefit_analysis, @scientific_summary, @review_method
-  )
-`);
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+`, [
+  p.id, p.title, p.pi, p.species ?? null, p.status ?? "Draft", p.animals ?? null,
+  p.pain_category ?? null, p.submitted ?? null, p.expires ?? null,
+  p.pi_proxy ?? null, p.ptm_member ?? null, p.protocol_type ?? null,
+  p.anesthesia_required ?? 0, p.housing ?? null, p.disposal ?? null, p.npg ?? null,
+  p.research_steps ? JSON.stringify(p.research_steps) : null,
+  p.purpose_summary ?? null, p.harm_benefit_analysis ?? null,
+  p.scientific_summary ?? null, p.review_method ?? null,
+]);
 
-const insertRelated = db.prepare(`
-  INSERT INTO related_items (protocol_id, list_name, label) VALUES (?, ?, ?)
-`);
-
-const insertSpecies = db.prepare(`INSERT OR IGNORE INTO species (name) VALUES (?)`);
-const insertRole = db.prepare(`INSERT OR IGNORE INTO roles (name, is_committee) VALUES (?, ?)`);
-const getRoleId = db.prepare(`SELECT id FROM roles WHERE name = ?`);
-const insertPersonnel = db.prepare(`
-  INSERT INTO personnel (name, email, role_id) VALUES (?, ?, ?)
-`);
-const insertTraining = db.prepare(`
+const insertRelated = (q, r) => q.run(
+  "INSERT INTO related_items (protocol_id, list_name, label) VALUES ($1, $2, $3)",
+  [r.protocol_id, r.list_name, r.label]
+);
+const insertSpecies = (q, name) => q.run(
+  "INSERT INTO species (name) VALUES ($1) ON CONFLICT DO NOTHING",
+  [name]
+);
+const insertRole = (q, r) => q.run(
+  "INSERT INTO roles (name, is_committee) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+  [r.name, r.is_committee ? 1 : 0]
+);
+const getRoleId = (q, name) => q.get("SELECT id FROM roles WHERE name = $1", [name]);
+const insertPersonnel = (q, p) => q.run(
+  "INSERT INTO personnel (name, email, role_id) VALUES ($1, $2, $3)",
+  [p.name, p.email, p.role_id]
+);
+const insertTraining = (q, row) => q.run(`
   INSERT INTO personnel_training (personnel_id, course, completed_date, expires_date)
-  VALUES (?, ?, ?, ?)
-`);
-const insertOhsp = db.prepare(`
+  VALUES ($1, $2, $3, $4)
+`, [row.personnel_id, row.course, row.completed_date, row.expires_date ?? null]);
+const insertOhsp = (q, row) => q.run(`
   INSERT INTO personnel_ohsp (personnel_id, status, reviewed_date, notes)
-  VALUES (?, ?, ?, ?)
-`);
+  VALUES ($1, $2, $3, $4)
+`, [row.personnel_id, row.status, row.reviewed_date, row.notes]);
 
-const insertProcedure = db.prepare(`
+const insertProcedure = (q, row) => q.run(`
   INSERT INTO protocol_procedures (protocol_id, procedure_key, checked, description,
     surgical_description, aseptic_preparation, analgesia_level, postop_care)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-`);
-const insertDrug = db.prepare(`
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+`, [row.protocol_id, row.key, row.checked ? 1 : 0, row.description || null,
+  row.surgical_description || null, row.aseptic_preparation || null,
+  row.analgesia_level || null, row.postop_care || null]);
+const insertDrug = (q, row) => q.run(`
   INSERT INTO protocol_drugs (protocol_id, reason_for_use, drug, dose, route, duration)
-  VALUES (?, ?, ?, ?, ?, ?)
-`);
-const insertAnimalUse = db.prepare(`
+  VALUES ($1, $2, $3, $4, $5, $6)
+`, [row.protocol_id, row.reason_for_use, row.drug, row.dose, row.route, row.duration]);
+const insertAnimalUse = (q, row) => q.run(`
   INSERT INTO protocol_animal_use (protocol_id, species_strain, sex, approx_age, max_count)
-  VALUES (?, ?, ?, ?, ?)
-`);
-const insertExperiment = db.prepare(`
+  VALUES ($1, $2, $3, $4, $5)
+`, [row.protocol_id, row.species_strain, row.sex, row.approx_age, row.max_count]);
+const insertExperiment = (q, row) => q.run(`
   INSERT INTO protocol_experiments (
     protocol_id, name, description, multiple_surgical_events,
     humane_endpoints, persistent_clinical_signs_justification,
     monitoring_plan, husbandry_exceptions
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-`);
-const insertAlternatives = db.prepare(`
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+`, [row.protocol_id, row.name, row.description, row.multiple_surgical_events ? 1 : 0,
+  row.humane_endpoints, row.persistent_clinical_signs_justification,
+  row.monitoring_plan, row.husbandry_exceptions]);
+const insertAlternatives = (q, row) => q.run(`
   INSERT INTO protocol_alternatives (
     protocol_id, replacement_text, refinement_text, reduction_text,
     lit_databases, lit_years_from, lit_years_to, lit_search_date, lit_keywords, lit_summary,
     colleague_name, colleague_date, colleague_notes, av_consult_date
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`);
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+`, [row.protocol_id, row.replacement_text, row.refinement_text, row.reduction_text,
+  row.lit_databases, row.lit_years_from, row.lit_years_to, row.lit_search_date,
+  row.lit_keywords, row.lit_summary,
+  row.colleague_name, row.colleague_date, row.colleague_notes, row.av_consult_date]);
 // The structured 3 Rs justifications are seeded from the same source data as
 // the legacy replacement/refinement/reduction blobs above. The blobs remain in
 // the DB for backward compatibility but are no longer read by the API.
@@ -866,80 +889,105 @@ const RRR_METHODS = {
   refinement: "Welfare refinement of procedures",
   reduction: "Statistical and experimental design",
 };
-const insertRrrEntry = db.prepare(`
+const insertRrrEntry = (q, row) => q.run(`
   INSERT INTO protocol_rrr_entries (protocol_id, rrr_type, method, explanation)
-  VALUES (?, ?, ?, ?)
-`);
-const getPersonnelId = db.prepare(`SELECT id FROM personnel WHERE name = ?`);
-const insertVote = db.prepare(`
+  VALUES ($1, $2, $3, $4)
+`, [row.protocol_id, row.rrr_type, row.method, row.explanation]);
+const getPersonnelId = (q, name) => q.get("SELECT id FROM personnel WHERE name = $1", [name]);
+const insertVote = (q, row) => q.run(`
   INSERT INTO protocol_votes (protocol_id, personnel_id, vote, comment, voted_at)
-  VALUES (?, ?, ?, ?, ?)
-`);
-const insertUsage = db.prepare(`
+  VALUES ($1, $2, $3, $4, $5)
+`, [row.protocol_id, row.personnel_id, row.vote, row.comment, row.voted_at]);
+const insertUsage = (q, row) => q.run(`
   INSERT INTO animal_usage_transactions
     (protocol_id, transaction_date, species_strain, pain_level, quantity, type, procedure_key, notes)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-`);
-const insertAssignment = db.prepare(`
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+`, [row.protocol_id, row.transaction_date, row.species_strain, row.pain_level,
+  row.quantity, row.type, row.procedure_key, row.notes]);
+const insertAssignment = (q, row) => q.run(`
   INSERT INTO protocol_review_assignments (protocol_id, personnel_id, role)
-  VALUES (?, ?, ?)
-`);
-const insertComment = db.prepare(`
+  VALUES ($1, $2, $3)
+`, [row.protocol_id, row.personnel_id, row.role]);
+const insertComment = (q, row) => q.run(`
   INSERT INTO protocol_review_comments (protocol_id, personnel_id, section, comment)
-  VALUES (?, ?, ?, ?)
-`);
-const insertFacility = db.prepare(`INSERT INTO facilities (name, type, species) VALUES (?, ?, ?)`);
-const getFacilityId = db.prepare(`SELECT id FROM facilities WHERE name = ?`);
-const insertInspection = db.prepare(`
+  VALUES ($1, $2, $3, $4)
+`, [row.protocol_id, row.personnel_id, row.section, row.comment]);
+const insertFacility = (q, row) => q.run(
+  "INSERT INTO facilities (name, type, species) VALUES ($1, $2, $3)",
+  [row.name, row.type, row.species ?? null]
+);
+const getFacilityId = (q, name) => q.get("SELECT id FROM facilities WHERE name = $1", [name]);
+const insertInspection = (q, row) => q.get(`
   INSERT INTO inspections (facility_id, inspection_date, report, result)
-  VALUES (?, ?, ?, ?)
-`);
-const insertDeficiency = db.prepare(`
+  VALUES ($1, $2, $3, $4) RETURNING id
+`, [row.facility_id, row.inspection_date, row.report ?? null, row.result]);
+const insertDeficiency = (q, row) => q.run(`
   INSERT INTO inspection_deficiencies (inspection_id, severity, description, remediation_deadline, remediated_at)
-  VALUES (?, ?, ?, ?, ?)
-`);
-const insertIncident = db.prepare(`
+  VALUES ($1, $2, $3, $4, $5)
+`, [row.inspection_id, row.severity, row.description, row.remediation_deadline ?? null, row.remediated_at ?? null]);
+const insertIncident = (q, row) => q.run(`
   INSERT INTO incidents (protocol_id, type, description, severity, status, corrective_action, closed_at, reported_by, assigned_to, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`);
-const insertPamAudit = db.prepare(`
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+`, [row.protocol_id, row.type, row.description, row.severity, row.status,
+  row.corrective_action ?? null, row.closed_at ?? null,
+  row.reported_by ?? null, row.assigned_to ?? null, row.created_at]);
+const insertPamAudit = (q, row) => q.run(`
   INSERT INTO pam_audits (protocol_id, audit_date, auditor_id, site_visits, findings, report)
-  VALUES (?, ?, ?, ?, ?, ?)
-`);
-const insertAmendment = db.prepare(`INSERT INTO amendments (protocol_id, reason, status) VALUES (?, ?, ?)`);
-const insertChange = db.prepare(`
+  VALUES ($1, $2, $3, $4, $5, $6)
+`, [row.protocol_id, row.audit_date, row.auditor_id,
+  row.site_visits ?? null, row.findings ?? null, row.report ?? null]);
+const insertAmendment = (q, row) => q.get(
+  "INSERT INTO amendments (protocol_id, reason, status) VALUES ($1, $2, $3) RETURNING id",
+  [row.protocol_id, row.reason, row.status]
+);
+const insertChange = (q, row) => q.run(`
   INSERT INTO amendment_changes (amendment_id, section, field, previous_value, new_value)
-  VALUES (?, ?, ?, ?, ?)
-`);
-const insertVersion = db.prepare(`
+  VALUES ($1, $2, $3, $4, $5)
+`, [row.amendment_id, row.section, row.field, row.previous_value ?? null, row.new_value ?? null]);
+const insertVersion = (q, row) => q.run(`
   INSERT INTO protocol_versions (protocol_id, version_number, source, approved_date, expiration_date, version_date)
-  VALUES (?, ?, ?, ?, ?, ?)
-`);
-const insertRenewal = db.prepare(`
+  VALUES ($1, $2, $3, $4, $5, $6)
+`, [row.protocol_id, row.version_number, row.source, row.approved_date, row.expiration_date, row.version_date]);
+const insertRenewal = (q, row) => q.run(`
   INSERT INTO renewals (protocol_id, type, status, submitted_date)
-  VALUES (?, ?, ?, ?)
-`);
+  VALUES ($1, $2, $3, $4)
+`, [row.protocol_id, row.type, row.status, row.submitted_date]);
 
 let procCount = 0, drugCount = 0, animalUseCount = 0, alternativesCount = 0, experimentCount = 0, rrrCount = 0, usageCount = 0, assignmentCount = 0, commentCount = 0, trainingCount = 0, ohspCount = 0;
 let facilityCount = 0, inspectionCount = 0, deficiencyCount = 0, incidentCount = 0, pamCount = 0, amendmentCount = 0, changeCount = 0, versionCount = 0, renewalCount = 0;
 
-db.exec("BEGIN");
-try {
-  db.exec("DELETE FROM protocol_votes; DELETE FROM protocol_procedures; DELETE FROM protocol_drugs;");
-  db.exec("DELETE FROM protocol_animal_use; DELETE FROM protocol_alternatives;");
-  db.exec("DELETE FROM protocol_experiments; DELETE FROM protocol_rrr_entries;");
-  db.exec("DELETE FROM animal_usage_transactions;");
-  db.exec("DELETE FROM protocol_review_comments; DELETE FROM protocol_review_assignments;");
-  db.exec("DELETE FROM personnel_training; DELETE FROM personnel_ohsp;");
-  db.exec("DELETE FROM amendment_changes; DELETE FROM amendments;");
-  db.exec("DELETE FROM protocol_versions; DELETE FROM renewals;");
-  db.exec("DELETE FROM incidents; DELETE FROM pam_audits;");
-  db.exec("DELETE FROM inspection_deficiencies; DELETE FROM inspections; DELETE FROM facilities;");
-  db.exec("DELETE FROM personnel; DELETE FROM roles; DELETE FROM species;");
-  db.exec("DELETE FROM related_items; DELETE FROM protocols;");
+await db.transaction(async (tx) => {
+  // Truncate in FK-safe order (children before parents) — mirrors the DELETE
+  // order used by the test helper.
+  await tx.run("DELETE FROM protocol_votes");
+  await tx.run("DELETE FROM protocol_procedures");
+  await tx.run("DELETE FROM protocol_drugs");
+  await tx.run("DELETE FROM protocol_animal_use");
+  await tx.run("DELETE FROM protocol_alternatives");
+  await tx.run("DELETE FROM protocol_experiments");
+  await tx.run("DELETE FROM protocol_rrr_entries");
+  await tx.run("DELETE FROM animal_usage_transactions");
+  await tx.run("DELETE FROM protocol_review_comments");
+  await tx.run("DELETE FROM protocol_review_assignments");
+  await tx.run("DELETE FROM personnel_training");
+  await tx.run("DELETE FROM personnel_ohsp");
+  await tx.run("DELETE FROM amendment_changes");
+  await tx.run("DELETE FROM amendments");
+  await tx.run("DELETE FROM protocol_versions");
+  await tx.run("DELETE FROM renewals");
+  await tx.run("DELETE FROM incidents");
+  await tx.run("DELETE FROM pam_audits");
+  await tx.run("DELETE FROM inspection_deficiencies");
+  await tx.run("DELETE FROM inspections");
+  await tx.run("DELETE FROM facilities");
+  await tx.run("DELETE FROM personnel");
+  await tx.run("DELETE FROM roles");
+  await tx.run("DELETE FROM species");
+  await tx.run("DELETE FROM related_items");
+  await tx.run("DELETE FROM protocols");
 
   for (const p of protocols) {
-    insertProtocol.run({
+    await insertProtocol(tx, {
       id: p.id,
       title: p.title,
       pi: p.pi,
@@ -956,160 +1004,138 @@ try {
       housing: p.housing ?? null,
       disposal: p.disposal ?? null,
       npg: p.npg ?? null,
-      research_steps: p.research_steps ? JSON.stringify(p.research_steps) : null,
+      research_steps: p.research_steps,
       purpose_summary: p.purpose_summary ?? null,
       harm_benefit_analysis: p.harm_benefit_analysis ?? null,
       scientific_summary: p.scientific_summary ?? null,
       review_method: p.review_method ?? null,
     });
   }
-  for (const r of relatedItems) insertRelated.run(r.protocol_id, r.list_name, r.label);
-  for (const s of species) insertSpecies.run(s);
-  for (const r of roles) insertRole.run(r.name, r.is_committee ? 1 : 0);
+  for (const r of relatedItems) await insertRelated(tx, r);
+  for (const s of species) await insertSpecies(tx, s);
+  for (const r of roles) await insertRole(tx, r);
   for (const p of personnel) {
-    const role = getRoleId.get(p.role);
-    insertPersonnel.run(p.name, p.email, role.id);
+    const role = await getRoleId(tx, p.role);
+    await insertPersonnel(tx, { name: p.name, email: p.email, role_id: role.id });
   }
   for (const [name, courses] of Object.entries(trainingSeed)) {
-    const person = getPersonnelId.get(name);
+    const person = await getPersonnelId(tx, name);
     for (const c of courses) {
-      insertTraining.run(person.id, c.course, c.completed_date, c.expires_date ?? null);
+      await insertTraining(tx, { personnel_id: person.id, course: c.course, completed_date: c.completed_date, expires_date: c.expires_date ?? null });
       trainingCount++;
     }
   }
   for (const [name, ohsp] of Object.entries(ohspSeed)) {
-    const person = getPersonnelId.get(name);
-    insertOhsp.run(person.id, ohsp.status, ohsp.reviewed_date, ohsp.notes);
+    const person = await getPersonnelId(tx, name);
+    await insertOhsp(tx, { personnel_id: person.id, status: ohsp.status, reviewed_date: ohsp.reviewed_date, notes: ohsp.notes });
     ohspCount++;
   }
 
   for (const [protocolId, rows] of Object.entries(proceduresSeed)) {
     for (const r of rows) {
-      insertProcedure.run(
-        protocolId, r.key, r.checked ? 1 : 0, r.description || null,
-        r.surgical_description || null, r.aseptic_preparation || null,
-        r.analgesia_level || null, r.postop_care || null
-      );
+      await insertProcedure(tx, { protocol_id: protocolId, ...r });
       procCount++;
     }
   }
   for (const [protocolId, rows] of Object.entries(drugsSeed)) {
     for (const r of rows) {
-      insertDrug.run(protocolId, r.reason_for_use, r.drug, r.dose, r.route, r.duration);
+      await insertDrug(tx, { protocol_id: protocolId, ...r });
       drugCount++;
     }
   }
   for (const [protocolId, rows] of Object.entries(animalUseSeed)) {
     for (const r of rows) {
-      insertAnimalUse.run(protocolId, r.species_strain, r.sex, r.approx_age, r.max_count);
+      await insertAnimalUse(tx, { protocol_id: protocolId, ...r });
       animalUseCount++;
     }
   }
   for (const [protocolId, rows] of Object.entries(experimentsSeed)) {
     for (const r of rows) {
-      insertExperiment.run(
-        protocolId,
-        r.name,
-        r.description,
-        r.multiple_surgical_events ? 1 : 0,
-        r.humane_endpoints,
-        r.persistent_clinical_signs_justification,
-        r.monitoring_plan,
-        r.husbandry_exceptions,
-      );
+      await insertExperiment(tx, { protocol_id: protocolId, ...r });
       experimentCount++;
     }
   }
   for (const [protocolId, r] of Object.entries(alternativesSeed)) {
-    insertAlternatives.run(
-      protocolId,
-      r.replacement_text, r.refinement_text, r.reduction_text,
-      r.lit_databases, r.lit_years_from, r.lit_years_to, r.lit_search_date,
-      r.lit_keywords, r.lit_summary,
-      r.colleague_name, r.colleague_date, r.colleague_notes, r.av_consult_date,
-    );
+    await insertAlternatives(tx, { protocol_id: protocolId, ...r });
     alternativesCount++;
     for (const [type, method] of Object.entries(RRR_METHODS)) {
-      insertRrrEntry.run(protocolId, type, method, r[`${type}_text`]);
+      await insertRrrEntry(tx, { protocol_id: protocolId, rrr_type: type, method, explanation: r[`${type}_text`] });
       rrrCount++;
     }
   }
   for (const v of votesSeed) {
-    const voter = getPersonnelId.get(v.voter);
-    insertVote.run(v.protocol_id, voter.id, v.vote, v.comment, v.voted_at);
+    const voter = await getPersonnelId(tx, v.voter);
+    await insertVote(tx, { protocol_id: v.protocol_id, personnel_id: voter.id, vote: v.vote, comment: v.comment, voted_at: v.voted_at });
   }
   for (const [protocolId, rows] of Object.entries(assignmentsSeed)) {
     for (const r of rows) {
-      const reviewer = getPersonnelId.get(r.reviewer);
-      insertAssignment.run(protocolId, reviewer.id, r.role);
+      const reviewer = await getPersonnelId(tx, r.reviewer);
+      await insertAssignment(tx, { protocol_id: protocolId, personnel_id: reviewer.id, role: r.role });
       assignmentCount++;
     }
   }
   for (const [protocolId, rows] of Object.entries(commentsSeed)) {
     for (const r of rows) {
-      const commenter = getPersonnelId.get(r.commenter);
-      insertComment.run(protocolId, commenter.id, r.section, r.comment);
+      const commenter = await getPersonnelId(tx, r.commenter);
+      await insertComment(tx, { protocol_id: protocolId, personnel_id: commenter.id, section: r.section, comment: r.comment });
       commentCount++;
     }
   }
   for (const [protocolId, rows] of Object.entries(animalUsageSeed)) {
     for (const r of rows) {
-      insertUsage.run(
-        protocolId, r.transaction_date, r.species_strain, r.pain_level,
-        r.quantity, r.type, r.procedure_key, r.notes,
-      );
+      await insertUsage(tx, { protocol_id: protocolId, ...r });
       usageCount++;
     }
   }
   for (const f of facilitiesSeed) {
-    insertFacility.run(f.name, f.type, f.species || null);
+    await insertFacility(tx, f);
     facilityCount++;
   }
   for (const insp of inspectionsSeed) {
-    const facility = getFacilityId.get(insp.facility);
-    const r = insertInspection.run(facility.id, insp.inspection_date, insp.report || null, insp.result);
+    const facility = await getFacilityId(tx, insp.facility);
+    const r = await insertInspection(tx, { facility_id: facility.id, inspection_date: insp.inspection_date, report: insp.report ?? null, result: insp.result });
     inspectionCount++;
     for (const d of insp.deficiencies) {
-      insertDeficiency.run(Number(r.lastInsertRowid), d.severity, d.description, d.remediation_deadline || null, d.remediated_at || null);
+      await insertDeficiency(tx, { inspection_id: r.id, ...d, remediated_at: d.remediated_at ?? null });
       deficiencyCount++;
     }
   }
   for (const inc of incidentsSeed) {
-    insertIncident.run(
-      inc.protocol_id, inc.type, inc.description, inc.severity, inc.status,
-      inc.corrective_action || null, inc.closed_at || null,
-      inc.reported_by ? getPersonnelId.get(inc.reported_by).id : null,
-      inc.assigned_to ? getPersonnelId.get(inc.assigned_to).id : null,
-      inc.created_at,
-    );
+    await insertIncident(tx, {
+      protocol_id: inc.protocol_id,
+      type: inc.type,
+      description: inc.description,
+      severity: inc.severity,
+      status: inc.status,
+      corrective_action: inc.corrective_action ?? null,
+      closed_at: inc.closed_at ?? null,
+      reported_by: inc.reported_by ? (await getPersonnelId(tx, inc.reported_by)).id : null,
+      assigned_to: inc.assigned_to ? (await getPersonnelId(tx, inc.assigned_to)).id : null,
+      created_at: inc.created_at,
+    });
     incidentCount++;
   }
   for (const a of pamAuditsSeed) {
-    insertPamAudit.run(a.protocol_id, a.audit_date, getPersonnelId.get(a.auditor).id, a.site_visits || null, a.findings || null, a.report || null);
+    await insertPamAudit(tx, { protocol_id: a.protocol_id, audit_date: a.audit_date, auditor_id: (await getPersonnelId(tx, a.auditor)).id, site_visits: a.site_visits ?? null, findings: a.findings ?? null, report: a.report ?? null });
     pamCount++;
   }
   for (const am of amendmentsSeed) {
-    const r = insertAmendment.run(am.protocol_id, am.reason, am.status);
+    const r = await insertAmendment(tx, { protocol_id: am.protocol_id, reason: am.reason, status: am.status });
     amendmentCount++;
     for (const c of am.changes) {
-      insertChange.run(Number(r.lastInsertRowid), c.section, c.field, c.previous_value ?? null, c.new_value ?? null);
+      await insertChange(tx, { amendment_id: r.id, ...c });
       changeCount++;
     }
   }
   for (const v of versionsSeed) {
-    insertVersion.run(v.protocol_id, v.version_number, v.source, v.approved_date, v.expiration_date, v.version_date);
+    await insertVersion(tx, v);
     versionCount++;
   }
   for (const rn of renewalsSeed) {
-    insertRenewal.run(rn.protocol_id, rn.type, rn.status, rn.submitted_date);
+    await insertRenewal(tx, rn);
     renewalCount++;
   }
-
-  db.exec("COMMIT");
-} catch (err) {
-  db.exec("ROLLBACK");
-  throw err;
-}
+});
 
 console.log(
   `Seeded ${protocols.length} protocols, ${relatedItems.length} related items, ` +
@@ -1118,3 +1144,11 @@ console.log(
   `${experimentCount} experiments, ${alternativesCount} alternatives rows, ${rrrCount} 3Rs entries, ${votesSeed.length} votes, ${usageCount} usage transactions, ${assignmentCount} assignments, ${commentCount} review comments, ${trainingCount} training records, ${ohspCount} OHSP clearances, ` +
   `${facilityCount} facilities, ${inspectionCount} inspections, ${deficiencyCount} deficiencies, ${incidentCount} incidents, ${pamCount} PAM audits, ${amendmentCount} amendments, ${changeCount} amendment changes, ${versionCount} protocol versions, ${renewalCount} renewals.`
 );
+
+// Release the connection when run as a CLI (`npm run seed`) so the process
+// exits cleanly (an idle pg Pool otherwise keeps the event loop alive). When
+// imported by the e2e server — which serves requests on the same DB — the
+// connection stays open.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await closeDb();
+}

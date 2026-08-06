@@ -16,7 +16,7 @@ async function insertFacility(overrides = {}) {
 }
 
 describe("GET /api/facilities", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("returns facilities sorted by name", async () => {
     await insertFacility({ name: "Beta Lab", type: "Lab" });
@@ -29,7 +29,7 @@ describe("GET /api/facilities", () => {
 });
 
 describe("POST /api/facilities", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("creates a facility", async () => {
     const res = await request(app)
@@ -56,7 +56,7 @@ describe("POST /api/facilities", () => {
 });
 
 describe("DELETE /api/facilities/:id", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("deletes a facility and cascades its inspections", async () => {
     const facility = await insertFacility();
@@ -78,7 +78,7 @@ describe("DELETE /api/facilities/:id", () => {
 });
 
 describe("GET /api/inspections", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("returns inspections with facility names, most recent first", async () => {
     const facility = await insertFacility({ name: "Surgical Suite A" });
@@ -94,7 +94,7 @@ describe("GET /api/inspections", () => {
 });
 
 describe("POST /api/inspections", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("creates an inspection defaulting to Pending", async () => {
     const facility = await insertFacility();
@@ -131,7 +131,7 @@ describe("POST /api/inspections", () => {
 });
 
 describe("GET /api/inspections/:id", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("returns the inspection with its deficiencies", async () => {
     const facility = await insertFacility();
@@ -159,7 +159,7 @@ describe("GET /api/inspections/:id", () => {
 });
 
 describe("GET /api/inspections/:id/deficiencies", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("returns the deficiency set, Major first", async () => {
     const facility = await insertFacility();
@@ -186,7 +186,7 @@ describe("GET /api/inspections/:id/deficiencies", () => {
 });
 
 describe("POST /api/inspections/:id/deficiencies", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("creates a deficiency", async () => {
     const facility = await insertFacility();
@@ -237,7 +237,7 @@ describe("POST /api/inspections/:id/deficiencies", () => {
 });
 
 describe("PATCH /api/inspections/:id/deficiencies/:defId", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("marks a deficiency remediated", async () => {
     const facility = await insertFacility();

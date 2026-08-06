@@ -8,11 +8,8 @@ const { createApp } = await import("../src/app.js");
 const { db } = await import("../src/db.js");
 const app = createApp();
 
-function insertProtocol(overrides = {}) {
-  db.prepare(`
-    INSERT INTO protocols (id, title, pi, species, status, animals, pain_category)
-    VALUES (@id, @title, @pi, @species, @status, @animals, @pain_category)
-  `).run({
+async function insertProtocol(overrides = {}) {
+  const params = {
     id: "TEST-0001",
     title: "Test protocol",
     pi: "Dr. Test",
@@ -21,21 +18,28 @@ function insertProtocol(overrides = {}) {
     animals: 10,
     pain_category: "Category B",
     ...overrides,
-  });
+  };
+  await db.run(
+    `
+    INSERT INTO protocols (id, title, pi, species, status, animals, pain_category)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+  `,
+    [params.id, params.title, params.pi, params.species, params.status, params.animals, params.pain_category]
+  );
 }
 
 async function insertPersonnel(name, roleName) {
-  let roleId = db.prepare("SELECT id FROM roles WHERE name = ?").get(roleName)?.id;
+  let roleId = (await db.get("SELECT id FROM roles WHERE name = $1", [roleName]))?.id;
   if (!roleId) {
     await request(app).post("/api/admin/roles").send({ name: roleName, is_committee: 0 });
-    roleId = db.prepare("SELECT id FROM roles WHERE name = ?").get(roleName).id;
+    roleId = (await db.get("SELECT id FROM roles WHERE name = $1", [roleName])).id;
   }
   const person = await request(app).post("/api/admin/personnel").send({ name, role_id: roleId });
   return person.body.id;
 }
 
 async function insertIncident(overrides = {}) {
-  insertProtocol();
+  await insertProtocol();
   const res = await request(app)
     .post("/api/incidents")
     .send({ protocol_id: "TEST-0001", type: "Deviation", description: "Analgesia logged late.", ...overrides });
@@ -43,7 +47,7 @@ async function insertIncident(overrides = {}) {
 }
 
 describe("GET /api/incidents", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("returns incidents most recent first with reporter/assignee names", async () => {
     const reporter = await insertPersonnel("Dr. Reporter", "Attending Veterinarian");
@@ -69,10 +73,10 @@ describe("GET /api/incidents", () => {
 });
 
 describe("POST /api/incidents", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("creates an incident with the defaults applied", async () => {
-    insertProtocol();
+    await insertProtocol();
     const reporter = await insertPersonnel("Dr. Reporter", "Attending Veterinarian");
     const res = await request(app)
       .post("/api/incidents")
@@ -121,7 +125,7 @@ describe("POST /api/incidents", () => {
 });
 
 describe("GET /api/incidents/:id", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("returns a single incident", async () => {
     const incident = await insertIncident();
@@ -138,7 +142,7 @@ describe("GET /api/incidents/:id", () => {
 });
 
 describe("PATCH /api/incidents/:id — lifecycle", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("recording a CAPA on an Open incident moves it to CAPA", async () => {
     const incident = await insertIncident();
@@ -205,10 +209,10 @@ describe("PATCH /api/incidents/:id — lifecycle", () => {
 });
 
 describe("PAM audits (per protocol)", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(async () => { await resetTables(db); });
 
   test("GET returns audits most recent first with auditor names", async () => {
-    insertProtocol();
+    await insertProtocol();
     const auditor = await insertPersonnel("Dr. Auditor", "IACUC Chair");
     await request(app).post("/api/protocols/TEST-0001/pam-audits").send({
       audit_date: "2026-06-30", auditor_id: auditor, site_visits: "Suite A", findings: "Clean.", report: "Compliant.",
@@ -225,14 +229,14 @@ describe("PAM audits (per protocol)", () => {
   });
 
   test("POST requires audit_date", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app).post("/api/protocols/TEST-0001/pam-audits").send({});
     assert.equal(res.status, 400);
     assert.match(res.body.error, /audit_date is required/);
   });
 
   test("POST rejects an unknown auditor", async () => {
-    insertProtocol();
+    await insertProtocol();
     const res = await request(app).post("/api/protocols/TEST-0001/pam-audits").send({ audit_date: "2026-07-01", auditor_id: 9999 });
     assert.equal(res.status, 400);
     assert.match(res.body.error, /Unknown auditor_id/);
@@ -244,7 +248,7 @@ describe("PAM audits (per protocol)", () => {
   });
 
   test("GET /api/pam-audits lists audits across protocols", async () => {
-    insertProtocol();
+    await insertProtocol();
     const auditor = await insertPersonnel("Dr. Auditor", "IACUC Chair");
     await request(app).post("/api/protocols/TEST-0001/pam-audits").send({
       audit_date: "2026-06-30", auditor_id: auditor, findings: "First.",

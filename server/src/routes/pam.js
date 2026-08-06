@@ -19,9 +19,9 @@ export const INCIDENT_TYPES = ["Adverse Event", "Deviation", "Noncompliance", "U
 export const INCIDENT_SEVERITIES = ["Minor", "Major", "Immediate"];
 export const INCIDENT_STATUSES = ["Open", "CAPA", "Closed"];
 
-function decorate(incident) {
+async function decorate(incident) {
   if (!incident) return incident;
-  const withReporters = db.prepare(`
+  return db.get(`
     SELECT incident.id, incident.protocol_id, incident.type, incident.description,
            incident.severity, incident.status, incident.corrective_action,
            incident.closed_at, incident.reported_by, incident.assigned_to, incident.created_at,
@@ -29,13 +29,12 @@ function decorate(incident) {
     FROM incidents incident
     LEFT JOIN personnel reporter ON reporter.id = incident.reported_by
     LEFT JOIN personnel assignee ON assignee.id = incident.assigned_to
-    WHERE incident.id = ?
-  `).get(incident.id);
-  return withReporters;
+    WHERE incident.id = $1
+  `, [incident.id]);
 }
 
-function requireIncident(req, res) {
-  const incident = db.prepare("SELECT * FROM incidents WHERE id = ?").get(Number(req.params.id));
+async function requireIncident(req, res) {
+  const incident = await db.get("SELECT * FROM incidents WHERE id = $1", [Number(req.params.id)]);
   if (!incident) {
     res.status(404).json({ error: "Incident not found" });
     return null;
@@ -46,13 +45,15 @@ function requireIncident(req, res) {
 // ---- incidents ----
 
 // GET /api/incidents  (most recent first, with reporter/assignee names)
-router.get("/incidents", (_req, res) => {
-  const rows = db.prepare("SELECT * FROM incidents ORDER BY created_at DESC, id DESC").all();
-  res.json(rows.map(decorate));
+router.get("/incidents", async (_req, res) => {
+  const rows = await db.all("SELECT * FROM incidents ORDER BY created_at DESC, id DESC");
+  const out = [];
+  for (const row of rows) out.push(await decorate(row));
+  res.json(out);
 });
 
 // POST /api/incidents  { protocol_id?, type, description, severity?, reported_by?, assigned_to? }
-router.post("/incidents", (req, res) => {
+router.post("/incidents", async (req, res) => {
   const { protocol_id, type, description, severity, reported_by, assigned_to } = req.body || {};
   if (!INCIDENT_TYPES.includes(type)) {
     return res.status(400).json({ error: `type must be one of: ${INCIDENT_TYPES.join(", ")}` });
@@ -64,46 +65,44 @@ router.post("/incidents", (req, res) => {
     return res.status(400).json({ error: `severity must be one of: ${INCIDENT_SEVERITIES.join(", ")}` });
   }
   if (protocol_id) {
-    const protocol = db.prepare("SELECT id FROM protocols WHERE id = ?").get(protocol_id);
+    const protocol = await db.get("SELECT id FROM protocols WHERE id = $1", [protocol_id]);
     if (!protocol) return res.status(400).json({ error: "Unknown protocol_id" });
   }
   if (reported_by) {
-    const reporter = db.prepare("SELECT id FROM personnel WHERE id = ?").get(Number(reported_by));
+    const reporter = await db.get("SELECT id FROM personnel WHERE id = $1", [Number(reported_by)]);
     if (!reporter) return res.status(400).json({ error: "Unknown reported_by personnel_id" });
   }
   if (assigned_to) {
-    const assignee = db.prepare("SELECT id FROM personnel WHERE id = ?").get(Number(assigned_to));
+    const assignee = await db.get("SELECT id FROM personnel WHERE id = $1", [Number(assigned_to)]);
     if (!assignee) return res.status(400).json({ error: "Unknown assigned_to personnel_id" });
   }
 
-  const result = db.prepare(`
+  const created = await db.get(`
     INSERT INTO incidents (protocol_id, type, description, severity, reported_by, assigned_to)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(
+    VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
+  `, [
     protocol_id || null,
     type,
     String(description).trim(),
     severity || "Minor",
     reported_by ? Number(reported_by) : null,
     assigned_to ? Number(assigned_to) : null,
-  );
-
-  const created = db.prepare("SELECT * FROM incidents WHERE id = ?").get(Number(result.lastInsertRowid));
-  res.status(201).json(decorate(created));
+  ]);
+  res.status(201).json(await decorate(created));
 });
 
 // GET /api/incidents/:id
-router.get("/incidents/:id", (req, res) => {
-  const incident = requireIncident(req, res);
+router.get("/incidents/:id", async (req, res) => {
+  const incident = await requireIncident(req, res);
   if (!incident) return;
-  res.json(decorate(incident));
+  res.json(await decorate(incident));
 });
 
 // PATCH /api/incidents/:id  { status?, corrective_action?, assigned_to? }
 // Log a CAPA and/or move the incident through the lifecycle. Closing requires
 // a CAPA recorded first.
-router.patch("/incidents/:id", (req, res) => {
-  const incident = requireIncident(req, res);
+router.patch("/incidents/:id", async (req, res) => {
+  const incident = await requireIncident(req, res);
   if (!incident) return;
   const { status, corrective_action, assigned_to } = req.body || {};
 
@@ -111,7 +110,7 @@ router.patch("/incidents/:id", (req, res) => {
     return res.status(400).json({ error: `status must be one of: ${INCIDENT_STATUSES.join(", ")}` });
   }
   if (assigned_to !== undefined && assigned_to !== null) {
-    const assignee = db.prepare("SELECT id FROM personnel WHERE id = ?").get(Number(assigned_to));
+    const assignee = await db.get("SELECT id FROM personnel WHERE id = $1", [Number(assigned_to)]);
     if (!assignee) return res.status(400).json({ error: "Unknown assigned_to personnel_id" });
   }
 
@@ -122,9 +121,9 @@ router.patch("/incidents/:id", (req, res) => {
 
   // Recording a CAPA on an Open incident moves it into the CAPA state.
   if (nextStatus === "Open" && nextCapa && incident.status === "Open" && !status) {
-    db.prepare("UPDATE incidents SET corrective_action = ? WHERE id = ?").run(nextCapa, incident.id);
-    db.prepare("UPDATE incidents SET status = 'CAPA' WHERE id = ?").run(incident.id);
-    return res.status(200).json(decorate(db.prepare("SELECT * FROM incidents WHERE id = ?").get(incident.id)));
+    await db.run("UPDATE incidents SET corrective_action = $1 WHERE id = $2", [nextCapa, incident.id]);
+    await db.run("UPDATE incidents SET status = 'CAPA' WHERE id = $1", [incident.id]);
+    return res.status(200).json(await decorate(await db.get("SELECT * FROM incidents WHERE id = $1", [incident.id])));
   }
 
   if (nextStatus === "CAPA" || nextStatus === "Closed") {
@@ -133,70 +132,67 @@ router.patch("/incidents/:id", (req, res) => {
     }
   }
 
-  db.prepare(`
+  await db.run(`
     UPDATE incidents
-    SET status = @status, corrective_action = @corrective_action,
-        closed_at = @closed_at, assigned_to = @assigned_to
-    WHERE id = @id
-  `).run({
-    id: incident.id,
-    status: nextStatus,
-    corrective_action: nextCapa,
-    closed_at: nextStatus === "Closed" ? (new Date().toISOString()) : null,
-    assigned_to: assigned_to !== undefined ? (assigned_to ? Number(assigned_to) : null) : incident.assigned_to,
-  });
+    SET status = $1, corrective_action = $2, closed_at = $3, assigned_to = $4
+    WHERE id = $5
+  `, [
+    nextStatus,
+    nextCapa,
+    nextStatus === "Closed" ? (new Date().toISOString()) : null,
+    assigned_to !== undefined ? (assigned_to ? Number(assigned_to) : null) : incident.assigned_to,
+    incident.id,
+  ]);
 
-  res.status(200).json(decorate(db.prepare("SELECT * FROM incidents WHERE id = ?").get(incident.id)));
+  res.status(200).json(await decorate(await db.get("SELECT * FROM incidents WHERE id = $1", [incident.id])));
 });
 
 // ---- PAM audits (per protocol) ----
 
-function decorateAudit(audit) {
+async function decorateAudit(audit) {
   if (!audit) return audit;
-  const auditor = db.prepare("SELECT name FROM personnel WHERE id = ?").get(audit.auditor_id);
+  const auditor = await db.get("SELECT name FROM personnel WHERE id = $1", [audit.auditor_id]);
   return { ...audit, auditor_name: auditor ? auditor.name : null };
 }
 
 // GET /api/pam-audits — every PAM audit across protocols (most recent first),
 // for the PAM dashboard view.
-router.get("/pam-audits", (_req, res) => {
-  const rows = db.prepare(`
-    SELECT * FROM pam_audits ORDER BY audit_date DESC, id DESC
-  `).all();
-  res.json(rows.map(decorateAudit));
+router.get("/pam-audits", async (_req, res) => {
+  const rows = await db.all("SELECT * FROM pam_audits ORDER BY audit_date DESC, id DESC");
+  const out = [];
+  for (const row of rows) out.push(await decorateAudit(row));
+  res.json(out);
 });
 
 // GET /api/protocols/:id/pam-audits — PAM history + site-visit reports
-pamRouter.get("/:id/pam-audits", (req, res) => {
-  if (!requireProtocol(req, res)) return;
-  const rows = db.prepare(`
-    SELECT * FROM pam_audits WHERE protocol_id = ? ORDER BY audit_date DESC, id DESC
-  `).all(req.params.id);
-  res.json(rows.map(decorateAudit));
+pamRouter.get("/:id/pam-audits", async (req, res) => {
+  if (!(await requireProtocol(req, res))) return;
+  const rows = await db.all("SELECT * FROM pam_audits WHERE protocol_id = $1 ORDER BY audit_date DESC, id DESC", [req.params.id]);
+  const out = [];
+  for (const row of rows) out.push(await decorateAudit(row));
+  res.json(out);
 });
 
 // POST /api/protocols/:id/pam-audits  { audit_date, auditor_id?, site_visits?, findings?, report? }
-pamRouter.post("/:id/pam-audits", (req, res) => {
-  if (!requireProtocol(req, res)) return;
+pamRouter.post("/:id/pam-audits", async (req, res) => {
+  if (!(await requireProtocol(req, res))) return;
   const { audit_date, auditor_id, site_visits, findings, report } = req.body || {};
   if (!audit_date) return res.status(400).json({ error: "audit_date is required" });
   if (auditor_id) {
-    const auditor = db.prepare("SELECT id FROM personnel WHERE id = ?").get(Number(auditor_id));
+    const auditor = await db.get("SELECT id FROM personnel WHERE id = $1", [Number(auditor_id)]);
     if (!auditor) return res.status(400).json({ error: "Unknown auditor_id" });
   }
 
-  const result = db.prepare(`
+  const created = await db.get(`
     INSERT INTO pam_audits (protocol_id, audit_date, auditor_id, site_visits, findings, report)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(
+    VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
+  `, [
     req.params.id,
     audit_date,
     auditor_id ? Number(auditor_id) : null,
     site_visits || null,
     findings || null,
     report || null,
-  );
-
-  const created = db.prepare("SELECT * FROM pam_audits WHERE id = ?").get(Number(result.lastInsertRowid));
-  res.status(201).json(decorateAudit(created));
+  ]);
+  res.status(201).json(await decorateAudit(created));
 });

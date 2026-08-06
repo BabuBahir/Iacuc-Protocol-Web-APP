@@ -9,3 +9,6 @@ server/data/*.db-*
 test-results/
 playwright-report/
 e2e/e2e.db
+
+# Local run/test logs
+*.log
