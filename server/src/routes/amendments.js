@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "../db.js";
 import { requireProtocol } from "./protocol-form.js";
+import { audit, resolveActor } from "../audit.js";
 
 // Amendments & annual renewals (Domain B).
 //
@@ -79,6 +80,13 @@ router.post("/:id/amendments", (req, res) => {
 
   const result = db.prepare("INSERT INTO amendments (protocol_id, reason) VALUES (?, ?)")
     .run(req.params.id, String(reason).trim());
+  audit({
+    action: "amendment.created",
+    entityType: "amendment",
+    entityId: Number(result.lastInsertRowid),
+    actor: resolveActor(req),
+    details: { protocol_id: req.params.id, reason: String(reason).trim() },
+  });
   const created = db.prepare("SELECT * FROM amendments WHERE id = ?").get(Number(result.lastInsertRowid));
   res.status(201).json(decorate(created));
 });
@@ -115,6 +123,13 @@ router.post("/:id/amendments/:amendmentId/changes", (req, res) => {
     previous_value ?? null,
     new_value ?? null,
   );
+  audit({
+    action: "amendment_change.created",
+    entityType: "amendment",
+    entityId: amendment.id,
+    actor: resolveActor(req),
+    details: { protocol_id: req.params.id, section: String(section).trim(), field: String(field).trim() },
+  });
   res.status(201).json(
     db.prepare("SELECT * FROM amendment_changes WHERE id = ?").get(Number(result.lastInsertRowid))
   );
@@ -146,7 +161,21 @@ router.patch("/:id/amendments/:amendmentId", (req, res) => {
       VALUES (?, ?, 'Amendment Document', ?, ?)
     `).run(amendment.protocol_id, nextVersionNumber(amendment.protocol_id), approvedDate, exp);
     db.prepare("UPDATE protocols SET expires = ? WHERE id = ?").run(exp, amendment.protocol_id);
+    audit({
+      action: "protocol_version.created",
+      entityType: "protocol",
+      entityId: amendment.protocol_id,
+      actor: resolveActor(req),
+      details: { source: "Amendment Document", expiration_date: exp },
+    });
   }
+  audit({
+    action: "amendment.updated",
+    entityType: "amendment",
+    entityId: amendment.id,
+    actor: resolveActor(req),
+    details: { protocol_id: amendment.protocol_id, status },
+  });
 
   const updated = db.prepare("SELECT * FROM amendments WHERE id = ?").get(amendment.id);
   res.status(200).json(decorate(updated));
@@ -189,6 +218,13 @@ router.post("/:id/renewals", (req, res) => {
 
   const result = db.prepare("INSERT INTO renewals (protocol_id, type) VALUES (?, ?)")
     .run(req.params.id, type);
+  audit({
+    action: "renewal.created",
+    entityType: "renewal",
+    entityId: Number(result.lastInsertRowid),
+    actor: resolveActor(req),
+    details: { protocol_id: req.params.id, type },
+  });
   res.status(201).json(
     db.prepare("SELECT * FROM renewals WHERE id = ?").get(Number(result.lastInsertRowid))
   );
@@ -230,7 +266,21 @@ router.patch("/:id/renewals/:renewalId", (req, res) => {
       approved_until,
     );
     db.prepare("UPDATE protocols SET expires = ? WHERE id = ?").run(approved_until, renewal.protocol_id);
+    audit({
+      action: "protocol_version.created",
+      entityType: "protocol",
+      entityId: renewal.protocol_id,
+      actor: resolveActor(req),
+      details: { source, expiration_date: approved_until },
+    });
   }
+  audit({
+    action: "renewal.updated",
+    entityType: "renewal",
+    entityId: renewal.id,
+    actor: resolveActor(req),
+    details: { protocol_id: renewal.protocol_id, type: renewal.type, status },
+  });
 
   res.status(200).json(
     db.prepare("SELECT * FROM renewals WHERE id = ?").get(renewal.id)

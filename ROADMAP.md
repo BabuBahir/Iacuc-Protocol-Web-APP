@@ -73,14 +73,18 @@ link the PR/commit.
   required reason and an audit trail — not an instant reassignment.
   See AGENTS.md §1.1.
 
-- [ ] **11. Audit logging**
-  Who accessed/changed what, when. Currently nothing is logged — any
-  edit, vote, or admin change is untracked. This is also a hard
-  prerequisite for the HIPAA/AI-safety guardrails in AGENTS.md §3: those
-  rules (e.g. "log AI-generated content as AI-generated") are only
-  enforceable once an audit trail exists. Depends on Item 4
-  (authentication) — an audit log is meaningless without a real identity
-  behind each action.
+- [x] **11. Audit logging**
+  Who accessed/changed what, when. Every mutation route now records an
+  append-only entry in the `audit_log` table (see `server/src/audit.js`),
+  surfaced through `GET /api/audit` and the admin page's "Audit log"
+  panel. The `provenance` field (`human`/`ai`/`system`) gives the
+  HIPAA/AI-safety guardrails in AGENTS.md §3 something to hang "log
+  AI-generated content as AI-generated" on. Partial: without a real
+  identity behind each action, the "who" is only trustworthy where the
+  request already carries one (votes/comments/assignments/personnel-body
+  fields); the rest is recorded as `system`. Once Item 4 (authentication)
+  lands, route the verified identity through the reserved `actor_key`
+  column — no migration needed.
 
 - [ ] **12. Upgrade react-router-dom to v7**
   Two moderate CVEs in the current 6.30.4 are only patched in v7 (major,

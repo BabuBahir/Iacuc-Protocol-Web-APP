@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "../db.js";
 import { requireProtocol } from "./protocol-form.js";
+import { audit, resolveActor } from "../audit.js";
 
 // Post-Approval Monitoring (PAM) & incident reporting (Domain E).
 //
@@ -89,6 +90,13 @@ router.post("/incidents", (req, res) => {
   );
 
   const created = db.prepare("SELECT * FROM incidents WHERE id = ?").get(Number(result.lastInsertRowid));
+  audit({
+    action: "incident.created",
+    entityType: "incident",
+    entityId: Number(result.lastInsertRowid),
+    actor: resolveActor(req),
+    details: { protocol_id: protocol_id || null, type, severity: severity || "Minor" },
+  });
   res.status(201).json(decorate(created));
 });
 
@@ -124,6 +132,13 @@ router.patch("/incidents/:id", (req, res) => {
   if (nextStatus === "Open" && nextCapa && incident.status === "Open" && !status) {
     db.prepare("UPDATE incidents SET corrective_action = ? WHERE id = ?").run(nextCapa, incident.id);
     db.prepare("UPDATE incidents SET status = 'CAPA' WHERE id = ?").run(incident.id);
+    audit({
+      action: "incident.updated",
+      entityType: "incident",
+      entityId: incident.id,
+      actor: resolveActor(req),
+      details: { status: "CAPA", corrective_action: nextCapa },
+    });
     return res.status(200).json(decorate(db.prepare("SELECT * FROM incidents WHERE id = ?").get(incident.id)));
   }
 
@@ -144,6 +159,14 @@ router.patch("/incidents/:id", (req, res) => {
     corrective_action: nextCapa,
     closed_at: nextStatus === "Closed" ? (new Date().toISOString()) : null,
     assigned_to: assigned_to !== undefined ? (assigned_to ? Number(assigned_to) : null) : incident.assigned_to,
+  });
+
+  audit({
+    action: "incident.updated",
+    entityType: "incident",
+    entityId: incident.id,
+    actor: resolveActor(req),
+    details: { status: nextStatus, corrective_action: nextCapa },
   });
 
   res.status(200).json(decorate(db.prepare("SELECT * FROM incidents WHERE id = ?").get(incident.id)));
@@ -198,5 +221,12 @@ pamRouter.post("/:id/pam-audits", (req, res) => {
   );
 
   const created = db.prepare("SELECT * FROM pam_audits WHERE id = ?").get(Number(result.lastInsertRowid));
+  audit({
+    action: "pam_audit.created",
+    entityType: "pam_audit",
+    entityId: Number(result.lastInsertRowid),
+    actor: resolveActor(req),
+    details: { protocol_id: req.params.id, audit_date },
+  });
   res.status(201).json(decorateAudit(created));
 });

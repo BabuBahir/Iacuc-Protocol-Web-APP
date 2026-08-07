@@ -751,6 +751,35 @@ export interface TransferBulkInput {
   reason: string;
 }
 
+// ---- Audit log (Roadmap item 11) ----
+
+export const AUDIT_PROVENANCES = ["human", "ai", "system"] as const;
+export type AuditProvenance = (typeof AUDIT_PROVENANCES)[number];
+
+export interface AuditEntry {
+  id: number;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  actor: string;
+  actor_key: string | null;
+  details: Record<string, unknown> | null;
+  provenance: AuditProvenance;
+  created_at: string;
+}
+
+export interface AuditQuery {
+  entity_type?: string;
+  entity_id?: string;
+  actor?: string;
+  action?: string;
+  provenance?: AuditProvenance;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}
+
 // ---- constants shared across the UI ----
 
 export const PAIN_CATEGORIES = ["Category A", "Category B", "Category C", "Category D", "Category E"];

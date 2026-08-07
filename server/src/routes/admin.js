@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "../db.js";
+import { audit, resolveActor } from "../audit.js";
 
 export const router = Router();
 
@@ -14,6 +15,7 @@ router.post("/species", (req, res) => {
   if (!name) return res.status(400).json({ error: "name is required" });
   try {
     const result = db.prepare("INSERT INTO species (name) VALUES (?)").run(name);
+    audit({ action: "species.created", entityType: "species", entityId: Number(result.lastInsertRowid), actor: resolveActor(req), details: { name } });
     res.status(201).json({ id: Number(result.lastInsertRowid), name });
   } catch (err) {
     res.status(409).json({ error: "That species already exists." });
@@ -21,8 +23,10 @@ router.post("/species", (req, res) => {
 });
 
 router.delete("/species/:id", (req, res) => {
-  const result = db.prepare("DELETE FROM species WHERE id = ?").run(Number(req.params.id));
-  if (result.changes === 0) return res.status(404).json({ error: "Species not found" });
+  const existing = db.prepare("SELECT name FROM species WHERE id = ?").get(Number(req.params.id));
+  if (!existing) return res.status(404).json({ error: "Species not found" });
+  audit({ action: "species.deleted", entityType: "species", entityId: Number(req.params.id), actor: resolveActor(req), details: { name: existing.name } });
+  db.prepare("DELETE FROM species WHERE id = ?").run(Number(req.params.id));
   res.status(204).end();
 });
 
@@ -38,6 +42,7 @@ router.post("/roles", (req, res) => {
   if (!name) return res.status(400).json({ error: "name is required" });
   try {
     const result = db.prepare("INSERT INTO roles (name, is_committee) VALUES (?, ?)").run(name, isCommittee);
+    audit({ action: "role.created", entityType: "role", entityId: Number(result.lastInsertRowid), actor: resolveActor(req), details: { name, is_committee: isCommittee } });
     res.status(201).json({ id: Number(result.lastInsertRowid), name, is_committee: isCommittee });
   } catch (err) {
     res.status(409).json({ error: "That role already exists." });
@@ -46,6 +51,9 @@ router.post("/roles", (req, res) => {
 
 router.delete("/roles/:id", (req, res) => {
   try {
+    const existing = db.prepare("SELECT name FROM roles WHERE id = ?").get(Number(req.params.id));
+    if (!existing) return res.status(404).json({ error: "Role not found" });
+    audit({ action: "role.deleted", entityType: "role", entityId: Number(req.params.id), actor: resolveActor(req), details: { name: existing.name } });
     const result = db.prepare("DELETE FROM roles WHERE id = ?").run(Number(req.params.id));
     if (result.changes === 0) return res.status(404).json({ error: "Role not found" });
     res.status(204).end();
@@ -77,6 +85,14 @@ router.post("/personnel", (req, res) => {
   const result = db.prepare("INSERT INTO personnel (name, email, role_id) VALUES (?, ?, ?)")
     .run(name.trim(), email || null, Number(role_id));
 
+  audit({
+    action: "personnel.created",
+    entityType: "personnel",
+    entityId: Number(result.lastInsertRowid),
+    actor: resolveActor(req),
+    details: { name: name.trim(), role_name: role.name },
+  });
+
   res.status(201).json({
     id: Number(result.lastInsertRowid),
     name: name.trim(),
@@ -88,7 +104,9 @@ router.post("/personnel", (req, res) => {
 });
 
 router.delete("/personnel/:id", (req, res) => {
-  const result = db.prepare("DELETE FROM personnel WHERE id = ?").run(Number(req.params.id));
-  if (result.changes === 0) return res.status(404).json({ error: "Personnel not found" });
+  const existing = db.prepare("SELECT name FROM personnel WHERE id = ?").get(Number(req.params.id));
+  if (!existing) return res.status(404).json({ error: "Personnel not found" });
+  audit({ action: "personnel.deleted", entityType: "personnel", entityId: Number(req.params.id), actor: resolveActor(req), details: { name: existing.name } });
+  db.prepare("DELETE FROM personnel WHERE id = ?").run(Number(req.params.id));
   res.status(204).end();
 });

@@ -714,11 +714,38 @@ or cancelled; the page also attaches a window `beforeunload` guard while a
 card is dirty. Covered by 2 new client tests in `AmendmentsPage.test.tsx`
 (tab switching + save/cancel guard).
 
+**Audit logging (Roadmap item 11):** an append-only `audit_log` table +
+`server/src/audit.js` helper (`audit()` one-liner, `resolveActor(req)`,
+`diffObject(before, after)`, and a `GET /api/audit` router with
+`entity_type`/`entity_id`/`actor`/`action`/`provenance`/`from`+`to`/`limit`/
+`offset` filters, newest first). Every mutation route (~48 handlers across
+all 10 route files) calls `audit()` after a successful write; updates log a
+field-level `details` diff, deletes look up the row first so the trail
+captures what was removed. `actor`/`actor_key` are deliberately NOT FKs to
+`personnel` so audit rows survive personnel deletion; `actor_key` is the
+reserved home for a Roadmap-item-4 identity. `provenance` (`human`/`ai`/
+`system`, CHECK-constrained, default `human`) is where AI-generated-content
+labeling from §3.2 lands. `resolveActor(req)` precedence: `X-Actor` header →
+`body.actor` → `personnel_id`/`reported_by`/`auditor_id` resolved to the
+person's name → `"system"` fallback, so the "who" is reliable only where
+identity already flows through the request (votes, comments, assignments,
+personnel/OHSP bodies); everything else logs `system` — see §3.3. The admin
+page renders an "Audit log" panel (below the transfer queue, no new nav tab)
+with the filter inputs and an Apply/refresh control. `audit_log` is first in
+the `resetTables` delete order; `routes-audit.test.js` (~26 tests) covers
+the helper defaults, actor precedence, GET filters/400s/pagination, and
+cross-route verification (protocol create/update diff/delete, species CRUD
+with `X-Actor`, `vote.cast` actor = voter name, transfer create/approve,
+drug/animal-use creates). One server gap remains: `audit.js` 98.44% lines
+(the uncovered `safeParse` catch is untestable without feeding malformed
+JSON, and the DB transaction-rollback error path in `protocol-form.js`
+stays uncovered per the note above).
+
 Not implemented (see §1 above for the domain detail on each): conditional/
 dynamic Table of Contents, auth or role-based
 access control, search filter-builder, compliance reports. (Amendments now
-have the three-pane live-diff; protocol version lineage, renewals, and
-Transfer Ownership are all implemented above.)
+have the three-pane live-diff; protocol version lineage, renewals, Transfer
+Ownership, and audit logging are all implemented above.)
 
 ## 3. HIPAA, PHI, and AI-safety guardrails
 
@@ -781,10 +808,14 @@ narratives, summarizing amendments, flagging missing sections, etc.
 HIPAA-style controls are enforcement mechanisms, not just policy text —
 without the following, this section is documentation only:
 
-- **Audit logging** — who accessed/changed what, when. Not yet
-  implemented; see Roadmap item 11.
+- **Audit logging** — implemented, with one known gap: the `audit_log`
+  table records who/what/when for every write (see the "Audit log"
+  section below), but the "who" is only as strong as the identity a
+  request already carries. Authentication closes that gap.
 - **Authentication + role-based access control** — Roadmap item 4. No
-  audit trail is meaningful without knowing who "who" is.
+  audit trail is meaningful without knowing who "who" is. The reserved
+  `actor_key` column on `audit_log` is where a verified identity goes
+  once auth lands — no migration needed.
 - **Encryption in transit** — HTTPS/TLS termination is a deployment
   concern (see README's Deploying section), not something the app code
   itself enforces; make sure it's on wherever this is actually hosted.
