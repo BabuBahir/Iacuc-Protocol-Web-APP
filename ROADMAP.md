@@ -5,53 +5,62 @@ research already captured in `AGENTS.md` §1 — read that section before
 starting an item so you're not re-deriving rules that are already
 documented there.
 
-Work through these one at a time. When an item is done, check it off and
-link the PR/commit.
+Work through these one at a time. When an item is done, check it off in
+the SAME PR/commit that implements it, with a one-line pointer to the
+file(s) that did it — this file has gone stale relative to shipped work
+more than once already; keeping the checkbox update inside the feature
+PR (not a separate cleanup pass) is the fix.
 
 - [x] **0. Testing infrastructure**
-  Backend: `node:test` + `supertest`, 76 tests, 99.46% line coverage.
-  Frontend: Vitest + React Testing Library, 23 tests, 65.63% line coverage
-  (aggregate — `StatusBadge`/`api.js`/`ListPage` are ~100%, `App.jsx` /
-  `CommitteePage.jsx` / `DetailPage.jsx` are untested). Run `npm test` from
-  the repo root. See AGENTS.md's Testing section for full numbers, the two
-  real bugs this caught, and the test-isolation pattern used.
+  `node:test` + `supertest` on the backend, Vitest + React Testing
+  Library on the frontend (client is now TypeScript). Run `npm test`
+  from the repo root for both. See AGENTS.md's Testing section for
+  current coverage numbers and the test-isolation pattern used.
 
-- [ ] **1. Wire up the Appendix A frontend**
-  Backend already exists (`server/src/routes/protocol-form.js`):
-  procedures checklist, drug/dosing table, animal-use table, 3Rs/
-  alternatives. None of it has UI yet. Add sections to `DetailPage.jsx`
-  to display and edit this content. See AGENTS.md §1.3 for the full field
-  list and the Category D/E → AV-consultation-required rule.
-  **Note:** `DetailPage.jsx` currently has zero test coverage — write
-  tests alongside this work rather than after.
+- [x] **1. Wire up the Appendix A frontend**
+  `client/src/pages/ApplicationPage.tsx` — procedures checklist, drug/
+  dosing table, animal-use table, 3 Rs/alternatives (including the
+  Category D/E → AV-consultation-required banner), plus structured RRR
+  entries and experiments beyond the original scope. See
+  `docs/UI-EXPANSION-PLAN.md` for the reference material this was built
+  against and any noted gaps vs. that material.
 
-- [ ] **2. Amendment workflow with versioning**
-  Reason-required start, only one amendment in flight per protocol,
-  a three-way diff view (Live Changes / Previous Version / Changes),
-  and a Protocol Versions Preview screen listing every approved version
-  with its own approval/expiration dates and source. See AGENTS.md §1.1.
+- [x] **2. Amendment workflow with versioning**
+  `server/src/routes/amendments.js` + `client/src/pages/
+  AmendmentsPage.tsx`. Reason-required start, one amendment in flight
+  per protocol, field-level change diffs, and a protocol version
+  history view. See AGENTS.md §1.1 for the domain rules this
+  implements.
 
-- [ ] **3. Continuing Review & De Novo Review as distinct recurring events**
-  Continuing Review = lightweight annual check-in on the existing
-  protocol. De Novo = full 3-year resubmission, effectively a new
-  protocol referencing the old number. These are different things, not
-  the same feature at different intervals. See AGENTS.md §1.1.
+- [x] **3. Continuing Review & De Novo Review as distinct recurring events**
+  Same file as item 2 (`amendments.js`) — renewal endpoints correctly
+  model Continuing Review (annual check-in) and De Novo Review (full
+  3-year resubmission) as distinct event types, not a status flip. See
+  AGENTS.md §1.1.
 
 - [ ] **4. Authentication + role-based access control**
   Currently anyone can vote as anyone or edit anything — no login, no
   session, no enforcement. This is the biggest trust gap before this
-  could be used for anything real.
+  could be used for anything real, and it's a stated prerequisite for
+  item 11's audit trail to mean anything (see item 11 below) and for
+  the HIPAA/AI-safety guardrails in AGENTS.md §3. Note: item 11 already
+  reserved an `actor_key` column on the audit log specifically so this
+  item can plug in without a migration — check `server/src/audit.js`
+  before designing the identity layer from scratch.
 
 - [ ] **5. Dynamic/conditional Table of Contents**
   The Options-page-driven section model from Cayuse: an initial yes/no
   questionnaire determines which sections even appear on a protocol.
   Bigger architectural lift — sections become data-driven instead of
   hardcoded routes/components. See AGENTS.md §1.2, including the vendor
-  quirk about section names not always matching their repurposed content.
+  quirk about section names not always matching their repurposed
+  content. Not to be confused with item 14 (FCR vs. DMR review
+  assignment) — that's about *who* reviews a protocol, this is about
+  *which sections even exist* on it.
 
-- [ ] **6. Register / animal usage ledger**
-  Actual procurement/usage transactions per protocol (species, pain
-  level, transaction date) — distinct from the *planned* animal-use
+- [x] **6. Register / animal usage ledger**
+  `server/src/routes/animal-usage.js`. Actual procurement/usage
+  transactions per protocol, distinct from the *planned* animal-use
   table from item 1. See AGENTS.md §1.4.
 
 - [ ] **7. File attachments**
@@ -60,18 +69,21 @@ link the PR/commit.
 
 - [ ] **8. Search filter-builder + saved filters + CSV export**
   Replace the single substring search with a stackable field/operator/
-  value filter builder, across protocols and the register. See AGENTS.md
-  §1.6.
+  value filter builder, across protocols and the register (item 6, now
+  done). See AGENTS.md §1.6.
 
 - [ ] **9. AAALAC-style compliance reports**
   Restraint by species, euthanasia methods by species, surgery
   locations/types, etc. Mostly SQL aggregation once procedures/drugs/
-  animal-use data is actually populated through the UI from item 1.
+  animal-use data is populated through the UI — which it now is, via
+  item 1. **Not the same thing as item 13** (personnel training/OHSP
+  compliance, already done) — don't mark this done because a file is
+  named `compliance.js`; that file implements item 13, not this.
 
-- [ ] **10. Transfer Ownership workflow**
-  Reassign a protocol to another PI through an approval queue, with a
-  required reason and an audit trail — not an instant reassignment.
-  See AGENTS.md §1.1.
+- [x] **10. Transfer Ownership workflow**
+  `server/src/routes/transfers.js`. Reassign a protocol to another PI
+  through an approval queue, with a required reason and an audit trail
+  — not an instant reassignment. See AGENTS.md §1.1.
 
 - [x] **11. Audit logging**
   Who accessed/changed what, when. Every mutation route now records an
@@ -87,10 +99,37 @@ link the PR/commit.
   column — no migration needed.
 
 - [ ] **12. Upgrade react-router-dom to v7**
-  Two moderate CVEs in the current 6.30.4 are only patched in v7 (major,
+  Two moderate CVEs in the current 6.26.0 are only patched in v7 (major,
   breaking API changes). Assessed as low real-world risk for this repo's
   usage pattern — see AGENTS.md's "Known dependency vulnerability"
   section for the full reasoning — but should still be upgraded
   deliberately, with routing behavior re-verified across every page
   afterward, rather than left indefinitely.
 
+- [x] **13. Personnel compliance tracking (training + OHSP)**
+  Not on the original roadmap — added independently. CITI-style
+  training records (course, completed/expiry dates, Current/Expired
+  status) and Occupational Health & Safety Program clearance per
+  person, plus a computed "are all personnel listed on this protocol
+  compliant?" check. `server/src/routes/compliance.js`,
+  `client/src/pages/AdminPage.tsx`.
+
+- [x] **14. Review workflow depth: FCR vs. DMR assignment + section comments**
+  Not on the original roadmap — added independently, but genuinely
+  implements the FCR-vs-DMR distinction noted in AGENTS.md §1.1.
+  Reviewer assignment (Primary/Secondary Reviewer, Designated Member),
+  a `review_method` column on `protocols` (`FCR` | `DMR`), and section-
+  scoped inline review comments — all in `server/src/routes/
+  committee.js`. Distinct from item 2 (amendment versioning): this is
+  about *who reviews a protocol and how*, not about *tracking changes
+  to an approved protocol over time*.
+
+- [x] **15. Facilities & inspections**
+  Not on the original roadmap. Semi-annual facility inspection tracking
+  with deficiency logging. `server/src/routes/facilities.js`,
+  `client/src/pages/InspectionsPage.tsx`.
+
+- [x] **16. Post-Approval Monitoring (PAM) / incident reporting**
+  Not on the original roadmap. Open → CAPA → Closed incident lifecycle
+  tied to a protocol. `server/src/routes/pam.js`, `client/src/pages/
+  PamPage.tsx`.
