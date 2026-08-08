@@ -102,13 +102,24 @@ PR (not a separate cleanup pass) is the fix.
   lands, route the verified identity through the reserved `actor_key`
   column — no migration needed.
 
-- [ ] **12. Upgrade react-router-dom to v7**
+- [x] **12. Upgrade react-router-dom to v7**
   Two moderate CVEs in the current 6.26.0 are only patched in v7 (major,
   breaking API changes). Assessed as low real-world risk for this repo's
   usage pattern — see AGENTS.md's "Known dependency vulnerability"
   section for the full reasoning — but should still be upgraded
   deliberately, with routing behavior re-verified across every page
   afterward, rather than left indefinitely.
+  **Done (Aug 2026):** migrated to `react-router@7.18.2` (the unified v7
+  package; `react-router-dom` remains only as a v7 compatibility
+  re-export). The app only used declarative APIs (BrowserRouter,
+  MemoryRouter, Routes, Route, Link, useNavigate, useParams), so the
+  migration was a package swap plus updating all 18 imports + 3 `vi.mock`
+  targets to `react-router`. Verified: `tsc --noEmit` clean, 193 client
+  tests pass, and the 36-test e2e suite passes (2 consecutive full runs)
+  covering every page. Note: v7's `v7_startTransition` default makes
+  route renders low-priority work, which shows up as e2e timeouts under
+  cold-cache/load conditions (see AGENTS.md); the `v7_*` opt-out flags are
+  gone by 7.18 so this is not reversible from the app.
 
 - [x] **13. Personnel compliance tracking (training + OHSP)**
   Not on the original roadmap — added independently. CITI-style

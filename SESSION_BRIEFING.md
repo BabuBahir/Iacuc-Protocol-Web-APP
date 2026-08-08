@@ -40,10 +40,12 @@ GitHub repo (created by the user, not yet pushed as of this writing):
   — see AGENTS.md's Database section before writing new queries.
 - **npm workspaces, not pnpm.** pnpm's build-script approval gate caused
   repeated Windows friction; reverted.
-- **react-router-dom has 2 known moderate CVEs**, deliberately not
-  upgraded yet (v7 is breaking). Assessed as low real-world risk for this
-  app's actual usage pattern — full reasoning in AGENTS.md. Roadmap
-  item 12.
+- **react-router-dom CVE issue resolved** — upgraded to `react-router@7`
+  (ROADMAP item 12, Aug 2026). `react-router-dom` is no longer a
+  dependency; imports live in `react-router`. The remaining `npm audit`
+  findings are all dev-toolchain (`vite`/`vitest`/`esbuild`/`nanoid`),
+  dev-only, not in the production dependency graph. Full detail in
+  AGENTS.md's "Known dependency vulnerability (resolved)" section.
 - Two real bugs were found and fixed *by writing tests*, not by
   inspection — worth remembering when someone says "it looks fine":
   1. AV-consultation-required flag matched on a bad regex that

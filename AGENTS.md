@@ -194,7 +194,7 @@ iacuc-app/
       protocol-form.js     Appendix A content: procedures/drugs/animal-use/experiments/alternatives
       admin.js             species / roles / personnel (personas) CRUD
       committee.js          FCR voting on protocols in review
-  client/              Vite + React + TypeScript + react-router-dom
+  client/              Vite + React + TypeScript + react-router
     src/pages/            ListPage, DetailPage, AdminPage, CommitteePage, CreatePage
     src/components/       AppHeader, StatusBadge, ProtocolForm (shared)
     src/api.ts            thin typed fetch wrapper, one function per endpoint
@@ -484,32 +484,51 @@ npm workspaces (`npm install` at root installs both `server/` and
 approval gate (`ERR_PNPM_IGNORED_BUILDS`) caused repeated friction on
 Windows. Don't reintroduce pnpm without a strong reason.
 
-### Known dependency vulnerability (assessed, deferred)
+### Known dependency vulnerability (resolved — react-router v7)
 
-`npm install` flags 2 moderate CVEs in `react-router-dom@6.30.4`:
+The two moderate CVEs in `react-router-dom@6.30.4` —
 [GHSA-wrjc-x8rr-h8h6](https://github.com/advisories/GHSA-wrjc-x8rr-h8h6)
 (open redirect via backslash in `<Link>`/`useNavigate`) and
 [GHSA-337j-9hxr-rhxg](https://github.com/advisories/GHSA-337j-9hxr-rhxg)
 (arbitrary constructor injection via `deserializeErrors()` in SSR
-hydration). Neither is patched in the 6.x line — the fix requires
-react-router v7, which has breaking API changes from v6.
+hydration) — were **resolved by the v7 upgrade (ROADMAP item 12, Aug
+2026)**. The app now depends on `react-router@7.x` (the unified package;
+`react-router-dom` is only a v7 compatibility re-export and is no longer
+a dependency). The migration was a package swap plus an import swap
+(`react-router-dom` → `react-router`) across 18 files and 3 `vi.mock`
+targets — the app uses only declarative APIs (`BrowserRouter`,
+`MemoryRouter`, `Routes`, `Route`, `Link`, `useNavigate`, `useParams`),
+which are unchanged in v7. Verified by `tsc --noEmit`, 193 client tests,
+and 2 consecutive clean 36-test e2e runs.
 
-Assessed and deferred rather than blindly force-upgraded, because:
-- **SSR CVE doesn't apply**: this is a client-only SPA (`vite build` →
-  static files), no server-side rendering anywhere in the stack.
-- **Open-redirect CVE requires attacker-controlled URLs** flowing into
-  `<Link to={...}>` or `navigate(...)`. Checked every call site in this
-  repo (`grep -rn "useNavigate\|<Link\|navigate(" client/src`) — every
-  target is either a hardcoded path (`/`, `/committee`, `/admin`) or a
-  protocol ID sourced from our own database, never from a URL param,
-  query string, or other user-controlled input.
-- A v6→v7 major bump has real breaking changes and needs its own
-  regression pass across every page — not something to force through as
-  a side effect of adding tests.
-
-**Follow-up**: upgrade to react-router v7 as its own deliberate task, with
-routing behavior re-verified afterward — don't just bump the version
-number and assume it works.
+Notes from the upgrade, worth remembering:
+- **`npm audit` still shows 7 vulnerabilities** (3 moderate, 2 high, 2
+  critical) — all in the *dev toolchain* (`vite`, `vitest`, `esbuild`,
+  `nanoid`, `@vitest/*`), none in the production `react-router`
+  dependency. They were pre-existing, are dev-server/test-only, and are
+  not part of item 12; fixing them means a Vite 5→8 + Vitest 3→4 major
+  bump with its own regression pass.
+- **v7 turns on `v7_startTransition` by default** (in v6 it was opt-in):
+  route updates now render inside `React.startTransition` (low priority).
+  Under cold Vite cache / CPU load, e2e can hit 30s timeouts on
+  navigation asserts — observed as intermittent failures across
+  dashboard/detail/admin/committee specs right after a fresh `npm
+  install`. By 7.18 the `v7_*` opt-out flags are removed (`FutureConfig`
+  is empty in the type defs), so this is not revertible from the app; it
+  just makes the suite load-sensitive. If flakiness reappears, warm the
+  Vite cache before the run.
+- **The pre-existing e2e audit.spec race, fixed during this pass:** the
+  audit log panel loads on mount with one slow `GET /api/audit`; if that
+  fetch resolves *after* a species-add click, the new `species.created`
+  entry's diff text (`"Chinchilla"`) collides with the species row, so
+  `getByText("<species>")` trips strict mode (2 elements). Reproduced
+  identically on the v6 baseline — it was not caused by v7. Fixed by
+  scoping the species assertions with `.first()` in `audit.spec.js` and
+  `admin.spec.js` (the species row renders above the audit panel, so
+  `.first()` resolves to the intended element) and scoping the
+  `species.created` asserts to `getByTestId("audit-entries")`. Same
+  story as the Alpaca/Chinchilla entries: multiple species created
+  earlier in a run can put several `species.created` rows in the panel.
 
 ### What's implemented vs. not (as of this file's writing)
 

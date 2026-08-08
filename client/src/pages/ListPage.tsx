@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Search, Plus, ShieldCheck, Clock, AlertTriangle, CheckCircle2, FileText, PawPrint, type LucideIcon } from "lucide-react";
 import AppHeader from "../components/AppHeader";
 import StatusBadge from "../components/StatusBadge";
