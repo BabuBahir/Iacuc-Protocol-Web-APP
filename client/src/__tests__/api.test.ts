@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { api } from "../api";
+import { setActingAs } from "../identity";
 
 function mockFetchOnce(status: number, body: unknown, { json = true }: { json?: boolean } = {}) {
   globalThis.fetch = vi.fn().mockResolvedValue({
@@ -12,6 +13,65 @@ function mockFetchOnce(status: number, body: unknown, { json = true }: { json?: 
 describe("api.ts request wrapper", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  test("omits X-Actor header when no identity is set (anonymous stays anonymous)", async () => {
+    mockFetchOnce(200, [{ id: "A" }]);
+    await api.listProtocols();
+
+    const [, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(options.headers).not.toHaveProperty("X-Actor");
+  });
+
+  test("attaches X-Actor header once an identity is set", async () => {
+    setActingAs({ personnelId: 7, name: "Dr. Committee", roleName: "Committee Member" });
+    mockFetchOnce(200, [{ id: "A" }]);
+    await api.listProtocols();
+
+    const [, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(options.headers["X-Actor"]).toBe("Dr. Committee");
+  });
+
+  test("X-Actor header updates on the next request after switching identity", async () => {
+    setActingAs({ personnelId: 7, name: "Dr. First", roleName: "PI" });
+    mockFetchOnce(200, []);
+    await api.listProtocols();
+    let [, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(options.headers["X-Actor"]).toBe("Dr. First");
+
+    setActingAs({ personnelId: 8, name: "Dr. Second", roleName: "Committee Member" });
+    mockFetchOnce(200, []); // mockFetchOnce reassigns fetch to a fresh mock each call
+    await api.listProtocols();
+    [, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(options.headers["X-Actor"]).toBe("Dr. Second");
+  });
+
+  test("clearing identity (going anonymous again) removes X-Actor from subsequent requests", async () => {
+    setActingAs({ personnelId: 7, name: "Dr. Temp", roleName: "PI" });
+    setActingAs(null);
+    mockFetchOnce(200, []);
+    await api.listProtocols();
+
+    const [, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(options.headers).not.toHaveProperty("X-Actor");
+  });
+
+  test("Content-Type header is preserved alongside X-Actor, not replaced by it", async () => {
+    setActingAs({ personnelId: 7, name: "Dr. Both", roleName: "PI" });
+    mockFetchOnce(200, []);
+    await api.listProtocols();
+
+    const [, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(options.headers["Content-Type"]).toBe("application/json");
+    expect(options.headers["X-Actor"]).toBe("Dr. Both");
+  });
+});
+
+describe("api.ts request wrapper — original behavior", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
   });
 
   test("GET requests hit the correct path with JSON content-type header", async () => {

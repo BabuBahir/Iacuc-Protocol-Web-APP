@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { LayoutGrid } from "lucide-react";
+import ActorPicker from "./ActorPicker";
 
 export type NavKey = "protocols" | "committee" | "inspections" | "pam" | "amendments" | "admin";
 
@@ -33,6 +34,7 @@ export default function AppHeader({ active }: { active?: NavKey }) {
         )}
       </div>
       <div className="flex-1" />
+      <ActorPicker />
       <a
         href="https://github.com/BabuBahir/Iacuc-Protocol-Web-APP/discussions/40"
         target="_blank"
