@@ -119,7 +119,10 @@ PR (not a separate cleanup pass) is the fix.
   covering every page. Note: v7's `v7_startTransition` default makes
   route renders low-priority work, which shows up as e2e timeouts under
   cold-cache/load conditions (see AGENTS.md); the `v7_*` opt-out flags are
-  gone by 7.18 so this is not reversible from the app.
+  gone by 7.18 so this is not reversible from the app. The e2e config now
+  sets `retries: 2` to absorb the load-induced timeouts (a test that still
+  fails after two retries is reported as failed — never rerun to chase a
+  green).
 
 - [x] **13. Personnel compliance tracking (training + OHSP)**
   Not on the original roadmap — added independently. CITI-style

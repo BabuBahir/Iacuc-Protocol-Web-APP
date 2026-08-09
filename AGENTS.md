@@ -515,8 +515,15 @@ Notes from the upgrade, worth remembering:
   dashboard/detail/admin/committee specs right after a fresh `npm
   install`. By 7.18 the `v7_*` opt-out flags are removed (`FutureConfig`
   is empty in the type defs), so this is not revertible from the app; it
-  just makes the suite load-sensitive. If flakiness reappears, warm the
-  Vite cache before the run.
+  just makes the suite load-sensitive. The Playwright config sets
+  `retries: 2`, and that's the cap: a test retries at most twice, and if
+  it still fails after those two retries it is reported as a failed test —
+  the suite is never rerun wholesale to chase a green. A retry cannot turn
+  a deterministic failure green (it only rescues transient load-stall
+  timeouts). The stateful specs (committee vote, admin species/personnel
+  add, compliance mutations) are seeded to tolerate a re-run of a failed
+  test. If flakiness reappears anyway, warm the Vite cache before the
+  run.
 - **The pre-existing e2e audit.spec race, fixed during this pass:** the
   audit log panel loads on mount with one slow `GET /api/audit`; if that
   fetch resolves *after* a species-add click, the new `species.created`
