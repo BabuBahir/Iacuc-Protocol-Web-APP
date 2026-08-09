@@ -941,6 +941,86 @@ const schemas = {
       created_at: { type: "string", format: "date-time" },
     },
   },
+
+  RestraintBySpeciesRow: {
+    type: "object",
+    properties: {
+      protocol_id: { type: "string" },
+      species: { type: ["string", "null"], description: "Protocol animal-use species, falling back to the protocol species" },
+      restraint_method: { type: ["string", "null"], description: "The restraint procedure description" },
+    },
+  },
+
+  EuthanasiaBySpeciesRow: {
+    type: "object",
+    properties: {
+      protocol_id: { type: "string" },
+      species: { type: ["string", "null"] },
+      method: { type: "string", description: "The euthanasia drug/agent" },
+      dose: { type: ["string", "null"] },
+      route: { type: ["string", "null"] },
+    },
+  },
+
+  SurgeryLocationRow: {
+    type: "object",
+    properties: {
+      protocol_id: { type: "string" },
+      species: { type: ["string", "null"] },
+      surgery_type: { type: "string", enum: ["Survival surgery", "Non-survival surgery"] },
+      location: { type: "string", description: "Research-plan location where the surgery occurs" },
+    },
+  },
+
+  MultipleMajorRecoverySurgeryRow: {
+    type: "object",
+    properties: {
+      protocol_id: { type: "string" },
+      species: { type: ["string", "null"] },
+      experiment: { type: "string" },
+      description: { type: ["string", "null"] },
+    },
+  },
+
+  AnalgesicAnestheticDrugRow: {
+    type: "object",
+    properties: {
+      protocol_id: { type: "string" },
+      species: { type: ["string", "null"] },
+      reason_for_use: { type: ["string", "null"] },
+      drug: { type: "string" },
+      dose: { type: ["string", "null"] },
+      route: { type: ["string", "null"] },
+    },
+  },
+
+  UseLocationBySpeciesRow: {
+    type: "object",
+    properties: {
+      location: { type: "string" },
+      species: { type: ["string", "null"] },
+      protocol_count: { type: "integer", description: "Distinct protocols using this location/species pair" },
+      protocol_ids: { type: "array", items: { type: "string" } },
+    },
+  },
+
+  ReportPayload: {
+    type: "object",
+    properties: {
+      generated_at: { type: "string", format: "date-time" },
+      reports: {
+        type: "object",
+        properties: {
+          restraint_by_species: { type: "array", items: REF("RestraintBySpeciesRow") },
+          euthanasia_by_species: { type: "array", items: REF("EuthanasiaBySpeciesRow") },
+          surgery_locations: { type: "array", items: REF("SurgeryLocationRow") },
+          multiple_major_recovery_surgery: { type: "array", items: REF("MultipleMajorRecoverySurgeryRow") },
+          analgesic_anesthetic_drugs: { type: "array", items: REF("AnalgesicAnestheticDrugRow") },
+          use_locations_by_species: { type: "array", items: REF("UseLocationBySpeciesRow") },
+        },
+      },
+    },
+  },
 };
 
 const paths = {
@@ -1678,6 +1758,16 @@ const paths = {
       responses: { 200: json({ type: "array", items: REF("AuditEntry") }, "Audit entries, newest first"), 400: json(REF("Error"), "Invalid limit/offset/provenance or unpaired date filter") },
     },
   },
+
+  "/api/reports": {
+    get: {
+      tags: ["Compliance reports"],
+      summary: "Canned AAALAC-style compliance reports (Roadmap item 9)",
+      description:
+        "Read-only aggregations over the Appendix A content now populated through the UI: restraint by species, euthanasia methods by species, surgery locations/types, multiple major recovery surgical procedures, analgesic/anesthetic drugs, and use locations by species. Species resolves from the protocol's animal-use rows with a fallback to the protocol species.",
+      responses: { 200: json(REF("ReportPayload"), "All six reports in one payload") },
+    },
+  },
 };
 
 export const openapiSpec = {
@@ -1701,6 +1791,7 @@ export const openapiSpec = {
     { name: "Amendments & annual renewals", description: "Versioned amendments, protocol version lineage, continuing & de novo review" },
     { name: "Transfer ownership", description: "PI transfer requests with their own IACUC-office approval queue (single + bulk)" },
     { name: "Audit log", description: "Append-only trail of every mutation, with actor + provenance (Roadmap item 11)" },
+    { name: "Compliance reports", description: "Canned AAALAC-style aggregation reports (Roadmap item 9)" },
   ],
   paths,
   components: { schemas },

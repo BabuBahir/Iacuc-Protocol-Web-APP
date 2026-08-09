@@ -12,6 +12,7 @@ import { router as facilitiesRouter } from "./routes/facilities.js";
 import { router as pamRouter, pamRouter as pamAuditsRouter } from "./routes/pam.js";
 import { router as amendmentsRouter } from "./routes/amendments.js";
 import { router as transfersRouter } from "./routes/transfers.js";
+import { router as reportsRouter } from "./routes/reports.js";
 import { router as auditRouter } from "./audit.js";
 import "./db.js"; // ensures schema exists as soon as the app is built 
 export function createApp() {
@@ -41,6 +42,7 @@ export function createApp() {
   app.use("/api/protocols", pamAuditsRouter);
   app.use("/api/protocols", amendmentsRouter);
   app.use("/api", transfersRouter);
+  app.use("/api", reportsRouter);
   app.use("/api", auditRouter);
 
   return app;

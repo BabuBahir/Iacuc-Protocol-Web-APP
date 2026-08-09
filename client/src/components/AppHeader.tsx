@@ -2,7 +2,7 @@ import { Link } from "react-router";
 import { LayoutGrid } from "lucide-react";
 import ActorPicker from "./ActorPicker";
 
-export type NavKey = "protocols" | "committee" | "inspections" | "pam" | "amendments" | "admin";
+export type NavKey = "protocols" | "committee" | "inspections" | "pam" | "amendments" | "reports" | "admin";
 
 const NAV_TABS: { key: NavKey; label: string; to: string }[] = [
   { key: "protocols", label: "Protocols", to: "/" },
@@ -10,6 +10,7 @@ const NAV_TABS: { key: NavKey; label: string; to: string }[] = [
   { key: "inspections", label: "Inspections", to: "/inspections" },
   { key: "pam", label: "PAM", to: "/pam" },
   { key: "amendments", label: "Amendments", to: "/amendments" },
+  { key: "reports", label: "Reports", to: "/reports" },
   { key: "admin", label: "Admin", to: "/admin" },
 ];
 

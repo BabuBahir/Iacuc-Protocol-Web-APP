@@ -76,13 +76,20 @@ PR (not a separate cleanup pass) is the fix.
   value filter builder, across protocols and the register (item 6, now
   done). See AGENTS.md §1.6.
 
-- [ ] **9. AAALAC-style compliance reports**
+- [x] **9. AAALAC-style compliance reports**
   Restraint by species, euthanasia methods by species, surgery
   locations/types, etc. Mostly SQL aggregation once procedures/drugs/
   animal-use data is populated through the UI — which it now is, via
   item 1. **Not the same thing as item 13** (personnel training/OHSP
   compliance, already done) — don't mark this done because a file is
   named `compliance.js`; that file implements item 13, not this.
+  **Done (Aug 2026):** `server/src/routes/reports.js` serves
+  `GET /api/reports` aggregating six reports (restraint by species,
+  euthanasia methods by species, surgery locations/types, multiple
+  major recovery surgery, analgesic/anesthetic drugs, use locations by
+  species) from the seeded Appendix A content, exposed on a new
+  "Reports" nav tab (`client/src/pages/ReportsPage.tsx`) with a per-
+  report CSV export. Read-only, so no audit rows. See AGENTS.md §4.
 
 - [x] **10. Transfer Ownership workflow**
   `server/src/routes/transfers.js`. Reassign a protocol to another PI

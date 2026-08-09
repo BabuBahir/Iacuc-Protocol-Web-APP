@@ -59,6 +59,7 @@ import type {
   Role,
   RrrInput,
   RrrEntry,
+  ReportsPayload,
   Species,
   Summary,
   TrainingRecord,
@@ -308,4 +309,7 @@ export const api = {
     const query = qs.toString();
     return request(`/audit${query ? `?${query}` : ""}`);
   },
+
+  // ---- AAALAC-style compliance reports (Roadmap item 9) ----
+  getReports: (): Promise<ReportsPayload> => request("/reports"),
 };

@@ -62,6 +62,7 @@ describe("API documentation", () => {
       "/api/transfers/{transferId}",
       "/api/protocols/{id}/transfers",
       "/api/audit",
+      "/api/reports",
     ];
     for (const p of expected) {
       assert.ok(paths.includes(p), `expected spec to document ${p}`);
