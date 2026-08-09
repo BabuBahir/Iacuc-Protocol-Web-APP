@@ -28,7 +28,7 @@
     "@vitest/coverage-v8": "^2.1.9",
     "autoprefixer": "^10.4.19",
     "jsdom": "^30.0.1",
-    "postcss": "^8.4.40",
+    "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^5.3.4",
