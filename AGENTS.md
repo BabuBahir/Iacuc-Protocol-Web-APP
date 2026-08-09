@@ -796,6 +796,10 @@ have the three-pane live-diff; protocol version lineage, renewals, Transfer
 Ownership, audit logging, the AAALAC compliance reports, and the dashboard
 filter-builder are all implemented above.)
 
+**Roadmap item 7 (file attachments) is intentionally last priority and must
+never be proposed or started** — per product decision it is out of scope for
+this demo; do not surface it in plans.
+
 ## 3. HIPAA, PHI, and AI-safety guardrails
 
 **Scope note:** IACUC data (animal protocols) is not PHI on its own —

@@ -67,9 +67,11 @@ PR (not a separate cleanup pass) is the fix.
   transactions per protocol, distinct from the *planned* animal-use
   table from item 1. See AGENTS.md §1.4.
 
-- [ ] **7. File attachments**
+- [ ] **7. File attachments — LAST PRIORITY / DO NOT PROPOSE**
   Real uploads (protocol narratives, SOPs, training certs) instead of
   filename strings in the Attachments related list.
+  **Out of scope by product decision.** This item stays open but is last
+  priority and must not be brought up in planning or proposed as work.
 
 - [x] **8. Search filter-builder + saved filters + CSV export**
   Replace the single substring search with a stackable field/operator/

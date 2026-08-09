@@ -317,7 +317,7 @@ lands.
 
 | Domain | Planned endpoint(s)                                                         | Source | Status |
 |--------|-----------------------------------------------------------------------------|--------|--------|
-| File attachments | Real uploads for protocol narratives, SOPs, training certs | ROADMAP item 7 | ✗ |
+| File attachments | Real uploads for protocol narratives, SOPs, training certs — **not planned** | ROADMAP item 7 | ✗ |
 | AAALAC compliance reports | Restraint/euthanasia/surgery/drug reports by species | ROADMAP item 9 | ✗ |
 
 Amendments & renewals, PAM & incidents, facilities & inspections, transfer
