@@ -1,10 +1,28 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Search, Plus, ShieldCheck, Clock, AlertTriangle, CheckCircle2, FileText, PawPrint, type LucideIcon } from "lucide-react";
+import {
+  Search,
+  Plus,
+  ShieldCheck,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
+  FileText,
+  PawPrint,
+  Filter,
+  SlidersHorizontal,
+  Download,
+  Save,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
 import AppHeader from "../components/AppHeader";
 import StatusBadge from "../components/StatusBadge";
+import FilterBuilder from "../components/FilterBuilder";
 import { api } from "../api";
-import type { Protocol, Summary } from "../types";
+import { downloadCsv } from "../utils/csv";
+import type { Protocol, SavedFilter, Summary, FilterClause } from "../types";
+import { PROTOCOL_FILTER_FIELD_DEFS, protocolFieldDef } from "../types";
 
 interface MetricMeta {
   key: keyof Summary;
@@ -27,12 +45,18 @@ export default function ListPage() {
   const [protocols, setProtocols] = useState<Protocol[]>([]);
   const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY);
   const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState<FilterClause[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
+  const [showSavedMenu, setShowSavedMenu] = useState(false);
+  const [saveName, setSaveName] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
-    Promise.all([api.listProtocols(query), api.getSummary()])
+    Promise.all([api.listProtocols(query, filters), api.getSummary()])
       .then(([rows, summaryData]) => {
         setProtocols(rows);
         setSummary(summaryData);
@@ -49,7 +73,55 @@ export default function ListPage() {
     console.log("[front page] API base URL:", process.env.API_BASE_URL || process.env.api_base_url || "(not set)");
   }, []);
 
-  useEffect(load, [query]);
+  useEffect(load, [query, filters]);
+
+  const loadSavedFilters = () => {
+    api
+      .listSavedFilters("protocol")
+      .then(setSavedFilters)
+      .catch(() => setSavedFilters([]));
+  };
+
+  useEffect(() => {
+    loadSavedFilters();
+  }, []);
+
+  const handleSaveFilter = () => {
+    setSaveError(null);
+    if (!saveName.trim()) {
+      setSaveError("Enter a name for this filter.");
+      return;
+    }
+    api
+      .saveSavedFilter(saveName.trim(), "protocol", filters)
+      .then(() => {
+        setSaveName("");
+        loadSavedFilters();
+      })
+      .catch(err => setSaveError(err instanceof Error ? err.message : String(err)));
+  };
+
+  const handleDeleteSavedFilter = (id: number) => {
+    api
+      .deleteSavedFilter(id)
+      .then(loadSavedFilters)
+      .catch(() => {});
+  };
+
+  const handleApplySavedFilter = (saved: SavedFilter) => {
+    setFilters(saved.filters);
+    setShowSavedMenu(false);
+  };
+
+  const handleExportCsv = () => {
+    downloadCsv(
+      `protocols-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Protocol number", "Title", "Principal investigator", "Species", "Status"],
+      protocols.map(p => [p.id, p.title, p.pi, p.species ?? "", p.status]),
+    );
+  };
+
+  const emptyMessage = query || filters.length > 0 ? `No protocols match the current search.` : "No protocols yet.";
 
   return (
     <div>
@@ -84,7 +156,7 @@ export default function ListPage() {
 
       <div className="p-4">
         <div className="bg-white border border-gray-200 rounded-lg">
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100">
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 flex-wrap">
             <div className="flex items-center bg-gray-50 border border-gray-200 rounded px-2 py-1 w-64">
               <Search size={13} className="text-gray-400" />
               <input
@@ -94,9 +166,135 @@ export default function ListPage() {
                 className="bg-transparent outline-none text-[13px] px-2 w-full"
               />
             </div>
+            <button
+              onClick={() => setShowFilters(v => !v)}
+              aria-expanded={showFilters}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded border text-[13px] font-medium ${
+                filters.length > 0
+                  ? "border-[#0176D3] text-[#0176D3] bg-[#EFF7FD]"
+                  : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+              }`}
+            >
+              <Filter size={14} />
+              Filters
+              {filters.length > 0 && (
+                <span className="ml-0.5 bg-[#0176D3] text-white text-[11px] leading-none px-1.5 py-1 rounded-full">
+                  {filters.length}
+                </span>
+              )}
+            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowSavedMenu(v => !v)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 text-[13px] font-medium bg-white hover:bg-gray-50"
+              >
+                <Save size={14} />
+                Saved filters
+              </button>
+              {showSavedMenu && (
+                <div
+                  data-testid="saved-filters-menu"
+                  className="absolute left-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-10"
+                >
+                  <div className="px-3 py-2 border-b border-gray-100">
+                    <div className="text-[12px] font-semibold text-gray-800 mb-1">Save current filter</div>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        value={saveName}
+                        onChange={e => setSaveName(e.target.value)}
+                        placeholder="Filter name…"
+                        aria-label="Filter name"
+                        className="border border-gray-300 rounded px-2 py-1 text-[13px] bg-white w-full"
+                      />
+                      <button
+                        onClick={handleSaveFilter}
+                        disabled={filters.length === 0}
+                        className="px-2 py-1 rounded bg-[#0176D3] text-white text-[12px] font-medium hover:bg-[#0b5cab] disabled:opacity-40"
+                      >
+                        Save
+                      </button>
+                    </div>
+                    {saveError && <div className="text-[12px] text-red-600 mt-1">{saveError}</div>}
+                  </div>
+                  <div className="max-h-52 overflow-y-auto">
+                    {savedFilters.length === 0 && (
+                      <div className="px-3 py-3 text-[12px] text-gray-400">No saved filters yet.</div>
+                    )}
+                    {savedFilters.map(s => (
+                      <div key={s.id} className="flex items-center gap-1.5 px-3 py-2 hover:bg-gray-50 border-b border-gray-50">
+                        <button
+                          onClick={() => handleApplySavedFilter(s)}
+                          className="text-[13px] text-gray-800 text-left flex-1 hover:text-[#0176D3]"
+                        >
+                          {s.name}
+                          <span className="block text-[11px] text-gray-400">
+                            {s.filters.length} clause{s.filters.length === 1 ? "" : "s"}
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSavedFilter(s.id)}
+                          aria-label={`Delete saved filter ${s.name}`}
+                          className="text-gray-400 hover:text-red-600 p-1"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={handleExportCsv}
+              disabled={protocols.length === 0}
+              data-testid="export-csv"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 text-[13px] font-medium bg-white hover:bg-gray-50 disabled:opacity-40"
+            >
+              <Download size={14} />
+              Export CSV
+            </button>
             <div className="flex-1" />
             <span className="text-[12px] text-gray-500">{loading ? "Loading…" : `${protocols.length} items`}</span>
           </div>
+
+          {filters.length > 0 && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-[#F3F9FE] border-b border-gray-100 flex-wrap">
+              <SlidersHorizontal size={13} className="text-[#0176D3]" />
+              {filters.map((f, i) => {
+                const def = protocolFieldDef(f.field);
+                return (
+                  <span
+                    key={i}
+                    data-testid="active-filter-chip"
+                    className="inline-flex items-center gap-1 bg-white border border-[#cfe4f7] text-[#185FA5] text-[12px] rounded px-2 py-0.5"
+                  >
+                    {def ? def.label : f.field} {f.op} {f.value}
+                    <button
+                      onClick={() => setFilters(filters.filter((_, idx) => idx !== i))}
+                      aria-label="Remove filter"
+                      className="text-gray-400 hover:text-red-600"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </span>
+                );
+              })}
+              <button
+                onClick={() => setFilters([])}
+                className="text-[12px] text-[#0176D3] hover:underline ml-1"
+              >
+                Clear all filters
+              </button>
+            </div>
+          )}
+
+          {showFilters && (
+            <FilterBuilder
+              fieldDefs={PROTOCOL_FILTER_FIELD_DEFS}
+              clauses={filters}
+              onChange={setFilters}
+            />
+          )}
 
           {error && <div className="px-4 py-3 text-[13px] text-red-600">Couldn't load protocols: {error}</div>}
 
@@ -130,7 +328,7 @@ export default function ListPage() {
               {!loading && protocols.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
-                    No protocols match "{query}".
+                    {emptyMessage}
                   </td>
                 </tr>
               )}

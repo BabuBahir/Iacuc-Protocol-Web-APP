@@ -786,12 +786,15 @@ drug/animal-use creates). One server gap remains: `audit.js` 98.44% lines
 JSON, and the DB transaction-rollback error path in `protocol-form.js`
 stays uncovered per the note above).
 
+**Dashboard filter-builder + saved filters + CSV export (Roadmap item 8, protocols half):** the dashboard's single substring search now sits alongside a stackable filter-builder. Server-side (already in place): `server/src/routes/filter.js` exports the whitelisted `PROTOCOL_FILTER_FIELDS`/`REGISTER_FILTER_FIELDS` definitions, `validateFilters`, and `applyFilters`; `GET /api/protocols?filters=[...]` and `GET /api/animal-usage?filters=[...]` both accept the clause array; saved-filters CRUD lives in `server/src/routes/saved-filters.js` (`GET/POST /api/saved-filters`, `DELETE /api/saved-filters/:id`, `search_type` scoping, audited). Client: `client/src/components/FilterBuilder.tsx` is a reusable, field-def-driven clause editor (enum fields render selects, operators constrained by field type via `operatorsFor` in `types.ts`); `ListPage.tsx` hosts it behind a "Filters" toggle with active-clause chips, a "Saved filters" menu (save current / apply / delete, `search_type: "protocol"`), and an "Export CSV" button for the filtered result set. `client/src/utils/csv.ts` holds the shared `downloadCsv`/`csvCell` helpers (extracted from `ReportsPage.tsx`, which still uses them). The client mirrors the server field defs as `PROTOCOL_FILTER_FIELD_DEFS` in `types.ts` — keep them in sync with `filter.js`. The **register** side (builder over `GET /api/animal-usage` with `search_type: "register"`) is intentionally deferred; the register remains per-protocol on the application page.
+
 Not implemented (see §1 above for the domain detail on each): conditional/
 dynamic Table of Contents, auth or role-based
-access control, search filter-builder. (Amendments now
+access control, and the register-wide filter-builder surface (the protocols
+dashboard half of item 8 is done — see below). (Amendments now
 have the three-pane live-diff; protocol version lineage, renewals, Transfer
-Ownership, audit logging, and the AAALAC compliance reports are all
-implemented above.)
+Ownership, audit logging, the AAALAC compliance reports, and the dashboard
+filter-builder are all implemented above.)
 
 ## 3. HIPAA, PHI, and AI-safety guardrails
 

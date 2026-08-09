@@ -942,6 +942,37 @@ const schemas = {
     },
   },
 
+  FilterClause: {
+    type: "object",
+    required: ["field", "op", "value"],
+    properties: {
+      field: { type: "string", description: "Filterable field, e.g. status, species, animals, transaction_date (see field whitelists)" },
+      op: { type: "string", enum: ["eq", "neq", "contains", "starts_with", "ends_with", "gt", "gte", "lt", "lte"] },
+      value: { type: "string", description: "Comparison value; numbers/dates work with the gt/gte/lt/lte operators" },
+    },
+  },
+
+  SavedFilter: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+      name: { type: "string" },
+      search_type: { type: "string", enum: ["protocol", "register"] },
+      filters: { type: "array", items: REF("FilterClause"), description: "The recallable clause list" },
+      created_at: { type: ["string", "null"] },
+    },
+  },
+
+  SavedFilterInput: {
+    type: "object",
+    required: ["name", "search_type", "filters"],
+    properties: {
+      name: { type: "string" },
+      search_type: { type: "string", enum: ["protocol", "register"] },
+      filters: { type: "array", items: REF("FilterClause") },
+    },
+  },
+
   RestraintBySpeciesRow: {
     type: "object",
     properties: {
@@ -1035,15 +1066,25 @@ const paths = {
   "/api/protocols": {
     get: {
       tags: ["Core protocol CRUD"],
-      summary: "List protocols, optional `?q=` search",
-      parameters: [{
-        name: "q",
-        in: "query",
-        required: false,
-        schema: { type: "string" },
-        description: "Case-insensitive substring over id, title, pi, species, status",
-      }],
-      responses: { 200: json({ type: "array", items: REF("Protocol") }, "Protocol list") },
+      summary: "List protocols, optional `?q=` search and `?filters=` filter-builder",
+      parameters: [
+        {
+          name: "q",
+          in: "query",
+          required: false,
+          schema: { type: "string" },
+          description: "Case-insensitive substring over id, title, pi, species, status",
+        },
+        {
+          name: "filters",
+          in: "query",
+          required: false,
+          schema: { type: "array", items: REF("FilterClause") },
+          description:
+            "Stackable filter clauses (JSON array). Fields: id, title, pi, species (text: eq/neq/contains/starts_with/ends_with); status, pain_category, protocol_type (enum: eq/neq); animals (number), submitted, expires (date) with eq/neq/gt/gte/lt/lte. Clauses AND together.",
+        },
+      ],
+      responses: { 200: json({ type: "array", items: REF("Protocol") }, "Protocol list"), 400: json(REF("Error"), "Malformed filters or unknown field/operator") },
     },
     post: {
       tags: ["Core protocol CRUD"],
@@ -1766,6 +1807,53 @@ const paths = {
       description:
         "Read-only aggregations over the Appendix A content now populated through the UI: restraint by species, euthanasia methods by species, surgery locations/types, multiple major recovery surgical procedures, analgesic/anesthetic drugs, and use locations by species. Species resolves from the protocol's animal-use rows with a fallback to the protocol species.",
       responses: { 200: json(REF("ReportPayload"), "All six reports in one payload") },
+    },
+  },
+
+  "/api/animal-usage": {
+    get: {
+      tags: ["Animal usage register (the ledger)"],
+      summary: "Cross-protocol register search (Roadmap item 8)",
+      description:
+        "Flattened animal-usage transactions across every protocol, filterable with the shared filter-builder. Fields: protocol_id, species_strain, notes (text: eq/neq/contains/starts_with/ends_with); pain_level, type, procedure_key (enum: eq/neq); quantity (number), transaction_date (date) with eq/neq/gt/gte/lt/lte.",
+      parameters: [{
+        name: "filters",
+        in: "query",
+        required: false,
+        schema: { type: "array", items: REF("FilterClause") },
+        description: "Stackable filter clauses (JSON array); clauses AND together",
+      }],
+      responses: { 200: json({ type: "array", items: REF("AnimalUsageTransaction") }, "Matching transactions, newest first"), 400: json(REF("Error"), "Malformed filters or unknown field/operator") },
+    },
+  },
+
+  "/api/saved-filters": {
+    get: {
+      tags: ["Search filter-builder (Roadmap item 8)"],
+      summary: "List saved filters, optionally scoped by `?search_type=`",
+      parameters: [{
+        name: "search_type",
+        in: "query",
+        required: false,
+        schema: { type: "string", enum: ["protocol", "register"] },
+        description: "Narrow to one search surface; omitted returns all",
+      }],
+      responses: { 200: json({ type: "array", items: REF("SavedFilter") }, "Saved filters, newest first"), 400: json(REF("Error"), "Unknown search_type") },
+    },
+    post: {
+      tags: ["Search filter-builder (Roadmap item 8)"],
+      summary: "Save the current filter set under a name",
+      requestBody: json(REF("SavedFilterInput"), "name + search_type + validated clauses"),
+      responses: { 201: json(REF("SavedFilter"), "Created filter"), 400: json(REF("Error"), "Missing name or invalid search_type/clauses") },
+    },
+  },
+
+  "/api/saved-filters/{id}": {
+    parameters: [numericPathParam("id", "Saved filter id")],
+    delete: {
+      tags: ["Search filter-builder (Roadmap item 8)"],
+      summary: "Delete a saved filter",
+      responses: { 204: json({ type: "object" }, "Deleted"), 404: json(REF("Error"), "Saved filter not found") },
     },
   },
 };

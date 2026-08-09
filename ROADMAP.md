@@ -71,10 +71,21 @@ PR (not a separate cleanup pass) is the fix.
   Real uploads (protocol narratives, SOPs, training certs) instead of
   filename strings in the Attachments related list.
 
-- [ ] **8. Search filter-builder + saved filters + CSV export**
+- [x] **8. Search filter-builder + saved filters + CSV export**
   Replace the single substring search with a stackable field/operator/
   value filter builder, across protocols and the register (item 6, now
   done). See AGENTS.md §1.6.
+  **Done (Aug 2026, protocols dashboard):** server engine
+  (`server/src/routes/filter.js`), `?filters=` on `GET /api/protocols` and
+  `GET /api/animal-usage`, saved-filters CRUD (`GET/POST
+  /api/saved-filters`, `DELETE /api/saved-filters/:id`), and the client
+  half on the dashboard: a stackable `FilterBuilder` (`client/src/
+  components/FilterBuilder.tsx`), active-clause chips, save/recall/delete
+  saved filters, and CSV export (shared `client/src/utils/csv.ts`, also
+  used by the reports page). The **register-wide search surface** (the
+  same builder applied to `GET /api/animal-usage` with
+  `search_type=register`) is deferred — the register remains per-protocol
+  on the application page.
 
 - [x] **9. AAALAC-style compliance reports**
   Restraint by species, euthanasia methods by species, surgery

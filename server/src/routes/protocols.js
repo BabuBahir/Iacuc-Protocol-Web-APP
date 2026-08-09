@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "../db.js";
 import { validateCompleteness } from "./protocol-form.js";
 import { audit, diffObject, resolveActor } from "../audit.js";
+import { applyFilters, validateFilters, PROTOCOL_FILTER_FIELDS } from "./filter.js";
 
 export const router = Router();
 
@@ -58,14 +59,24 @@ function normalizeResearchSteps(value) {
   return JSON.stringify(value.map(normalizeStep));
 }
 
-// GET /api/protocols?q=search
+// GET /api/protocols?q=search&filters=[{field,op,value}]
 router.get("/", (req, res) => {
   const q = (req.query.q || "").toLowerCase();
+  let filters = [];
+  if (req.query.filters) {
+    try {
+      filters = JSON.parse(req.query.filters);
+    } catch {
+      return res.status(400).json({ error: "filters must be a JSON array" });
+    }
+    const invalid = validateFilters(filters, PROTOCOL_FILTER_FIELDS);
+    if (invalid) return res.status(400).json({ error: invalid });
+  }
   const rows = db.prepare("SELECT * FROM protocols ORDER BY updated_at DESC").all();
-  const filtered = q
+  const qFiltered = q
     ? rows.filter(p => `${p.id} ${p.title} ${p.pi} ${p.species} ${p.status}`.toLowerCase().includes(q))
     : rows;
-  res.json(filtered.map(shape));
+  res.json(applyFilters(qFiltered, filters, PROTOCOL_FILTER_FIELDS).map(shape));
 });
 
 // GET /api/protocols/summary  -> metric counts for the dashboard cards

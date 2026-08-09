@@ -4,7 +4,7 @@ import swaggerUi from "swagger-ui-express";
 import { openapiSpec } from "./openapi.js";
 import { router as protocolsRouter } from "./routes/protocols.js";
 import { router as protocolFormRouter } from "./routes/protocol-form.js";
-import { router as animalUsageRouter } from "./routes/animal-usage.js";
+import { router as animalUsageRouter, searchRouter as animalUsageSearchRouter } from "./routes/animal-usage.js";
 import { router as adminRouter } from "./routes/admin.js";
 import { router as committeeRouter } from "./routes/committee.js";
 import { personnelRouter, protocolPersonnelRouter } from "./routes/compliance.js";
@@ -14,6 +14,7 @@ import { router as amendmentsRouter } from "./routes/amendments.js";
 import { router as transfersRouter } from "./routes/transfers.js";
 import { router as reportsRouter } from "./routes/reports.js";
 import { router as auditRouter } from "./audit.js";
+import { router as savedFiltersRouter } from "./routes/saved-filters.js";
 import "./db.js"; // ensures schema exists as soon as the app is built 
 export function createApp() {
   const app = express(); 
@@ -44,6 +45,8 @@ export function createApp() {
   app.use("/api", transfersRouter);
   app.use("/api", reportsRouter);
   app.use("/api", auditRouter);
+  app.use("/api", animalUsageSearchRouter);
+  app.use("/api", savedFiltersRouter);
 
   return app;
 }

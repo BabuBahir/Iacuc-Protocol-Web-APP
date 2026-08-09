@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, FileBarChart, Loader2 } from "lucide-react";
 import AppHeader from "../components/AppHeader";
 import { api } from "../api";
+import { downloadCsv } from "../utils/csv";
 import type {
   AnalgesicAnestheticDrugRow,
   EuthanasiaBySpeciesRow,
@@ -14,26 +15,6 @@ import type {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
-}
-
-// Escape a single cell for CSV (quote when it contains a comma, quote, or newline).
-function csvCell(value: string | number | null | undefined): string {
-  if (value === null || value === undefined) return "";
-  const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
-function downloadCsv(filename: string, headers: string[], rows: (string | number | null | undefined)[][]) {
-  const lines = [headers.map(csvCell).join(","), ...rows.map(r => r.map(csvCell).join(","))];
-  const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 interface Column<T> {
