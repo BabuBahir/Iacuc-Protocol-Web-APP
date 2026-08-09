@@ -59,6 +59,112 @@ describe("GET /api/protocols", () => {
       assert.equal(res.body.length, 1, `expected a match for query "${q}"`);
     }
   });
+
+  test("filters by an exact enum field (status)", async () => {
+    insertProtocol({ id: "A", status: "Active" });
+    insertProtocol({ id: "B", status: "Draft" });
+    const filters = encodeURIComponent(JSON.stringify([{ field: "status", op: "eq", value: "Active" }]));
+    const res = await request(app).get(`/api/protocols?filters=${filters}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.length, 1);
+    assert.equal(res.body[0].id, "A");
+  });
+
+  test("filters with a text contains clause (species)", async () => {
+    insertProtocol({ id: "A", species: "Mouse" });
+    insertProtocol({ id: "B", species: "C57BL/6 mouse" });
+    insertProtocol({ id: "C", species: "Zebrafish" });
+    const filters = encodeURIComponent(JSON.stringify([{ field: "species", op: "contains", value: "mouse" }]));
+    const res = await request(app).get(`/api/protocols?filters=${filters}`);
+    assert.equal(res.body.length, 2);
+    assert.deepEqual(res.body.map(p => p.id).sort(), ["A", "B"]);
+  });
+
+  test("stacked filters AND together", async () => {
+    insertProtocol({ id: "A", species: "Mouse", status: "Active", animals: 10 });
+    insertProtocol({ id: "B", species: "Mouse", status: "Draft", animals: 10 });
+    insertProtocol({ id: "C", species: "Rat", status: "Active", animals: 10 });
+    const filters = encodeURIComponent(JSON.stringify([
+      { field: "species", op: "eq", value: "Mouse" },
+      { field: "status", op: "eq", value: "Active" },
+    ]));
+    const res = await request(app).get(`/api/protocols?filters=${filters}`);
+    assert.equal(res.body.length, 1);
+    assert.equal(res.body[0].id, "A");
+  });
+
+  test("numeric comparison filters (animals gte)", async () => {
+    insertProtocol({ id: "A", animals: 5 });
+    insertProtocol({ id: "B", animals: 50 });
+    const filters = encodeURIComponent(JSON.stringify([{ field: "animals", op: "gte", value: "20" }]));
+    const res = await request(app).get(`/api/protocols?filters=${filters}`);
+    assert.equal(res.body.length, 1);
+    assert.equal(res.body[0].id, "B");
+  });
+
+  test("date comparison filters (expires lt)", async () => {
+    insertProtocol({ id: "A", expires: "2026-06-01" });
+    insertProtocol({ id: "B", expires: "2027-06-01" });
+    const filters = encodeURIComponent(JSON.stringify([{ field: "expires", op: "lt", value: "2026-12-31" }]));
+    const res = await request(app).get(`/api/protocols?filters=${filters}`);
+    assert.equal(res.body.length, 1);
+    assert.equal(res.body[0].id, "A");
+  });
+
+  test("text filters are case-insensitive", async () => {
+    insertProtocol({ id: "A", title: "Chronic Restraint Study" });
+    insertProtocol({ id: "B", title: "Feeding Study" });
+    const filters = encodeURIComponent(JSON.stringify([{ field: "title", op: "starts_with", value: "chronic" }]));
+    const res = await request(app).get(`/api/protocols?filters=${filters}`);
+    assert.equal(res.body.length, 1);
+    assert.equal(res.body[0].id, "A");
+  });
+
+  test("rejects malformed filters JSON", async () => {
+    const res = await request(app).get("/api/protocols?filters=not-json");
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /JSON/);
+  });
+
+  test("rejects an unknown filter field", async () => {
+    const filters = encodeURIComponent(JSON.stringify([{ field: "nope", op: "eq", value: "x" }]));
+    const res = await request(app).get(`/api/protocols?filters=${filters}`);
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /unknown filter field/);
+  });
+
+  test("rejects an operator that is invalid for the field type", async () => {
+    const filters = encodeURIComponent(JSON.stringify([{ field: "status", op: "gt", value: "Active" }]));
+    const res = await request(app).get(`/api/protocols?filters=${filters}`);
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /not valid for field/);
+  });
+
+  test("rejects an invalid enum value", async () => {
+    const filters = encodeURIComponent(JSON.stringify([{ field: "status", op: "eq", value: "Nope" }]));
+    const res = await request(app).get(`/api/protocols?filters=${filters}`);
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /invalid value/);
+  });
+
+  test("rejects a non-numeric value for a number field", async () => {
+    const filters = encodeURIComponent(JSON.stringify([{ field: "animals", op: "eq", value: "many" }]));
+    const res = await request(app).get(`/api/protocols?filters=${filters}`);
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /must be a number/);
+  });
+
+  test("combines q search and filters together", async () => {
+    insertProtocol({ id: "A", title: "Mouse study", species: "Mouse", status: "Active" });
+    insertProtocol({ id: "B", title: "Mouse study", species: "Rat", status: "Active" });
+    const filters = encodeURIComponent(JSON.stringify([{ field: "status", op: "eq", value: "Active" }]));
+    const res = await request(app).get(`/api/protocols?q=study&filters=${filters}`);
+    assert.equal(res.body.length, 2);
+    const mouseFilter = encodeURIComponent(JSON.stringify([{ field: "species", op: "eq", value: "Mouse" }]));
+    const res2 = await request(app).get(`/api/protocols?q=study&filters=${mouseFilter}`);
+    assert.equal(res2.body.length, 1);
+    assert.equal(res2.body[0].id, "A");
+  });
 });
 
 describe("GET /api/protocols/summary", () => {

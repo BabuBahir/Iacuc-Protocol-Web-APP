@@ -9,6 +9,7 @@
 // FK-safe order: children before parents.
 const TABLES_IN_DELETE_ORDER = [
   "audit_log",
+  "saved_filters",
   "protocol_votes",
   "protocol_review_comments",
   "protocol_review_assignments",

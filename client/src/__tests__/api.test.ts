@@ -89,7 +89,7 @@ describe("api.ts request wrapper — original behavior", () => {
     await api.listProtocols("mouse study");
 
     expect(fetch).toHaveBeenCalledWith(
-      "/api/protocols?q=mouse%20study",
+      "/api/protocols?q=mouse+study",
       expect.anything()
     );
   });

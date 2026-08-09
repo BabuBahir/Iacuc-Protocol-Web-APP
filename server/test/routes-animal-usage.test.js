@@ -176,3 +176,58 @@ describe("animal usage register", () => {
     assert.equal(count.c, 0);
   });
 });
+
+describe("GET /api/animal-usage (cross-protocol register search)", () => {
+  beforeEach(() => resetTables(db));
+
+  function seedTwoTransactions() {
+    insertProtocol({ id: "P-A" });
+    insertProtocol({ id: "P-B" });
+    db.prepare(`
+      INSERT INTO animal_usage_transactions (protocol_id, transaction_date, species_strain, pain_level, quantity, type, procedure_key, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run("P-A", "2026-07-01", "C57BL/6 mouse", "C", 60, "order", "breeding", "Arrival batch");
+    db.prepare(`
+      INSERT INTO animal_usage_transactions (protocol_id, transaction_date, species_strain, pain_level, quantity, type, procedure_key, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run("P-B", "2026-07-02", "Wistar rat", "D", 5, "use", "injections", null);
+  }
+
+  test("returns every transaction across protocols when unfiltered", async () => {
+    seedTwoTransactions();
+    const res = await request(app).get("/api/animal-usage");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.length, 2);
+  });
+
+  test("filters by species text contains", async () => {
+    seedTwoTransactions();
+    const filters = encodeURIComponent(JSON.stringify([{ field: "species_strain", op: "contains", value: "mouse" }]));
+    const res = await request(app).get(`/api/animal-usage?filters=${filters}`);
+    assert.equal(res.body.length, 1);
+    assert.equal(res.body[0].protocol_id, "P-A");
+  });
+
+  test("filters by enum field (type eq)", async () => {
+    seedTwoTransactions();
+    const filters = encodeURIComponent(JSON.stringify([{ field: "type", op: "eq", value: "order" }]));
+    const res = await request(app).get(`/api/animal-usage?filters=${filters}`);
+    assert.equal(res.body.length, 1);
+    assert.equal(res.body[0].protocol_id, "P-A");
+  });
+
+  test("filters by numeric field (quantity lt)", async () => {
+    seedTwoTransactions();
+    const filters = encodeURIComponent(JSON.stringify([{ field: "quantity", op: "lt", value: "50" }]));
+    const res = await request(app).get(`/api/animal-usage?filters=${filters}`);
+    assert.equal(res.body.length, 1);
+    assert.equal(res.body[0].protocol_id, "P-B");
+  });
+
+  test("rejects an unknown register field", async () => {
+    const filters = encodeURIComponent(JSON.stringify([{ field: "total", op: "eq", value: "x" }]));
+    const res = await request(app).get(`/api/animal-usage?filters=${filters}`);
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /unknown filter field/);
+  });
+});

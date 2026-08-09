@@ -845,3 +845,82 @@ export const PAIN_CATEGORIES = ["Category A", "Category B", "Category C", "Categ
 export const PROTOCOL_TYPES = ["Research", "Teaching", "Breeding", "Animal care / maintenance", "Other"];
 
 export const STAGES = ["Draft", "Submitted", "Veterinary Review", "IACUC Review", "Approved", "Active"];
+
+// ---- filter-builder (Roadmap item 8) ----
+// Mirrors server/src/routes/filter.js: a clause is { field, op, value } and
+// the allowed fields/operators are whitelisted server-side. The client keeps
+// its own field-definition metadata for rendering the builder UI.
+
+export type FilterOperator =
+  | "eq"
+  | "neq"
+  | "contains"
+  | "starts_with"
+  | "ends_with"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte";
+
+export interface FilterClause {
+  field: string;
+  op: FilterOperator;
+  value: string;
+}
+
+export interface SavedFilter {
+  id: number;
+  name: string;
+  search_type: "protocol" | "register";
+  filters: FilterClause[];
+  created_at: string;
+}
+
+export interface FilterFieldDef {
+  key: string;
+  label: string;
+  type: "text" | "number" | "date" | "enum";
+  values?: string[];
+}
+
+// Text fields allow fuzzy operators; enums only eq/neq; numbers/dates add
+// gt/gte/lt/lte — matching operatorsFor() in filter.js.
+export const FILTER_OPERATORS: { key: FilterOperator; label: string }[] = [
+  { key: "eq", label: "is" },
+  { key: "neq", label: "is not" },
+  { key: "contains", label: "contains" },
+  { key: "starts_with", label: "starts with" },
+  { key: "ends_with", label: "ends with" },
+  { key: "gt", label: "> greater than" },
+  { key: "gte", label: "≥ at least" },
+  { key: "lt", label: "< less than" },
+  { key: "lte", label: "≤ at most" },
+];
+
+export const TEXT_FILTER_OPERATORS: FilterOperator[] = ["eq", "neq", "contains", "starts_with", "ends_with"];
+export const ENUM_FILTER_OPERATORS: FilterOperator[] = ["eq", "neq"];
+export const NUMERIC_FILTER_OPERATORS: FilterOperator[] = ["eq", "neq", "gt", "gte", "lt", "lte"];
+
+export function operatorsFor(def: FilterFieldDef): FilterOperator[] {
+  if (def.type === "text") return TEXT_FILTER_OPERATORS;
+  if (def.type === "enum") return ENUM_FILTER_OPERATORS;
+  return NUMERIC_FILTER_OPERATORS;
+}
+
+// Client mirror of PROTOCOL_FILTER_FIELDS in server/src/routes/filter.js.
+export const PROTOCOL_FILTER_FIELD_DEFS: FilterFieldDef[] = [
+  { key: "id", label: "Protocol number", type: "text" },
+  { key: "title", label: "Title", type: "text" },
+  { key: "pi", label: "Principal investigator", type: "text" },
+  { key: "species", label: "Species", type: "text" },
+  { key: "status", label: "Status", type: "enum", values: STAGES },
+  { key: "pain_category", label: "Pain category", type: "enum", values: PAIN_CATEGORIES },
+  { key: "protocol_type", label: "Protocol type", type: "enum", values: PROTOCOL_TYPES },
+  { key: "animals", label: "Animals", type: "number" },
+  { key: "submitted", label: "Submitted date", type: "date" },
+  { key: "expires", label: "Expiration date", type: "date" },
+];
+
+export function protocolFieldDef(key: string): FilterFieldDef | undefined {
+  return PROTOCOL_FILTER_FIELD_DEFS.find(d => d.key === key);
+}

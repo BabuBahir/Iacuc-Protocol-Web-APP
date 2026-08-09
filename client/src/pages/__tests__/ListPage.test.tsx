@@ -4,12 +4,15 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router";
 import ListPage from "../ListPage";
 import { api as realApi } from "../../api";
-import type { Protocol, Summary } from "../../types";
+import type { FilterClause, Protocol, SavedFilter, Summary } from "../../types";
 
 vi.mock("../../api", () => ({
   api: {
     listProtocols: vi.fn(),
     getSummary: vi.fn(),
+    listSavedFilters: vi.fn(),
+    saveSavedFilter: vi.fn(),
+    deleteSavedFilter: vi.fn(),
   },
 }));
 
@@ -77,9 +80,26 @@ const SAMPLE_PROTOCOLS: Protocol[] = [
 
 const SAMPLE_SUMMARY: Summary = { active: 2, pendingReview: 1, expiringSoon: 0, approvedThisQuarter: 3 };
 
+const DRAFT_FILTER: FilterClause[] = [{ field: "status", op: "eq", value: "Draft" }];
+
+const SAVED_FILTER: SavedFilter = {
+  id: 1,
+  name: "Draft protocols",
+  search_type: "protocol",
+  filters: DRAFT_FILTER,
+  created_at: "2026-08-01T00:00:00.000Z",
+};
+
+async function resolveInitialLoad() {
+  await waitFor(() => {
+    expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument();
+  });
+}
+
 describe("ListPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    api.listSavedFilters.mockResolvedValue([]);
   });
 
   test("shows a loading state before data resolves", () => {
@@ -122,7 +142,7 @@ describe("ListPage", () => {
     renderListPage();
 
     await waitFor(() => {
-      expect(screen.getByText(/No protocols match/)).toBeInTheDocument();
+      expect(screen.getByText(/No protocols/)).toBeInTheDocument();
     });
   });
 
@@ -132,13 +152,13 @@ describe("ListPage", () => {
     const user = userEvent.setup();
 
     renderListPage();
-    await waitFor(() => expect(api.listProtocols).toHaveBeenCalledWith(""));
+    await waitFor(() => expect(api.listProtocols).toHaveBeenCalledWith("", []));
 
     const searchInput = screen.getByPlaceholderText("Search this list...");
     await user.type(searchInput, "mouse");
 
     await waitFor(() => {
-      expect(api.listProtocols).toHaveBeenLastCalledWith("mouse");
+      expect(api.listProtocols).toHaveBeenLastCalledWith("mouse", []);
     });
   });
 
@@ -150,9 +170,214 @@ describe("ListPage", () => {
     const user = userEvent.setup();
 
     renderListPage();
-    await waitFor(() => expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument());
+    await resolveInitialLoad();
 
     await user.click(screen.getByRole("button", { name: "New protocol" }));
     expect(navigate).toHaveBeenCalledWith("/protocols/new");
+  });
+
+  describe("filter-builder", () => {
+    test("adding a clause re-queries with the filters payload", async () => {
+      api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
+      api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
+      const user = userEvent.setup();
+
+      renderListPage();
+      await resolveInitialLoad();
+
+      await user.click(screen.getByRole("button", { name: /Filters/ }));
+      await user.click(screen.getByRole("button", { name: "Add clause" }));
+
+      const valueInput = screen.getByLabelText("Filter 1 value");
+      await user.type(valueInput, "IACUC-2026");
+
+      await waitFor(() => {
+        expect(api.listProtocols).toHaveBeenLastCalledWith("", [
+          { field: "id", op: "eq", value: "IACUC-2026" },
+        ]);
+      });
+    });
+
+    test("enum fields render a value select and eq/neq-only operators", async () => {
+      api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
+      api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
+      const user = userEvent.setup();
+
+      renderListPage();
+      await resolveInitialLoad();
+
+      await user.click(screen.getByRole("button", { name: /Filters/ }));
+      await user.click(screen.getByRole("button", { name: "Add clause" }));
+
+      await user.selectOptions(screen.getByLabelText("Filter 1 field"), "status");
+      const opSelect = screen.getByLabelText("Filter 1 operator");
+      const ops = Array.from(opSelect.querySelectorAll("option")).map(o => o.textContent);
+      expect(ops).toEqual(["is", "is not"]);
+
+      const valueSelect = screen.getByLabelText("Filter 1 value");
+      const values = Array.from(valueSelect.querySelectorAll("option")).map(o => o.textContent);
+      expect(values).toContain("Active");
+      expect(values).toContain("Draft");
+
+      await user.selectOptions(valueSelect, "Draft");
+      await waitFor(() => {
+        expect(api.listProtocols).toHaveBeenLastCalledWith("", DRAFT_FILTER);
+      });
+    });
+
+    test("removing a clause clears the filter payload", async () => {
+      api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
+      api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
+      const user = userEvent.setup();
+
+      renderListPage();
+      await resolveInitialLoad();
+
+      await user.click(screen.getByRole("button", { name: /Filters/ }));
+      await user.click(screen.getByRole("button", { name: "Add clause" }));
+      await user.type(screen.getByLabelText("Filter 1 value"), "X");
+
+      await user.click(screen.getByRole("button", { name: "Remove filter 1" }));
+      await waitFor(() => {
+        expect(api.listProtocols).toHaveBeenLastCalledWith("", []);
+      });
+    });
+
+    test("clear all removes every clause and shows a chip-free state", async () => {
+      api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
+      api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
+      const user = userEvent.setup();
+
+      renderListPage();
+      await resolveInitialLoad();
+
+      await user.click(screen.getByRole("button", { name: /Filters/ }));
+      await user.click(screen.getByRole("button", { name: "Add clause" }));
+      await user.type(screen.getByLabelText("Filter 1 value"), "X");
+      await waitFor(() => expect(screen.getAllByTestId("active-filter-chip").length).toBe(1));
+
+      await user.click(screen.getByRole("button", { name: "Clear all filters" }));
+      expect(screen.queryByTestId("active-filter-chip")).not.toBeInTheDocument();
+      await waitFor(() => {
+        expect(api.listProtocols).toHaveBeenLastCalledWith("", []);
+      });
+    });
+  });
+
+  describe("saved filters", () => {
+    test("applying a saved filter re-queries with its clauses", async () => {
+      api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
+      api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
+      api.listSavedFilters.mockResolvedValue([SAVED_FILTER]);
+      const user = userEvent.setup();
+
+      renderListPage();
+      await resolveInitialLoad();
+
+      await user.click(screen.getByRole("button", { name: "Saved filters" }));
+      await user.click(screen.getByRole("button", { name: /^Draft protocols/ }));
+
+      await waitFor(() => {
+        expect(api.listProtocols).toHaveBeenLastCalledWith("", DRAFT_FILTER);
+      });
+      expect(screen.getByTestId("active-filter-chip")).toBeInTheDocument();
+    });
+
+    test("saving the current filter posts it and refreshes the list", async () => {
+      api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
+      api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
+      api.saveSavedFilter.mockResolvedValue({ ...SAVED_FILTER, name: "My filter" });
+      const user = userEvent.setup();
+
+      renderListPage();
+      await resolveInitialLoad();
+
+      await user.click(screen.getByRole("button", { name: /Filters/ }));
+      await user.click(screen.getByRole("button", { name: "Add clause" }));
+      await user.selectOptions(screen.getByLabelText("Filter 1 field"), "status");
+      await user.selectOptions(screen.getByLabelText("Filter 1 value"), "Draft");
+
+      await user.click(screen.getByRole("button", { name: "Saved filters" }));
+      await user.type(screen.getByLabelText("Filter name"), "My filter");
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => {
+        expect(api.saveSavedFilter).toHaveBeenCalledWith("My filter", "protocol", DRAFT_FILTER);
+      });
+    });
+
+    test("save button is disabled when no clauses exist", async () => {
+      api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
+      api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
+      const user = userEvent.setup();
+
+      renderListPage();
+      await resolveInitialLoad();
+
+      await user.click(screen.getByRole("button", { name: "Saved filters" }));
+      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    });
+
+    test("deleting a saved filter calls the delete endpoint", async () => {
+      api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
+      api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
+      api.listSavedFilters.mockResolvedValue([SAVED_FILTER]);
+      api.deleteSavedFilter.mockResolvedValue(null);
+      const user = userEvent.setup();
+
+      renderListPage();
+      await resolveInitialLoad();
+
+      await user.click(screen.getByRole("button", { name: "Saved filters" }));
+      await user.click(screen.getByRole("button", { name: "Delete saved filter Draft protocols" }));
+
+      await waitFor(() => {
+        expect(api.deleteSavedFilter).toHaveBeenCalledWith(1);
+      });
+    });
+
+    test("shows a validation error when saving without a name", async () => {
+      api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
+      api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
+      const user = userEvent.setup();
+
+      renderListPage();
+      await resolveInitialLoad();
+
+      await user.click(screen.getByRole("button", { name: /Filters/ }));
+      await user.click(screen.getByRole("button", { name: "Add clause" }));
+      await user.type(screen.getByLabelText("Filter 1 value"), "X");
+
+      await user.click(screen.getByRole("button", { name: "Saved filters" }));
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(await screen.findByText("Enter a name for this filter.")).toBeInTheDocument();
+      expect(api.saveSavedFilter).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("CSV export", () => {
+    test("downloads the filtered result set as a UTF-8 CSV", async () => {
+      api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
+      api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
+      const createObjectURL = vi.fn((_blob: Blob) => "blob:mock");
+      const revokeObjectURL = vi.fn();
+      vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      const user = userEvent.setup();
+
+      renderListPage();
+      await resolveInitialLoad();
+
+      await user.click(screen.getByTestId("export-csv"));
+
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      const blob = createObjectURL.mock.calls[0][0] as Blob;
+      const text = await blob.text();
+      expect(text).toContain("Protocol number,Title,Principal investigator,Species,Status");
+      expect(text).toContain("IACUC-2026-0001,Test protocol one,Dr. One,Mouse,Active");
+      expect(text).toContain("IACUC-2026-0002,Test protocol two,Dr. Two,Rat,Draft");
+    });
   });
 });

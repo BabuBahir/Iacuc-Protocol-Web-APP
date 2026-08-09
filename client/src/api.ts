@@ -23,6 +23,7 @@ import type {
   ExperimentRow,
   Facility,
   FacilityInput,
+  FilterClause,
   Incident,
   IncidentInput,
   IncidentUpdateInput,
@@ -60,6 +61,7 @@ import type {
   RrrInput,
   RrrEntry,
   ReportsPayload,
+  SavedFilter,
   Species,
   Summary,
   TrainingRecord,
@@ -111,8 +113,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  listProtocols: (query = ""): Promise<Protocol[]> =>
-    request(`/protocols${query ? `?q=${encodeURIComponent(query)}` : ""}`),
+  listProtocols: (query = "", filters: FilterClause[] = []): Promise<Protocol[]> => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (filters.length > 0) params.set("filters", JSON.stringify(filters));
+    const qs = params.toString();
+    return request(`/protocols${qs ? `?${qs}` : ""}`);
+  },
   getSummary: (): Promise<Summary> => request("/protocols/summary"),
   getProtocol: (id: string): Promise<ProtocolDetail> => request(`/protocols/${id}`),
   createProtocol: (data: ProtocolInput): Promise<Protocol> =>
@@ -312,4 +319,14 @@ export const api = {
 
   // ---- AAALAC-style compliance reports (Roadmap item 9) ----
   getReports: (): Promise<ReportsPayload> => request("/reports"),
+
+  // ---- Saved search filters (Roadmap item 8) ----
+  listSavedFilters: (searchType: "protocol" | "register" = "protocol"): Promise<SavedFilter[]> =>
+    request(`/saved-filters?search_type=${searchType}`),
+  saveSavedFilter: (name: string, searchType: "protocol" | "register", filters: FilterClause[]): Promise<SavedFilter> =>
+    request("/saved-filters", {
+      method: "POST",
+      body: JSON.stringify({ name, search_type: searchType, filters }),
+    }),
+  deleteSavedFilter: (id: number): Promise<null> => request(`/saved-filters/${id}`, { method: "DELETE" }),
 };

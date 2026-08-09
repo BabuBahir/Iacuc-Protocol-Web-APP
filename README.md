@@ -290,6 +290,21 @@ the "Reports" tab with a CSV export for each. Read-only.
 | GET    | /api/reports  | Restraint by species, euthanasia methods by species, surgery locations/types, multiple major recovery surgery, analgesic/anesthetic drugs, use locations by species | ✓ |
 
 </details>
+<details>
+<summary><b>  Saved search filters (dashboard) </b> (Click to expand)</summary>
+
+Named, recallable filter sets built from the dashboard's filter-builder
+(optional `?search_type=protocol|register` scoping on the list call).
+
+| Method | Path                         | Description                                             | Status |
+|--------|------------------------------|----------------------------------------------------------|--------|
+| GET    | /api/saved-filters           | List saved filters, optionally `?search_type=`           | ✓ |
+| POST   | /api/saved-filters           | Save the current filter set (name + clause array)        | ✓ |
+| DELETE | /api/saved-filters/:id       | Delete a saved filter                                    | ✓ |
+| GET    | /api/protocols?q=&filters=[{field,op,value},…] | Dashboard list with the stackable filter-builder | ✓ |
+| GET    | /api/animal-usage?filters=[…] | Register-wide search (reserved for the deferred register filter surface) | ✓ |
+
+</details>
 
 ### Planned / future endpoints
 
@@ -303,7 +318,6 @@ lands.
 | Domain | Planned endpoint(s)                                                         | Source | Status |
 |--------|-----------------------------------------------------------------------------|--------|--------|
 | File attachments | Real uploads for protocol narratives, SOPs, training certs | ROADMAP item 7 | ✗ |
-| Search filter-builder + CSV export | Stackable field/operator/value filters across protocols & the register; CSV on every result set | ROADMAP item 8 | ✗ |
 | AAALAC compliance reports | Restraint/euthanasia/surgery/drug reports by species | ROADMAP item 9 | ✗ |
 
 Amendments & renewals, PAM & incidents, facilities & inspections, transfer
