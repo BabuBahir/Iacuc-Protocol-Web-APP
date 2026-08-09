@@ -508,6 +508,25 @@ Notes from the upgrade, worth remembering:
   dependency. They were pre-existing, are dev-server/test-only, and are
   not part of item 12; fixing them means a Vite 5→8 + Vitest 3→4 major
   bump with its own regression pass.
+- **Don't merge dependabot major bumps on the Vite toolchain piecemeal —
+  it breaks the build.** Dependabot opened #58 (`@vitejs/plugin-react`
+  4.7.0 → 6.0.5) and #61 (`vitest` 2.1.9 → 4.1.10) independently; both
+  were merged into main, and both majors require **Vite ^8** as a peer
+  while the repo pins `vite ^5.3.4`. The merged state produced an invalid
+  peer tree (`npm ls` → ELSPROBLEMS) and `vite build` died with
+  `ERR_PACKAGE_PATH_NOT_EXPORTED` (plugin-react 6.x imports
+  `vite/internal`, which Vite 5 doesn't export) — main was red until the
+  revert in #65. The fix: `client/package.json` back to plugin-react
+  `^4.3.1` / vitest `^2.1.9` / vite `^5.3.4` / coverage-v8 `^2.1.9`, the
+  lockfile reset to the last green baseline, and `.github/dependabot.yml`
+  now **ignores semver-major updates** on `vite` /
+  `@vitejs/plugin-react` / `vitest` / `@vitest/coverage-v8` so all four
+  are upgraded together in one deliberate Vite 5→8 migration, not one
+  package at a time. If you ever do run that migration, remove the
+  ignore rules in the same PR that bumps the four packages. Also note the
+  `@vitest/coverage-v8` and `vitest` majors are coupled — coverage-v8
+  2.1.9 peer-requires vitest 2.1.9 — so bumping one without the other is
+  always invalid.
 - **v7 turns on `v7_startTransition` by default** (in v6 it was opt-in):
   route updates now render inside `React.startTransition` (low priority).
   Under cold Vite cache / CPU load, e2e can hit 30s timeouts on
