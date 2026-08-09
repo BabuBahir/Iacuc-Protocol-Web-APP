@@ -265,7 +265,7 @@ reassigns the protocol's principal investigator.
 </details>
 
 <details>
-<summary><b> Audit log (who changed what, when) </b> (Click to expand)</summary>
+<summary><b>  Audit log (who changed what, when) </b> (Click to expand)</summary>
 
 Every write in the app records an entry in an append-only audit trail — the
 admin page's "Audit log" panel shows it. Because there is no login yet, the
@@ -276,6 +276,18 @@ recorded as `system`.
 | Method | Path                                      | Description                                          | Status |
 |--------|-------------------------------------------|-------------------------------------------------------|--------|
 | GET    | /api/audit                                | The trail, newest first; filters `entity_type`, `entity_id`, `actor`, `action`, `provenance`, `from`/`to`, `limit`, `offset` | ✓ |
+
+</details>
+
+<details>
+<summary><b>  Compliance reports (AAALAC-style) </b> (Click to expand)</summary>
+
+Canned reports aggregated from the Appendix A application content, shown on
+the "Reports" tab with a CSV export for each. Read-only.
+
+| Method | Path          | Description                                          | Status |
+|--------|---------------|-------------------------------------------------------|--------|
+| GET    | /api/reports  | Restraint by species, euthanasia methods by species, surgery locations/types, multiple major recovery surgery, analgesic/anesthetic drugs, use locations by species | ✓ |
 
 </details>
 

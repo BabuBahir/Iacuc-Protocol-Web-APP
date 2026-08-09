@@ -769,9 +769,10 @@ stays uncovered per the note above).
 
 Not implemented (see §1 above for the domain detail on each): conditional/
 dynamic Table of Contents, auth or role-based
-access control, search filter-builder, compliance reports. (Amendments now
+access control, search filter-builder. (Amendments now
 have the three-pane live-diff; protocol version lineage, renewals, Transfer
-Ownership, and audit logging are all implemented above.)
+Ownership, audit logging, and the AAALAC compliance reports are all
+implemented above.)
 
 ## 3. HIPAA, PHI, and AI-safety guardrails
 
@@ -858,3 +859,41 @@ without the following, this section is documentation only:
 
 When you add a feature or hit a non-obvious bug, add a short note here —
 future sessions (agent or human) shouldn't have to rediscover it.
+
+### Reports (Roadmap item 9) — Aug 2026
+
+`GET /api/reports` (`server/src/routes/reports.js`) aggregates six
+AAALAC-style reports from Appendix A content, rendered on the new "Reports"
+nav tab (`client/src/pages/ReportsPage.tsx`, 7th tab after Amendments) with a
+per-report CSV download:
+
+1. **Restraint by species** — `protocol_procedures` rows where
+   `procedure_key = 'prolonged_restraint'` AND `checked = 1`; the restraint
+   narrative is the method.
+2. **Euthanasia methods by species** — `protocol_drugs` rows whose
+   `reason_for_use` ILIKE `%euthanasi%`; the drug name is the method.
+3. **Surgery locations/types** — survival/non-survival surgery checked × the
+   protocol's `research_steps[].location` JSON; one row per (protocol,
+   surgery type, step location) with no dedupe.
+4. **Multiple major recovery surgery** — `protocol_experiments` with
+   `multiple_surgical_events = 1`.
+5. **Analgesic/anesthetic drugs** — `protocol_drugs` whose `reason_for_use`
+   matches `%anesth%`/`%analg%`.
+6. **Use locations by species** — `research_steps` grouped by
+   (location, species) with `protocol_count` + `protocol_ids` array.
+
+Species resolves `COALESCE(au.species_strain, p.species)` via LEFT JOIN
+`protocol_animal_use`, so a protocol's animal-use rows win over the protocol
+column. `research_steps` is parsed defensively (malformed JSON → empty list).
+Reports are **read-only** — no audit rows, and per AGENTS.md §1.6 they are
+intentionally *not* the item-8 filter-builder/saved-filters scope; CSV export
+is a client-side `URL.createObjectURL` helper inside `ReportsPage.tsx` (UTF-8
+BOM-prefixed, cells quoted when they contain a comma/quote/newline).
+
+E2E seed fixtures the spec depends on: 0150's prolonged-restraint narrative
+("holding tube"), euthanasia drugs CO2/Pentobarbital/Tricaine (MS-222),
+"Surgical suite A"/"Surgical suite B" step locations on 0139/0155/0150, and
+two `multiple_surgical_events = 1` experiments. Keep those seeded if you
+touch the seed; the reports spec asserts on them. The client test stubs
+`URL.createObjectURL`/`revokeObjectURL` + `HTMLAnchorElement.prototype.click`
+to assert the CSV content without a real download.

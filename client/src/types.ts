@@ -780,6 +780,64 @@ export interface AuditQuery {
   offset?: number;
 }
 
+// ---- AAALAC-style compliance reports (Roadmap item 9) ----
+
+export interface RestraintBySpeciesRow {
+  protocol_id: string;
+  species: string | null;
+  restraint_method: string | null;
+}
+
+export interface EuthanasiaBySpeciesRow {
+  protocol_id: string;
+  species: string | null;
+  method: string;
+  dose: string | null;
+  route: string | null;
+}
+
+export interface SurgeryLocationRow {
+  protocol_id: string;
+  species: string | null;
+  surgery_type: "Survival surgery" | "Non-survival surgery";
+  location: string;
+}
+
+export interface MultipleMajorRecoverySurgeryRow {
+  protocol_id: string;
+  species: string | null;
+  experiment: string;
+  description: string | null;
+}
+
+export interface AnalgesicAnestheticDrugRow {
+  protocol_id: string;
+  species: string | null;
+  reason_for_use: string | null;
+  drug: string;
+  dose: string | null;
+  route: string | null;
+}
+
+export interface UseLocationBySpeciesRow {
+  location: string;
+  species: string | null;
+  protocol_count: number;
+  protocol_ids: string[];
+}
+
+export interface ReportsPayload {
+  generated_at: string;
+  reports: {
+    restraint_by_species: RestraintBySpeciesRow[];
+    euthanasia_by_species: EuthanasiaBySpeciesRow[];
+    surgery_locations: SurgeryLocationRow[];
+    multiple_major_recovery_surgery: MultipleMajorRecoverySurgeryRow[];
+    analgesic_anesthetic_drugs: AnalgesicAnestheticDrugRow[];
+    use_locations_by_species: UseLocationBySpeciesRow[];
+  };
+}
+
 // ---- constants shared across the UI ----
 
 export const PAIN_CATEGORIES = ["Category A", "Category B", "Category C", "Category D", "Category E"];
