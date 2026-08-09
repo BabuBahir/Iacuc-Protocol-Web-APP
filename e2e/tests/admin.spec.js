@@ -17,7 +17,10 @@ test("adding a species makes it appear in the lookup list", async ({ page }) => 
   await page.getByPlaceholder("e.g. Guinea pig").fill("Alpaca");
   await page.getByRole("button", { name: "Add" }).first().click();
 
-  await expect(page.getByText("Alpaca")).toBeVisible();
+  // .first(): the species row renders above the audit log, and the audit
+  // panel's slow on-mount fetch can resolve after this add and include a
+  // species.created entry whose diff also contains "Alpaca".
+  await expect(page.getByText("Alpaca").first()).toBeVisible();
 });
 
 test("adding a personnel member and seeing them in the list", async ({ page }) => {

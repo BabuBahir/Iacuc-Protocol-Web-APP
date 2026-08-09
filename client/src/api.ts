@@ -70,6 +70,7 @@ import type {
   VoteInput,
   Voter,
 } from "./types";
+import { getActingAs, ACTOR_HEADER_NAME } from "./identity";
 
 // Thin wrapper around fetch calls to the Express API.
 // In dev, Vite proxies /api -> http://localhost:4000 (see vite.config.js),
@@ -86,9 +87,19 @@ interface ErrorBody {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+
+  // Attach the self-declared "acting as" identity (see identity.ts) to every
+  // request, if one is set. This is what makes the audit trail show a real
+  // name instead of "system" — it costs nothing extra at each call site
+  // since it's centralized here, and it's a no-op (header simply omitted)
+  // for anyone who hasn't picked an identity, so anonymous use is unaffected.
+  const actingAs = getActingAs();
+  if (actingAs) headers[ACTOR_HEADER_NAME] = actingAs.name;
+
   const res = await fetch(`${API_BASE}/api${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers: { ...headers, ...(options.headers as Record<string, string> | undefined) },
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as ErrorBody;

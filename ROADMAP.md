@@ -39,14 +39,18 @@ PR (not a separate cleanup pass) is the fix.
   AGENTS.md §1.1.
 
 - [ ] **4. Authentication + role-based access control**
-  Currently anyone can vote as anyone or edit anything — no login, no
-  session, no enforcement. This is the biggest trust gap before this
-  could be used for anything real, and it's a stated prerequisite for
-  item 11's audit trail to mean anything (see item 11 below) and for
-  the HIPAA/AI-safety guardrails in AGENTS.md §3. Note: item 11 already
-  reserved an `actor_key` column on the audit log specifically so this
-  item can plug in without a migration — check `server/src/audit.js`
-  before designing the identity layer from scratch.
+  **Product decision: this app stays anonymous-friendly, no login wall
+  — see item 17 below before starting this.** Real auth is still
+  genuinely absent (anyone can vote as anyone, edit anything, no
+  session, no enforcement), so this item stays open. But it needs to be
+  designed as *optional/graduated* access control, not a login
+  requirement to use the app at all — item 17's `ActorPicker` already
+  proves the audit-attribution half of what auth would give you,
+  without the friction. Whatever this becomes, it should build on that
+  pattern (e.g. an optional "sign in to unlock admin actions" rather
+  than a wall on page load). This is also a stated prerequisite for the
+  HIPAA/AI-safety guardrails in AGENTS.md §3 to mean anything as
+  *enforcement* rather than just documentation.
 
 - [ ] **5. Dynamic/conditional Table of Contents**
   The Options-page-driven section model from Cayuse: an initial yes/no
@@ -98,13 +102,27 @@ PR (not a separate cleanup pass) is the fix.
   lands, route the verified identity through the reserved `actor_key`
   column — no migration needed.
 
-- [ ] **12. Upgrade react-router-dom to v7**
+- [x] **12. Upgrade react-router-dom to v7**
   Two moderate CVEs in the current 6.26.0 are only patched in v7 (major,
   breaking API changes). Assessed as low real-world risk for this repo's
   usage pattern — see AGENTS.md's "Known dependency vulnerability"
   section for the full reasoning — but should still be upgraded
   deliberately, with routing behavior re-verified across every page
   afterward, rather than left indefinitely.
+  **Done (Aug 2026):** migrated to `react-router@7.18.2` (the unified v7
+  package; `react-router-dom` remains only as a v7 compatibility
+  re-export). The app only used declarative APIs (BrowserRouter,
+  MemoryRouter, Routes, Route, Link, useNavigate, useParams), so the
+  migration was a package swap plus updating all 18 imports + 3 `vi.mock`
+  targets to `react-router`. Verified: `tsc --noEmit` clean, 193 client
+  tests pass, and the 36-test e2e suite passes (2 consecutive full runs)
+  covering every page. Note: v7's `v7_startTransition` default makes
+  route renders low-priority work, which shows up as e2e timeouts under
+  cold-cache/load conditions (see AGENTS.md); the `v7_*` opt-out flags are
+  gone by 7.18 so this is not reversible from the app. The e2e config now
+  sets `retries: 2` to absorb the load-induced timeouts (a test that still
+  fails after two retries is reported as failed — never rerun to chase a
+  green).
 
 - [x] **13. Personnel compliance tracking (training + OHSP)**
   Not on the original roadmap — added independently. CITI-style
@@ -133,3 +151,18 @@ PR (not a separate cleanup pass) is the fix.
   Not on the original roadmap. Open → CAPA → Closed incident lifecycle
   tied to a protocol. `server/src/routes/pam.js`, `client/src/pages/
   PamPage.tsx`.
+
+- [x] **17. Lightweight self-declared identity for audit attribution**
+  Not on the original roadmap. **Deliberately not authentication** —
+  product decision was to stay anonymous-friendly, no login wall
+  (login fatigue kills first-time trial of a demo product). An
+  optional `ActorPicker` dropdown in the header lets a user pick who
+  they're acting as (from the existing personnel list, no password),
+  which attaches an `X-Actor` header to every request. This is the
+  exact header `server/src/audit.js`'s `resolveActor()` already
+  checked first — the backend side was already built as part of item
+  11; this closed the frontend gap. Zero security: anyone can pick any
+  name. `client/src/identity.ts`, `client/src/components/
+  ActorPicker.tsx`. See item 4's updated note — this is not a
+  substitute for real auth, just the attribution half of it, done in a
+  way that costs no friction.

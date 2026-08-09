@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router";
 import DisclaimerModal from "./components/DisclaimerModal";
 import ListPage from "./pages/ListPage";
 import DetailPage from "./pages/DetailPage";
