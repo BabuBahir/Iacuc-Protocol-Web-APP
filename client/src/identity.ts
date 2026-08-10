@@ -49,6 +49,21 @@ export function setActingAs(person: ActingAs | null): void {
     // is a minor annoyance (falls back to "system" in the audit trail), not
     // something worth surfacing as an error to the user.
   }
+  // Notify subscribers (e.g. the access banners) so UI that depends on the
+  // current persona re-renders without a page navigation.
+  listeners.forEach(listener => listener());
+}
+
+const listeners = new Set<() => void>();
+
+// Subscribe to persona changes. Returns an unsubscribe function. Used by
+// components (AccessBanner) that need to react to the actor picker changing
+// while the page is mounted — localStorage alone gives no change notification.
+export function onActingAsChange(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 // The literal header name the backend's resolveActor() already checks

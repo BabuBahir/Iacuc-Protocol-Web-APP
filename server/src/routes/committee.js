@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "../db.js";
 import { audit, resolveActor } from "../audit.js";
+import { isOfficeRole, requireCommittee, requireOfficeRole, resolvePerson } from "../access.js";
 
 export const router = Router();
 
@@ -51,7 +52,19 @@ function commentsFor(protocolId) {
 
 // Cast or update a single vote. Returns { status, body } so both the /votes
 // (tally-only) and /reviews (full-history) POST handlers can reuse it.
-function castVote(protocolId, { personnel_id, vote, comment }) {
+function castVote(protocolId, req, res) {
+  const { personnel_id, vote, comment } = req.body || {};
+
+  // Graduated access (Roadmap item 4): the acting persona must exist and be
+  // committee-eligible — anonymous/non-committee callers can't cast votes.
+  const actor = resolvePerson(req);
+  if (!actor) {
+    return { status: 401, body: { error: "Pick who you're acting as to vote — choose an identity from the header." } };
+  }
+  if (!actor.is_committee && !isOfficeRole(actor.role_name)) {
+    return { status: 403, body: { error: `${actor.name}'s role (${actor.role_name}) isn't eligible to cast an FCR vote.` } };
+  }
+
   if (!personnel_id || !vote) {
     return { status: 400, body: { error: "personnel_id and vote are required" } };
   }
@@ -142,7 +155,7 @@ router.get("/protocols/:id/votes", (req, res) => {
 // POST /api/committee/protocols/:id/votes  { personnel_id, vote, comment }
 // One vote per person per protocol — voting again updates the existing vote.
 router.post("/protocols/:id/votes", (req, res) => {
-  const { status, body } = castVote(req.params.id, req.body);
+  const { status, body } = castVote(req.params.id, req, res);
   res.status(status).json(body);
 });
 
@@ -165,7 +178,7 @@ router.get("/protocols/:id/reviews", (req, res) => {
 // Cast a committee review — the review-history alias of the vote endpoint.
 // Returns the full review history so the UI can refresh in one call.
 router.post("/protocols/:id/reviews", (req, res) => {
-  const { status, body } = castVote(req.params.id, req.body);
+  const { status, body } = castVote(req.params.id, req, res);
   if (status !== 201) return res.status(status).json(body);
   const protocol = db.prepare("SELECT * FROM protocols WHERE id = ?").get(req.params.id);
   res.status(201).json({
@@ -179,6 +192,7 @@ router.post("/protocols/:id/reviews", (req, res) => {
 // POST /api/committee/protocols/:id/comments  { personnel_id, section, comment }
 // Add section-specific inline feedback (distinct from the vote's own comment).
 router.post("/protocols/:id/comments", (req, res) => {
+  if (!requireCommittee(req, res)) return;
   const protocolId = req.params.id;
   const { personnel_id, section, comment } = req.body;
 
@@ -224,6 +238,7 @@ router.post("/protocols/:id/comments", (req, res) => {
 // PATCH /api/committee/protocols/:id/assign  { personnel_id, role }
 // Assign (or reassign) a reviewer to the protocol. Upserts on (protocol, personnel).
 router.patch("/protocols/:id/assign", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   const protocolId = req.params.id;
   const { personnel_id, role } = req.body;
 
@@ -270,6 +285,7 @@ router.patch("/protocols/:id/assign", (req, res) => {
 // Set whether the protocol is reviewed by the full committee (FCR) or a
 // designated member (DMR). Stored on protocols.review_method (migration-guarded).
 router.patch("/protocols/:id/review-method", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   const protocolId = req.params.id;
   const { review_method } = req.body;
 

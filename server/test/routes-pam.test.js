@@ -1,7 +1,7 @@
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
-import { resetTables } from "./helpers.js";
+import { resetTables, insertPersonnelDirect } from "./helpers.js";
 
 process.env.DB_PATH = ":memory:";
 const { createApp } = await import("../src/app.js");
@@ -24,14 +24,10 @@ function insertProtocol(overrides = {}) {
   });
 }
 
-async function insertPersonnel(name, roleName) {
-  let roleId = db.prepare("SELECT id FROM roles WHERE name = ?").get(roleName)?.id;
-  if (!roleId) {
-    await request(app).post("/api/admin/roles").send({ name: roleName, is_committee: 0 });
-    roleId = db.prepare("SELECT id FROM roles WHERE name = ?").get(roleName).id;
-  }
-  const person = await request(app).post("/api/admin/personnel").send({ name, role_id: roleId });
-  return person.body.id;
+// Roles/personnel are created directly in the DB: the HTTP admin API now
+// requires an office persona itself (graduated access control).
+function insertPersonnel(name, roleName) {
+  return insertPersonnelDirect(db, { name, roleName });
 }
 
 async function insertIncident(overrides = {}) {

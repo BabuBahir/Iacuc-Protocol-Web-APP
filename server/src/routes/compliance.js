@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "../db.js";
 import { requireProtocol } from "./protocol-form.js";
 import { audit } from "../audit.js";
+import { requireOfficeRole } from "../access.js";
 
 // Personnel compliance (Domain C): CITI-style training records and OHSP
 // (Occupational Health & Safety Program) clearance. Two routers are exported —
@@ -96,6 +97,7 @@ personnelRouter.get("/:id/training", (req, res) => {
 
 // body: { course, completed_date, expires_date? }
 personnelRouter.post("/:id/training", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   const person = requirePersonnel(req, res);
   if (!person) return;
   const { course, completed_date, expires_date } = req.body || {};
@@ -124,6 +126,7 @@ personnelRouter.post("/:id/training", (req, res) => {
 
 // body: any of { course, completed_date, expires_date }
 personnelRouter.patch("/:id/training/:trainingId", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   const person = requirePersonnel(req, res);
   if (!person) return;
   const record = db.prepare("SELECT * FROM personnel_training WHERE id = ? AND personnel_id = ?")
@@ -160,6 +163,7 @@ personnelRouter.patch("/:id/training/:trainingId", (req, res) => {
 });
 
 personnelRouter.delete("/:id/training/:trainingId", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   const person = requirePersonnel(req, res);
   if (!person) return;
   const existing = db.prepare("SELECT course FROM personnel_training WHERE id = ? AND personnel_id = ?")
@@ -187,6 +191,7 @@ personnelRouter.get("/:id/ohsp", (req, res) => {
 
 // body: { status, reviewed_date?, notes? } — upsert
 personnelRouter.post("/:id/ohsp", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   const person = requirePersonnel(req, res);
   if (!person) return;
   const { status, reviewed_date, notes } = req.body || {};

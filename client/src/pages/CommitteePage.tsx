@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import AppHeader from "../components/AppHeader";
+import AccessBanner from "../components/AccessBanner";
 import StatusBadge from "../components/StatusBadge";
 import { api } from "../api";
 import {
@@ -402,6 +403,7 @@ export default function CommitteePage() {
       </div>
 
       <div className="p-4 space-y-4">
+        <AccessBanner mode="committee" committeePersonnelIds={voters.map(v => v.id)} />
         {loading && <div className="text-gray-400 text-[13px]">Loading…</div>}
         {error && <div className="text-red-600 text-[13px]">Couldn't load committee data: {error}</div>}
         {!loading && protocols.length === 0 && !error && (

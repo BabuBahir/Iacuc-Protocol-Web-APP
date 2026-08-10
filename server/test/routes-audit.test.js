@@ -1,7 +1,7 @@
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
-import { resetTables } from "./helpers.js";
+import { resetTables, insertPersonnelDirect } from "./helpers.js";
 
 process.env.DB_PATH = ":memory:";
 const { createApp } = await import("../src/app.js");
@@ -24,18 +24,17 @@ function insertProtocol(overrides = {}) {
   });
 }
 
-async function insertPersonnel(name, roleName, isCommittee) {
-  let roleId = db.prepare("SELECT id FROM roles WHERE name = ?").get(roleName)?.id;
-  if (!roleId) {
-    const role = await request(app)
-      .post("/api/admin/roles")
-      .send({ name: roleName, is_committee: isCommittee });
-    roleId = role.body.id;
-  }
-  const person = await request(app)
-    .post("/api/admin/personnel")
-    .send({ name, role_id: roleId });
-  return person.body.id;
+// Roles/personnel are created directly in the DB: the HTTP admin API now
+// requires an office persona itself (graduated access control).
+function insertPersonnel(name, roleName, isCommittee) {
+  return insertPersonnelDirect(db, { name, roleName, isCommittee });
+}
+
+function insertAudit(action, entityType, entityId, actor, details) {
+  db.prepare(`
+    INSERT INTO audit_log (action, entity_type, entity_id, actor, details)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(action, entityType, entityId, actor, JSON.stringify(details));
 }
 
 function allAuditRows() {
@@ -45,19 +44,27 @@ function allAuditRows() {
 describe("audit() defaults", () => {
   beforeEach(() => resetTables(db));
 
-  test("writes actor 'system', provenance 'human', and JSON details by default", async () => {
-    const res = await request(app).post("/api/admin/species").send({ name: "Ferret" });
+  test("writes actor 'system', provenance 'human', and null details by default", async () => {
+    // Protocol create is ungated, so an anonymous write still exercises the
+    // audit() defaults without tripping the office gate on /api/admin.
+    // (create carries no details; the update-diff and GET tests below cover
+    // the JSON-details path.)
+    const res = await request(app).post("/api/protocols").send({
+      id: "AUD-0001",
+      title: "Ferret study",
+      pi: "Dr. Test",
+    });
     assert.equal(res.status, 201);
 
     const rows = allAuditRows();
     assert.equal(rows.length, 1);
-    assert.equal(rows[0].action, "species.created");
-    assert.equal(rows[0].entity_type, "species");
-    assert.equal(rows[0].entity_id, String(res.body.id));
+    assert.equal(rows[0].action, "protocol.created");
+    assert.equal(rows[0].entity_type, "protocol");
+    assert.equal(rows[0].entity_id, "AUD-0001");
     assert.equal(rows[0].actor, "system");
     assert.equal(rows[0].actor_key, null);
     assert.equal(rows[0].provenance, "human");
-    assert.equal(rows[0].details, '{"name":"Ferret"}');
+    assert.equal(rows[0].details, null);
   });
 
   test("supports explicit provenance, actor, and actor_key", async () => {
@@ -74,32 +81,35 @@ describe("audit() defaults", () => {
 describe("resolveActor() precedence", () => {
   beforeEach(() => resetTables(db));
 
+  // The /api/admin writes used to exercise actor resolution are now office-
+  // gated, so these drive resolution through ungated protocol create instead.
+
   test("X-Actor header wins over everything", async () => {
     await request(app)
-      .post("/api/admin/species")
+      .post("/api/protocols")
       .set("x-actor", "Dr. Portal")
-      .send({ name: "Ferret" });
+      .send({ id: "AUD-0001", title: "Ferret study", pi: "Dr. Test" });
     assert.equal(allAuditRows().at(-1).actor, "Dr. Portal");
   });
 
   test("body.actor beats a personnel_id", async () => {
     const kimId = await insertPersonnel("Dr. Kim", "IACUC Chair", true);
     await request(app)
-      .post("/api/admin/species")
-      .send({ name: "Ferret", actor: "Dr. Body", personnel_id: kimId });
+      .post("/api/protocols")
+      .send({ id: "AUD-0001", title: "Ferret study", pi: "Dr. Test", actor: "Dr. Body", personnel_id: kimId });
     assert.equal(allAuditRows().at(-1).actor, "Dr. Body");
   });
 
   test("personnel_id resolves to the person's name", async () => {
     const kimId = await insertPersonnel("Dr. Kim", "IACUC Chair", true);
     await request(app)
-      .post("/api/admin/species")
-      .send({ name: "Ferret", personnel_id: kimId });
+      .post("/api/protocols")
+      .send({ id: "AUD-0001", title: "Ferret study", pi: "Dr. Test", personnel_id: kimId });
     assert.equal(allAuditRows().at(-1).actor, "Dr. Kim");
   });
 
   test("falls back to 'system' when no identity is present", async () => {
-    await request(app).post("/api/admin/species").send({ name: "Ferret" });
+    await request(app).post("/api/protocols").send({ id: "AUD-0001", title: "Ferret study", pi: "Dr. Test" });
     assert.equal(allAuditRows().at(-1).actor, "system");
   });
 });
@@ -107,10 +117,12 @@ describe("resolveActor() precedence", () => {
 describe("GET /api/audit", () => {
   beforeEach(() => resetTables(db));
 
-  async function seed() {
-    await request(app).post("/api/admin/species").set("x-actor", "Dr. Kim").send({ name: "Ferret" });
-    await request(app).post("/api/admin/species").set("x-actor", "Dr. Osei").send({ name: "Rabbit" });
-    await request(app).post("/api/admin/roles").set("x-actor", "Dr. Kim").send({ name: "IACUC Chair" });
+  // Seeded directly: species/roles writes are office-gated now, and these
+  // tests only exercise the read/filter surface, not the writing routes.
+  function seed() {
+    insertAudit("species.created", "species", "1", "Dr. Kim", { name: "Ferret" });
+    insertAudit("species.created", "species", "2", "Dr. Osei", { name: "Rabbit" });
+    insertAudit("role.created", "role", "3", "Dr. Kim", { name: "IACUC Chair" });
   }
 
   test("returns entries most-recent-first", async () => {
@@ -137,8 +149,7 @@ describe("GET /api/audit", () => {
 
   test("filters by entity_id", async () => {
     await seed();
-    const ferretId = db.prepare("SELECT id FROM species WHERE name = 'Ferret'").get().id;
-    const res = await request(app).get(`/api/audit?entity_id=${ferretId}`);
+    const res = await request(app).get("/api/audit?entity_id=1");
     assert.equal(res.body.length, 1);
     assert.equal(res.body[0].details.name, "Ferret");
   });
@@ -199,7 +210,7 @@ describe("GET /api/audit", () => {
 
   test("respects limit and offset pagination", async () => {
     for (const n of [1, 2, 3, 4, 5]) {
-      await request(app).post("/api/admin/species").send({ name: `Species ${n}` });
+      insertAudit("species.created", "species", String(n), "system", { name: `Species ${n}` });
     }
     const first = await request(app).get("/api/audit?limit=2&offset=0");
     assert.equal(first.body.length, 2);
@@ -247,6 +258,9 @@ describe("cross-route audit integration", () => {
   });
 
   test("species CRUD records the X-Actor identity", async () => {
+    // Dr. Kim is IACUC Chair — an office role — so the gated admin writes
+    // authorize her and the audit trail records her name as the actor.
+    await insertPersonnel("Dr. Kim", "IACUC Chair", true);
     const create = await request(app).post("/api/admin/species").set("x-actor", "Dr. Kim").send({ name: "Ferret" });
     await request(app).delete(`/api/admin/species/${create.body.id}`).set("x-actor", "Dr. Kim");
 

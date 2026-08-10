@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "../db.js";
 import { audit, resolveActor } from "../audit.js";
+import { requireOfficeRole } from "../access.js";
 
 export const router = Router();
 
@@ -11,6 +12,7 @@ router.get("/species", (_req, res) => {
 });
 
 router.post("/species", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   const name = (req.body.name || "").trim();
   if (!name) return res.status(400).json({ error: "name is required" });
   try {
@@ -23,6 +25,7 @@ router.post("/species", (req, res) => {
 });
 
 router.delete("/species/:id", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   const existing = db.prepare("SELECT name FROM species WHERE id = ?").get(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: "Species not found" });
   audit({ action: "species.deleted", entityType: "species", entityId: Number(req.params.id), actor: resolveActor(req), details: { name: existing.name } });
@@ -37,6 +40,7 @@ router.get("/roles", (_req, res) => {
 });
 
 router.post("/roles", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   const name = (req.body.name || "").trim();
   const isCommittee = req.body.is_committee ? 1 : 0;
   if (!name) return res.status(400).json({ error: "name is required" });
@@ -50,6 +54,7 @@ router.post("/roles", (req, res) => {
 });
 
 router.delete("/roles/:id", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   try {
     const existing = db.prepare("SELECT name FROM roles WHERE id = ?").get(Number(req.params.id));
     if (!existing) return res.status(404).json({ error: "Role not found" });
@@ -76,6 +81,7 @@ router.get("/personnel", (_req, res) => {
 });
 
 router.post("/personnel", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   const { name, email, role_id } = req.body;
   if (!name || !role_id) return res.status(400).json({ error: "name and role_id are required" });
 
@@ -104,6 +110,7 @@ router.post("/personnel", (req, res) => {
 });
 
 router.delete("/personnel/:id", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   const existing = db.prepare("SELECT name FROM personnel WHERE id = ?").get(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: "Personnel not found" });
   audit({ action: "personnel.deleted", entityType: "personnel", entityId: Number(req.params.id), actor: resolveActor(req), details: { name: existing.name } });
