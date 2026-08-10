@@ -409,7 +409,13 @@ from building it:
   allowance), and 0021 (order 30 / use 40 of a 60 Rabbit allowance — the
   "Over allowance" fixture, remaining clamped to 0). Keep 0021 over its
   allowance and 0142/0158 under theirs; the register e2e and css specs
-  depend on both states.
+  depend on both states. One caveat: the ledger is a *live* store during an
+  e2e run — `detail.spec.js`'s log-usage test writes an extra
+  "Zebrafish / mutant line" row (0158), and spec files run in parallel
+  workers sharing the DB, so `register.spec.js` must never assert the exact
+  seeded count ("5 transactions") or a single species cell; it asserts a
+  `/\d+ transactions?/` count and `.first()` on the Zebrafish cell
+  (hardened Aug 2026 after a race landed on PR #86's docs-only run).
 - `e2e/tests/css.spec.js` (6 tests) guards against the CSS bundle going
   empty/regressing: it asserts computed styles for the dark header bar
   (`#032D60` bg + white text on dashboard/committee/admin), the primary
