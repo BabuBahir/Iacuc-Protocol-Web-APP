@@ -490,6 +490,20 @@ npm workspaces (`npm install` at root installs both `server/` and
 approval gate (`ERR_PNPM_IGNORED_BUILDS`) caused repeated friction on
 Windows. Don't reintroduce pnpm without a strong reason.
 
+### Git & pull-request workflow
+
+When a PR's head branch is flagged out-of-date with its base (the base
+has commits the head lacks — e.g. another PR merged first), sync it by
+**merging the base into the branch** (`git merge <base>`); GitHub's
+"Update branch" button does the same. This is the preferred path: it's
+non-destructive, keeps history, and needs no force-push. Rebase only on
+a private feature branch — never on a shared one like `Progress` (it
+rewrites commits and forces a push). Syncing before merge avoids
+conflicts at merge time, makes CI run against the latest base, and is
+required when "require branches to be up to date" protection is on.
+After any remote merge, `git fetch` + `git pull` — local refs go stale
+quickly (see PR #80/#81: `origin/main` was a commit behind live `main`).
+
 ### Known dependency vulnerability (resolved — react-router v7)
 
 The two moderate CVEs in `react-router-dom@6.30.4` —
