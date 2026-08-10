@@ -8,6 +8,7 @@ import type {
   Alternatives,
   AnimalUsageLedger,
   AnimalUseRow,
+  ConditionalSection,
   DrugRow,
   ExperimentRow,
   Procedure,
@@ -43,6 +44,10 @@ vi.mock("../../api", () => ({
     updateAlternatives: vi.fn(),
     listAnimalUsage: vi.fn(),
     createAnimalUsage: vi.fn(),
+    getOptions: vi.fn(),
+    updateOptions: vi.fn(),
+    getSections: vi.fn(),
+    updateSection: vi.fn(),
   },
 }));
 
@@ -197,8 +202,33 @@ const VALIDATION: ValidationResult = {
     animal_use: { complete: true, missing: [] },
     experiments: { complete: true, missing: [] },
     alternatives: { complete: false, missing: ["Attending Veterinarian consult date", "At least 2 databases"] },
+    conditional: { complete: true, missing: [] },
   },
 };
+
+const OPTIONS = {
+  funded: true,
+  hazardous_materials: false,
+  off_campus: false,
+  offsite_housing: false,
+  human_tissues: false,
+};
+
+const FUNDING_SECTION: ConditionalSection = {
+  key: "funding",
+  label: "Funding sources",
+  description: "External or internal funding that supports this protocol.",
+  fields: [
+    { key: "agency", label: "Funding agency / source", type: "text", required: true },
+    { key: "grant_number", label: "Grant number", type: "text", required: false },
+    { key: "funding_status", label: "Funding status", type: "select", required: true, options: ["Awarded", "Pending", "Submitted"] },
+  ],
+  data: { agency: "NIH", grant_number: "R01-X", funding_status: "Awarded" },
+  complete: true,
+  missing: [],
+};
+
+const SECTIONS_RESPONSE = { options: OPTIONS, visible: [FUNDING_SECTION] };
 
 const USAGE_LEDGER: AnimalUsageLedger = {
   transactions: [
@@ -275,6 +305,10 @@ describe("ApplicationPage", () => {
     api.updateAlternatives.mockResolvedValue(ALTERNATIVES);
     api.listAnimalUsage.mockResolvedValue(USAGE_LEDGER);
     api.createAnimalUsage.mockResolvedValue({ ...USAGE_LEDGER.transactions[0] });
+    api.getOptions.mockResolvedValue(OPTIONS);
+    api.getSections.mockResolvedValue(SECTIONS_RESPONSE);
+    api.updateOptions.mockResolvedValue(OPTIONS);
+    api.updateSection.mockResolvedValue(FUNDING_SECTION);
   });
 
   test("shows a loading state before data resolves", () => {
@@ -834,5 +868,102 @@ describe("ApplicationPage", () => {
     });
     expect(screen.getByText("Protocol submitted for review.")).toBeInTheDocument();
     expect(screen.getByText("Status: Submitted")).toBeInTheDocument();
+  });
+
+  test("renders the Options questionnaire and the triggered section", async () => {
+    renderApplicationPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Options — what applies to this protocol")).toBeInTheDocument();
+    });
+    expect(screen.getByText("This project is funded")).toBeInTheDocument();
+    expect(screen.getByText("Uses hazardous materials, chemicals, radioactive agents, or nanoparticles")).toBeInTheDocument();
+    expect(screen.getByText("Funding sources")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Funding agency \/ source/)).toHaveValue("NIH");
+    expect(screen.getByText("Awarded", { selector: "option" })).toBeInTheDocument();
+  });
+
+  test("renders no conditional section card when no option is triggered", async () => {
+    api.getSections.mockResolvedValue({ options: OPTIONS, visible: [] });
+    renderApplicationPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Options — what applies to this protocol")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Funding sources")).not.toBeInTheDocument();
+  });
+
+  test("toggling an option saves it and refreshes the visible sections", async () => {
+    const user = userEvent.setup();
+    renderApplicationPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Options — what applies to this protocol")).toBeInTheDocument();
+    });
+
+    const toggle = screen.getByRole("checkbox", { name: /Uses hazardous materials/ });
+    expect(toggle).not.toBeChecked();
+    api.getSections.mockResolvedValue({
+      options: { ...OPTIONS, hazardous_materials: true },
+      visible: [
+        FUNDING_SECTION,
+        {
+          key: "hazardous_materials",
+          label: "Hazardous materials & nanoparticles",
+          description: "Chemicals, radioactive agents, or nanoparticles used on animals.",
+          fields: [
+            { key: "materials", label: "Materials used", type: "textarea", required: true },
+          ],
+          data: {},
+          complete: false,
+          missing: ["Materials used"],
+        },
+      ],
+    });
+    api.getValidation.mockResolvedValue({
+      ...VALIDATION,
+      sections: { ...VALIDATION.sections, conditional: { complete: false, missing: ["Materials used"] } },
+    });
+
+    await user.click(toggle);
+
+    await waitFor(() => {
+      expect(api.updateOptions).toHaveBeenCalledWith("IACUC-2026-0142", { hazardous_materials: true });
+    });
+    expect(screen.getByText("Hazardous materials & nanoparticles")).toBeInTheDocument();
+    expect(screen.getByText("1 required field missing")).toBeInTheDocument();
+  });
+
+  test("saving a conditional section persists its data and updates the readiness panel", async () => {
+    api.getSections.mockResolvedValue({
+      options: OPTIONS,
+      visible: [{ ...FUNDING_SECTION, data: {}, complete: false, missing: ["Funding agency / source", "Funding status"] }],
+    });
+    api.getValidation.mockResolvedValue({
+      ...VALIDATION,
+      sections: { ...VALIDATION.sections, conditional: { complete: false, missing: ["Funding agency / source"] } },
+    });
+    api.updateSection.mockResolvedValue(FUNDING_SECTION);
+    const user = userEvent.setup();
+    renderApplicationPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Save section" })).toBeInTheDocument();
+    });
+    const agency = screen.getByLabelText(/Funding agency \/ source/);
+    const statusSelect = screen.getByLabelText(/Funding status/);
+    await user.clear(agency);
+    await user.type(agency, "NIH");
+    await user.selectOptions(statusSelect, "Awarded");
+    await user.click(screen.getByRole("button", { name: "Save section" }));
+
+    await waitFor(() => {
+      expect(api.updateSection).toHaveBeenCalledWith(
+        "IACUC-2026-0142",
+        "funding",
+        expect.objectContaining({ agency: "NIH", funding_status: "Awarded" })
+      );
+    });
+    expect(screen.getByText("Complete", { selector: "span" })).toBeInTheDocument();
   });
 });

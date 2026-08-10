@@ -327,8 +327,53 @@ const schemas = {
           animal_use: REF("ValidationSection"),
           experiments: REF("ValidationSection"),
           alternatives: REF("ValidationSection"),
+          conditional: REF("ValidationSection"),
         },
       },
+    },
+  },
+
+  // Conditional sections (Roadmap item 5): the Options questionnaire answers,
+  // the triggered sections, and each section's field defs + stored data.
+
+  Options: {
+    type: "object",
+    properties: Object.fromEntries(
+      ["funded", "hazardous_materials", "off_campus", "offsite_housing", "human_tissues"]
+        .map(k => [k, { type: "boolean" }])
+    ),
+    description: "Yes/no answers to the Options questionnaire; every option defaults to false",
+  },
+
+  ConditionalSectionField: {
+    type: "object",
+    properties: {
+      key: { type: "string" },
+      label: { type: "string" },
+      type: { type: "string", enum: ["text", "textarea", "select"] },
+      required: { type: "boolean" },
+      options: { type: "array", items: { type: "string" }, description: "Present only for select fields" },
+    },
+  },
+
+  ConditionalSection: {
+    type: "object",
+    properties: {
+      key: { type: "string" },
+      label: { type: "string" },
+      description: { type: ["string", "null"] },
+      fields: { type: "array", items: REF("ConditionalSectionField") },
+      data: { type: "object", additionalProperties: { type: "string" } },
+      complete: { type: "boolean" },
+      missing: { type: "array", items: { type: "string" } },
+    },
+  },
+
+  ConditionalSectionsResponse: {
+    type: "object",
+    properties: {
+      options: REF("Options"),
+      visible: { type: "array", items: REF("ConditionalSection") },
     },
   },
 
@@ -1301,6 +1346,40 @@ const paths = {
       tags: ["Appendix A application content (per protocol)"],
       summary: "Per-section submission completeness + `overall`",
       responses: { 200: json(REF("Validation"), "Completeness check"), ...notFound() },
+    },
+  },
+
+  "/api/protocols/{id}/options": {
+    parameters: [protocolIdParam],
+    get: {
+      tags: ["Appendix A application content (per protocol)"],
+      summary: "Options questionnaire answers (which conditional sections are visible)",
+      responses: { 200: json(REF("Options"), "Current option values"), ...notFound() },
+    },
+    patch: {
+      tags: ["Appendix A application content (per protocol)"],
+      summary: "Update any subset of the Options answers (booleans)",
+      requestBody: json(REF("Options"), "Any subset of the option keys"),
+      responses: { 200: json(REF("Options"), "Updated options"), 400: json(REF("Error"), "Unknown key or non-boolean value"), ...notFound() },
+    },
+  },
+
+  "/api/protocols/{id}/sections": {
+    parameters: [protocolIdParam],
+    get: {
+      tags: ["Appendix A application content (per protocol)"],
+      summary: "Visible conditional sections with field defs, data, and per-section completeness",
+      responses: { 200: json(REF("ConditionalSectionsResponse"), "Options + triggered sections"), ...notFound() },
+    },
+  },
+
+  "/api/protocols/{id}/sections/{sectionKey}": {
+    parameters: [protocolIdParam, { name: "sectionKey", in: "path", required: true, schema: { type: "string" }, description: "Section key from the conditional-section registry (e.g. `funding`)" }],
+    put: {
+      tags: ["Appendix A application content (per protocol)"],
+      summary: "Save a conditional section's data payload",
+      requestBody: json({ type: "object", properties: { data: { type: "object", additionalProperties: { type: "string" } } } }, "fieldKey → value"),
+      responses: { 200: json(REF("ConditionalSection"), "Updated section with completeness"), 400: json(REF("Error"), "Inactive section or bad data"), 404: json(REF("Error"), "Protocol or section not found") },
     },
   },
 

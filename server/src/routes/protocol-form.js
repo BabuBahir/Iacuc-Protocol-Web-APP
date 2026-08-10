@@ -517,6 +517,210 @@ router.patch("/:id/alternatives", (req, res) => {
   res.json(shapeAlternatives(row, protocol));
 });
 
+// ---- Options questionnaire + conditional sections (Roadmap item 5) ----
+// Cayuse-style "Options" page (AGENTS.md §1.2): yes/no answers determine which
+// sections even appear on a protocol. A section only renders when its trigger
+// option is "Yes", and every *visible* section must be complete (green
+// checkmark) before the protocol may be submitted. The registry below is the
+// single source of truth for visibility and required fields — the client
+// renders from what GET /:id/sections returns rather than mirroring these
+// defs, so there's no drift to keep in sync.
+
+export const OPTION_DEFS = [
+  { key: "funded", label: "Is this project funded?" },
+  { key: "hazardous_materials", label: "Do you use hazardous materials, chemicals, radioactive agents, or nanoparticles?" },
+  { key: "off_campus", label: "Will any animal work happen off campus?" },
+  { key: "offsite_housing", label: "Will animals be housed outside the central facility for more than 12 hours?" },
+  { key: "human_tissues", label: "Does this project use human tissues or samples?" },
+];
+
+export const CONDITIONAL_SECTIONS = [
+  {
+    key: "funding",
+    label: "Funding sources",
+    description: "External or internal funding that supports this protocol.",
+    trigger: { option: "funded", value: true },
+    fields: [
+      { key: "agency", label: "Funding agency / source", type: "text", required: true },
+      { key: "grant_number", label: "Grant number", type: "text", required: false },
+      { key: "funding_status", label: "Funding status", type: "select", options: ["Awarded", "Pending", "Submitted"], required: true },
+    ],
+  },
+  {
+    key: "hazardous_materials",
+    label: "Hazardous materials & nanoparticles",
+    description: "Chemicals, radioactive agents, or nanoparticles used on animals.",
+    trigger: { option: "hazardous_materials", value: true },
+    fields: [
+      { key: "materials", label: "Materials used", type: "textarea", required: true },
+      { key: "safety_measures", label: "Safety / containment measures", type: "textarea", required: true },
+      { key: "disposal", label: "Disposal method", type: "text", required: true },
+    ],
+  },
+  {
+    key: "off_campus",
+    label: "Off-campus work",
+    description: "Animal work performed at another institution or site.",
+    trigger: { option: "off_campus", value: true },
+    fields: [
+      { key: "location", label: "Off-campus location(s)", type: "text", required: true },
+      { key: "oversight", label: "Oversight / permissions in place", type: "textarea", required: true },
+    ],
+  },
+  {
+    key: "offsite_housing",
+    label: "Housing outside central facility",
+    description: "Animals housed off-site for more than 12 hours.",
+    trigger: { option: "offsite_housing", value: true },
+    fields: [
+      { key: "facility", label: "Housing facility", type: "text", required: true },
+      { key: "justification", label: "Justification for off-site housing", type: "textarea", required: true },
+      { key: "veterinary_contact", label: "Veterinary contact", type: "text", required: true },
+    ],
+  },
+  {
+    key: "human_tissues",
+    label: "Human tissues / samples",
+    description: "Human-derived tissues or samples used in the study.",
+    trigger: { option: "human_tissues", value: true },
+    fields: [
+      { key: "source", label: "Tissue source", type: "text", required: true },
+      { key: "irb_approval", label: "IRB approval / exemption", type: "text", required: true },
+      { key: "handling", label: "Handling & de-identification", type: "textarea", required: true },
+    ],
+  },
+];
+
+const OPTION_KEYS = OPTION_DEFS.map(o => o.key);
+const SECTION_BY_KEY = Object.fromEntries(CONDITIONAL_SECTIONS.map(s => [s.key, s]));
+
+// Parse the stored options JSON into a complete { option: boolean } object,
+// defaulting every option to false — existing protocols (options column NULL)
+// simply have no conditional sections.
+export function parseOptions(protocolOrValue) {
+  const stored = typeof protocolOrValue === "object" ? protocolOrValue?.options : protocolOrValue;
+  const parsed = {};
+  for (const { key } of OPTION_DEFS) parsed[key] = false;
+  if (typeof stored === "string" && stored) {
+    try {
+      const obj = JSON.parse(stored);
+      for (const key of OPTION_KEYS) {
+        if (typeof obj[key] === "boolean") parsed[key] = obj[key];
+      }
+    } catch {
+      // malformed JSON → all defaults
+    }
+  }
+  return parsed;
+}
+
+function visibleSections(protocol) {
+  const options = parseOptions(protocol);
+  return CONDITIONAL_SECTIONS.filter(s => options[s.trigger.option] === s.trigger.value);
+}
+
+function sectionData(protocolId, sectionKey) {
+  const row = db.prepare("SELECT data FROM protocol_sections WHERE protocol_id = ? AND section_key = ?").get(protocolId, sectionKey);
+  if (!row?.data) return {};
+  try {
+    const parsed = JSON.parse(row.data);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function sectionCompleteness(section, data) {
+  const missing = section.fields
+    .filter(f => f.required && !hasText(data?.[f.key]))
+    .map(f => f.label);
+  return { complete: missing.length === 0, missing };
+}
+
+// GET /api/protocols/:id/options  -> { funded: false, ... }
+router.get("/:id/options", (req, res) => {
+  const protocol = requireProtocol(req, res);
+  if (!protocol) return;
+  res.json(parseOptions(protocol));
+});
+
+// PATCH /api/protocols/:id/options  body: { funded: true } (any subset)
+router.patch("/:id/options", (req, res) => {
+  const protocol = requireProtocol(req, res);
+  if (!protocol) return;
+  const body = req.body || {};
+  const keys = Object.keys(body).filter(k => OPTION_KEYS.includes(k));
+  if (keys.length === 0) {
+    return res.status(400).json({ error: `options must be one of: ${OPTION_KEYS.join(", ")}` });
+  }
+  if (keys.some(k => typeof body[k] !== "boolean")) {
+    return res.status(400).json({ error: "option values must be boolean" });
+  }
+  const next = parseOptions(protocol);
+  for (const k of keys) next[k] = body[k];
+  db.prepare("UPDATE protocols SET options = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(JSON.stringify(next), req.params.id);
+  audit({
+    action: "options.updated",
+    entityType: "protocol",
+    entityId: req.params.id,
+    actor: resolveActor(req),
+    details: Object.fromEntries(keys.map(k => [k, body[k]])),
+  });
+  res.json(next);
+});
+
+// GET /api/protocols/:id/sections  -> visible (triggered) conditional sections
+// with their field defs, stored data, and per-section completeness.
+router.get("/:id/sections", (req, res) => {
+  const protocol = requireProtocol(req, res);
+  if (!protocol) return;
+  res.json({
+    options: parseOptions(protocol),
+    visible: visibleSections(protocol).map(s => {
+      const data = sectionData(req.params.id, s.key);
+      const { complete, missing } = sectionCompleteness(s, data);
+      return { key: s.key, label: s.label, description: s.description, fields: s.fields, data, complete, missing };
+    }),
+  });
+});
+
+// PUT /api/protocols/:id/sections/:sectionKey  body: { data: { fieldKey: value } }
+router.put("/:id/sections/:sectionKey", (req, res) => {
+  const protocol = requireProtocol(req, res);
+  if (!protocol) return;
+  const section = SECTION_BY_KEY[req.params.sectionKey];
+  if (!section) return res.status(404).json({ error: "Unknown section" });
+  if (!visibleSections(protocol).some(s => s.key === section.key)) {
+    return res.status(400).json({ error: "This section is not active for this protocol" });
+  }
+  const data = req.body?.data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return res.status(400).json({ error: "data must be an object" });
+  }
+  const fieldKeys = new Set(section.fields.map(f => f.key));
+  const sanitized = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (!fieldKeys.has(k)) continue;
+    sanitized[k] = typeof v === "string" ? v.trim() : "";
+  }
+  db.prepare(`
+    INSERT INTO protocol_sections (protocol_id, section_key, data, updated_at)
+    VALUES (@protocol_id, @section_key, @data, datetime('now'))
+    ON CONFLICT(protocol_id, section_key) DO UPDATE SET
+      data = excluded.data, updated_at = datetime('now')
+  `).run({ protocol_id: req.params.id, section_key: section.key, data: JSON.stringify(sanitized) });
+  audit({
+    action: "section.updated",
+    entityType: "protocol",
+    entityId: req.params.id,
+    actor: resolveActor(req),
+    details: { section: section.key },
+  });
+  const { complete, missing } = sectionCompleteness(section, sanitized);
+  res.json({ key: section.key, label: section.label, description: section.description, fields: section.fields, data: sanitized, complete, missing });
+});
+
 // ---- submission-readiness validation (per-section completeness) ----
 // Mirrors the Cayuse/Cornell rule: every section must be complete (green
 // checkmark) before a protocol may be submitted. The same function is used
@@ -605,6 +809,19 @@ export function validateCompleteness(protocolId) {
     altMissing.push("Attending Veterinarian consultation date");
   }
 
+  // Conditional sections (Roadmap item 5): every section whose trigger option
+  // is "Yes" must be complete before submission. Untriggered sections aren't
+  // visible and don't count — the group reads complete (vacuously) for them.
+  const conditionalMissing = [];
+  for (const section of visibleSections(protocol)) {
+    const data = sectionData(protocolId, section.key);
+    for (const f of section.fields) {
+      if (f.required && !hasText(data[f.key])) {
+        conditionalMissing.push(`“${section.label}” — ${f.label}`);
+      }
+    }
+  }
+
   const sections = {
     summaries: { complete: summariesMissing.length === 0, missing: summariesMissing },
     procedures: { complete: proceduresMissing.length === 0, missing: proceduresMissing },
@@ -612,6 +829,7 @@ export function validateCompleteness(protocolId) {
     animal_use: { complete: animalUseMissing.length === 0, missing: animalUseMissing },
     experiments: { complete: experimentsMissing.length === 0, missing: experimentsMissing },
     alternatives: { complete: altMissing.length === 0, missing: altMissing },
+    conditional: { complete: conditionalMissing.length === 0, missing: conditionalMissing },
   };
   const overall = Object.values(sections).every(s => s.complete);
 

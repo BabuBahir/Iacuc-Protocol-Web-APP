@@ -105,11 +105,7 @@ recurring **Add from List / Add New / Edit / Delete** pattern for anything
 reusable across protocols (funding sources, strains, locations) — i.e. the
 PI builds up personal picklists over time rather than retyping.
 
-**We have not implemented conditional sections.** Our protocol form
-(`protocol-form.js` routes) is a fixed set of sections (procedures, drugs,
-animal use, alternatives) always present on every protocol. If this becomes
-a priority, it's a real architecture change: sections would need to be
-data-driven from an `options` answer set rather than hardcoded routes.
+**We have implemented conditional sections** as Roadmap item 5 (see §4 for the full write-up): `protocol-form.js` now owns the `OPTION_DEFS`/`CONDITIONAL_SECTIONS` registries, sections are data-driven from a protocol's `options` answer set (stored per-protocol in `protocol_sections`), and the client renders them from the server's field defs.
 
 ### 1.3 Appendix A — actual protocol content (what we DID implement)
 
@@ -798,13 +794,15 @@ stays uncovered per the note above).
 
 **Search filter-builder + saved filters + CSV export (Roadmap item 8):** the single substring search now sits alongside a stackable filter-builder on both the dashboard and the register. Server-side (already in place): `server/src/routes/filter.js` exports the whitelisted `PROTOCOL_FILTER_FIELDS`/`REGISTER_FILTER_FIELDS` definitions, `validateFilters`, and `applyFilters`; `GET /api/protocols?filters=[...]` and `GET /api/animal-usage?filters=[...]` both accept the clause array (the register list LEFT JOINs `protocols` so each row carries its `protocol_title`); saved-filters CRUD lives in `server/src/routes/saved-filters.js` (`GET/POST /api/saved-filters`, `DELETE /api/saved-filters/:id`, `search_type` scoping, audited). Client: `client/src/components/FilterBuilder.tsx` is a reusable, field-def-driven clause editor (enum fields render selects, operators constrained by field type via `operatorsFor` in `types.ts`); `ListPage.tsx` hosts it behind a "Filters" toggle with active-clause chips, a "Saved filters" menu (save current / apply / delete, `search_type: "protocol"`), and an "Export CSV" button for the filtered result set. `client/src/utils/csv.ts` holds the shared `downloadCsv`/`csvCell` helpers (extracted from `ReportsPage.tsx`, which still uses them). The client mirrors the server field defs as `PROTOCOL_FILTER_FIELD_DEFS` and `REGISTER_FILTER_FIELD_DEFS` in `types.ts` — keep them in sync with `filter.js`. The register-wide surface lives on the new "Register" nav tab (`client/src/pages/RegisterPage.tsx`, route `/register`): the same builder and saved filters with `search_type: "register"`, CSV export, and a row click that navigates to the protocol's detail page. The client `PROCEDURE_KEYS` in `types.ts` mirrors the server's `PROCEDURE_KEYS` in `protocol-form.js` exactly — the register builder's `procedure_key` enum passes server validation only because the two match.
 
-Not implemented (see §1 above for the domain detail on each): conditional/
-dynamic Table of Contents, and auth or role-based
+**Options questionnaire + conditional sections (Roadmap item 5):** the fixed form is gone — a Cayuse-style "Options" page (AGENTS.md §1.2) now drives which sections a protocol carries. Server: `protocols.options` (JSON, added via the migration guard) plus a `protocol_sections` table (protocol_id, section_key, data-as-JSON, UNIQUE(protocol_id, section_key), in `resetTables`). `protocol-form.js` owns the source-of-truth registries `OPTION_DEFS` (5 yes/no questions: funded, hazardous_materials, off_campus, offsite_housing, human_tissues) and `CONDITIONAL_SECTIONS` (5 sections, each with a `trigger { option, value }`, a `fields` def array — `text`/`textarea`/`select` with `required` flags — and `description`). New endpoints: `GET/PATCH /api/protocols/:id/options` (PATCH accepts any subset, booleans only, audited `options.updated`), `GET /api/protocols/:id/sections` (returns `{ options, visible }` where `visible` is the triggered sections with field defs + stored data + per-section completeness), and `PUT /api/protocols/:id/sections/:sectionKey` (upserts `data`, sanitizes to known field keys, 400 on inactive sections, 404 on unknown keys, audited `section.updated`). `validateCompleteness` gained a 7th `conditional` group: every *visible* section must have its required fields filled, untriggered sections don't count — so a protocol is submittable with all options off. **The client renders from the server's field defs (`GET /:id/sections`), never mirroring them** — types in `types.ts` (`ConditionalSection` etc.) only describe the payload shape. The Application page gained an "Options — what applies to this protocol" card (checkbox per option) and one card per visible section (generic text/textarea/select rendering, drafts in local state, "Save section" button, green/amber completeness badge); toggling an option re-fetches sections + validation. Seeded: 0139 has `hazardous_materials=true` with a complete section, 0158 `funded=true` with a complete funding section — both stay submittable for the e2e submit spec. Watch out: adding an option to a *sparse* protocol (like 0021) with a half-filled section will block its submission, which the disabled-button e2e already asserts on other grounds.
+
+Not implemented (see §1 above for the domain detail on each): auth or role-based
 access control. (Amendments now
 have the three-pane live-diff; protocol version lineage, renewals, Transfer
-Ownership, audit logging, the AAALAC compliance reports, and the item-8
+Ownership, audit logging, the AAALAC compliance reports, the item-8
 filter-builder/saved-filters/CSV surface on both the dashboard and the
-register are all implemented above.)
+register, and the item-5 conditional Options-driven sections
+are all implemented above.)
 
 **Roadmap item 7 (file attachments) is intentionally last priority and must
 never be proposed or started** — per product decision it is out of scope for
