@@ -208,6 +208,14 @@ export const api = {
   listAnimalUsage: (id: string): Promise<AnimalUsageLedger> => request(`/protocols/${id}/animal-usage`),
   createAnimalUsage: (id: string, data: AnimalUsageInput): Promise<AnimalUsageTransaction> =>
     request(`/protocols/${id}/animal-usage`, { method: "POST", body: JSON.stringify(data) }),
+  // Cross-protocol register search (Roadmap item 8): flattened ledger rows
+  // across every protocol, filterable with the shared builder.
+  searchAnimalUsage: (filters: FilterClause[] = []): Promise<AnimalUsageTransaction[]> => {
+    const params = new URLSearchParams();
+    if (filters.length > 0) params.set("filters", JSON.stringify(filters));
+    const qs = params.toString();
+    return request(`/animal-usage${qs ? `?${qs}` : ""}`);
+  },
   listExperiments: (id: string): Promise<ExperimentRow[]> => request(`/protocols/${id}/experiments`),
   createExperiment: (id: string, data: ExperimentInput): Promise<ExperimentRow> =>
     request(`/protocols/${id}/experiments`, { method: "POST", body: JSON.stringify(data) }),

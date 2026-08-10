@@ -101,6 +101,19 @@ describe("api.ts request wrapper — original behavior", () => {
     expect(fetch).toHaveBeenCalledWith("/api/protocols", expect.anything());
   });
 
+  test("cross-protocol register search serializes filters and omits the param when empty", async () => {
+    mockFetchOnce(200, [{ id: 1, protocol_id: "P-1" }]);
+    await api.searchAnimalUsage();
+    expect(fetch).toHaveBeenCalledWith("/api/animal-usage", expect.anything());
+
+    mockFetchOnce(200, [{ id: 2, protocol_id: "P-2" }]);
+    await api.searchAnimalUsage([{ field: "pain_level", op: "eq", value: "D" }]);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/animal-usage?filters=%5B%7B%22field%22%3A%22pain_level%22%2C%22op%22%3A%22eq%22%2C%22value%22%3A%22D%22%7D%5D",
+      expect.anything()
+    );
+  });
+
   test("POST requests send method and JSON-stringified body", async () => {
     mockFetchOnce(201, { id: "NEW-1" });
     await api.createSpecies("Ferret");

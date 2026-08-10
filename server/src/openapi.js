@@ -339,6 +339,7 @@ const schemas = {
     properties: {
       id: { type: "integer" },
       protocol_id: { type: "string" },
+      protocol_title: { type: ["string", "null"], description: "Protocol title (present on the cross-protocol register search only)" },
       transaction_date: { type: "string", format: "date" },
       species_strain: { type: "string" },
       pain_level: { type: ["string", "null"], enum: ["B", "C", "D", "E", null] },

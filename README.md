@@ -302,7 +302,7 @@ Named, recallable filter sets built from the dashboard's filter-builder
 | POST   | /api/saved-filters           | Save the current filter set (name + clause array)        | ✓ |
 | DELETE | /api/saved-filters/:id       | Delete a saved filter                                    | ✓ |
 | GET    | /api/protocols?q=&filters=[{field,op,value},…] | Dashboard list with the stackable filter-builder | ✓ |
-| GET    | /api/animal-usage?filters=[…] | Register-wide search (reserved for the deferred register filter surface) | ✓ |
+| GET    | /api/animal-usage?filters=[…] | Register-wide search with the filter-builder (the Register tab) | ✓ |
 
 </details>
 

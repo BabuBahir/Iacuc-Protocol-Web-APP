@@ -24,7 +24,12 @@ searchRouter.get("/animal-usage", (req, res) => {
     if (invalid) return res.status(400).json({ error: invalid });
   }
   const rows = db
-    .prepare("SELECT * FROM animal_usage_transactions ORDER BY transaction_date DESC, id DESC")
+    .prepare(`
+      SELECT t.*, p.title AS protocol_title
+      FROM animal_usage_transactions t
+      LEFT JOIN protocols p ON p.id = t.protocol_id
+      ORDER BY t.transaction_date DESC, t.id DESC
+    `)
     .all();
   res.json(applyFilters(rows, filters, REGISTER_FILTER_FIELDS));
 });

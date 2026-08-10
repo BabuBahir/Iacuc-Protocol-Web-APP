@@ -200,6 +200,13 @@ describe("GET /api/animal-usage (cross-protocol register search)", () => {
     assert.equal(res.body.length, 2);
   });
 
+  test("joins the protocol title for display", async () => {
+    seedTwoTransactions();
+    const res = await request(app).get("/api/animal-usage");
+    assert.equal(res.status, 200);
+    assert.ok(res.body.every(t => t.protocol_title === "Test protocol"));
+  });
+
   test("filters by species text contains", async () => {
     seedTwoTransactions();
     const filters = encodeURIComponent(JSON.stringify([{ field: "species_strain", op: "contains", value: "mouse" }]));
