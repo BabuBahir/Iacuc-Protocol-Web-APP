@@ -14,6 +14,7 @@ import {
   Download,
   Save,
   Trash2,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 import AppHeader from "../components/AppHeader";
@@ -354,6 +355,7 @@ export default function ListPage() {
 
           {error && <div className="px-4 py-3 text-[13px] text-red-600">Couldn't load protocols: {error}</div>}
 
+          <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="text-[11px] uppercase tracking-wide text-gray-500 border-b border-gray-100">
@@ -381,6 +383,15 @@ export default function ListPage() {
                   <td className="px-4 py-2.5"><StatusBadge status={p.status} /></td>
                 </tr>
               ))}
+              {loading && protocols.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                    <div className="flex items-center justify-center gap-2 text-[13px]">
+                      <Loader2 size={16} className="animate-spin" /> Loading protocols…
+                    </div>
+                  </td>
+                </tr>
+              )}
               {!loading && protocols.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
@@ -390,6 +401,7 @@ export default function ListPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         <div className="mt-4 bg-white border border-gray-200 rounded-lg">
