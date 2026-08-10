@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router";
 import DisclaimerModal from "./components/DisclaimerModal";
 import ListPage from "./pages/ListPage";
 import DetailPage from "./pages/DetailPage";
@@ -10,6 +10,8 @@ import CommitteePage from "./pages/CommitteePage";
 import InspectionsPage from "./pages/InspectionsPage";
 import PamPage from "./pages/PamPage";
 import AmendmentsPage from "./pages/AmendmentsPage";
+import ReportsPage from "./pages/ReportsPage";
+import RegisterPage from "./pages/RegisterPage";
 
 export default function App() {
   const [showDisclaimer, setShowDisclaimer] = useState(
@@ -31,6 +33,8 @@ export default function App() {
         <Route path="/inspections" element={<InspectionsPage />} />
         <Route path="/pam" element={<PamPage />} />
         <Route path="/amendments" element={<AmendmentsPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="*" element={<div className="p-6">Page not found.</div>} />
       </Routes>

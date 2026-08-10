@@ -1,14 +1,17 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { LayoutGrid } from "lucide-react";
+import ActorPicker from "./ActorPicker";
 
-export type NavKey = "protocols" | "committee" | "inspections" | "pam" | "amendments" | "admin";
+export type NavKey = "protocols" | "register" | "committee" | "inspections" | "pam" | "amendments" | "reports" | "admin";
 
 const NAV_TABS: { key: NavKey; label: string; to: string }[] = [
   { key: "protocols", label: "Protocols", to: "/" },
+  { key: "register", label: "Register", to: "/register" },
   { key: "committee", label: "Committee", to: "/committee" },
   { key: "inspections", label: "Inspections", to: "/inspections" },
   { key: "pam", label: "PAM", to: "/pam" },
   { key: "amendments", label: "Amendments", to: "/amendments" },
+  { key: "reports", label: "Reports", to: "/reports" },
   { key: "admin", label: "Admin", to: "/admin" },
 ];
 
@@ -33,6 +36,7 @@ export default function AppHeader({ active }: { active?: NavKey }) {
         )}
       </div>
       <div className="flex-1" />
+      <ActorPicker />
       <a
         href="https://github.com/BabuBahir/Iacuc-Protocol-Web-APP/discussions/40"
         target="_blank"

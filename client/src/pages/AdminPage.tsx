@@ -4,6 +4,7 @@ import {
   ClipboardCheck, History, RefreshCw, type LucideIcon,
 } from "lucide-react";
 import AppHeader from "../components/AppHeader";
+import AccessBanner from "../components/AccessBanner";
 import { api } from "../api";
 import type {
   AuditEntry, AuditProvenance, Personnel, PersonnelCompliance, PersonnelOhsp, Protocol, ProtocolTransfer, Role, Species,
@@ -757,10 +758,13 @@ export default function AdminPage() {
         </p>
       </div>
 
-      <div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-        <SpeciesPanel />
-        <RolesPanel onRolesChange={setRoles} />
-        <PersonnelPanel roles={roles} />
+      <div className="p-4 space-y-4">
+        <AccessBanner mode="office" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+          <SpeciesPanel />
+          <RolesPanel onRolesChange={setRoles} />
+          <PersonnelPanel roles={roles} />
+        </div>
       </div>
 
       <div className="px-4 pb-4 space-y-4">

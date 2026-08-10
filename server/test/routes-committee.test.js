@@ -1,7 +1,7 @@
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
-import { resetTables } from "./helpers.js";
+import { resetTables, OFFICE_ACTOR, insertPersonnelDirect, seedOfficeActor } from "./helpers.js";
 
 process.env.DB_PATH = ":memory:";
 const { createApp } = await import("../src/app.js");
@@ -24,18 +24,10 @@ function insertProtocol(overrides = {}) {
   });
 }
 
-async function insertPersonnel(name, roleName, isCommittee) {
-  let roleId = db.prepare("SELECT id FROM roles WHERE name = ?").get(roleName)?.id;
-  if (!roleId) {
-    const role = await request(app)
-      .post("/api/admin/roles")
-      .send({ name: roleName, is_committee: isCommittee });
-    roleId = role.body.id;
-  }
-  const person = await request(app)
-    .post("/api/admin/personnel")
-    .send({ name, role_id: roleId });
-  return person.body.id;
+// Setup personas directly via the DB: role/personnel creation through the HTTP
+// admin API now requires an office persona itself (graduated access control).
+function insertPersonnel(name, roleName, isCommittee) {
+  return insertPersonnelDirect(db, { name, roleName, isCommittee });
 }
 
 describe("GET /api/committee/protocols", () => {
@@ -155,8 +147,12 @@ describe("POST /api/committee/protocols/:id/votes", () => {
 
   test("400s when personnel_id or vote is missing", async () => {
     insertProtocol();
+    // A known committee persona must be acting for the gate to pass; the
+    // missing body.personnel_id is then caught by field validation.
+    await insertPersonnel("Dr. Committee", "Committee Member", true);
     const res = await request(app)
       .post("/api/committee/protocols/TEST-0001/votes")
+      .set("X-Actor", "Dr. Committee")
       .send({ vote: "Approve" }); // missing personnel_id
     assert.equal(res.status, 400);
   });
@@ -171,8 +167,10 @@ describe("POST /api/committee/protocols/:id/votes", () => {
 
   test("400s for an unknown personnel_id", async () => {
     insertProtocol();
+    await insertPersonnel("Dr. Committee", "Committee Member", true);
     const res = await request(app)
       .post("/api/committee/protocols/TEST-0001/votes")
+      .set("X-Actor", "Dr. Committee")
       .send({ personnel_id: 99999, vote: "Approve" });
     assert.equal(res.status, 400);
   });
@@ -217,14 +215,17 @@ describe("review workflow depth (Domain A)", () => {
 
   test("GET /protocols includes review_method, assignments, and comments per protocol", async () => {
     insertProtocol();
+    seedOfficeActor(db); // assigning reviewers and setting the method are office actions
     const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
     const commenterId = await insertPersonnel("Dr. Comment", "Committee Member", true);
 
     await request(app)
       .patch("/api/committee/protocols/TEST-0001/review-method")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ review_method: "DMR" });
     await request(app)
       .patch("/api/committee/protocols/TEST-0001/assign")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ personnel_id: reviewerId, role: "Designated Member" });
     await request(app)
       .post("/api/committee/protocols/TEST-0001/comments")
@@ -240,8 +241,10 @@ describe("review workflow depth (Domain A)", () => {
 
   test("PATCH review-method sets FCR or DMR on the protocol", async () => {
     insertProtocol();
+    seedOfficeActor(db);
     const res = await request(app)
       .patch("/api/committee/protocols/TEST-0001/review-method")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ review_method: "DMR" });
     assert.equal(res.status, 200);
     assert.equal(res.body.review_method, "DMR");
@@ -252,28 +255,34 @@ describe("review workflow depth (Domain A)", () => {
 
   test("PATCH review-method rejects unknown methods and unknown protocols", async () => {
     insertProtocol();
+    seedOfficeActor(db);
     const bad = await request(app)
       .patch("/api/committee/protocols/TEST-0001/review-method")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ review_method: "EMAIL" });
     assert.equal(bad.status, 400);
 
     const missing = await request(app)
       .patch("/api/committee/protocols/TEST-0001/review-method")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({});
     assert.equal(missing.status, 400);
 
     const nope = await request(app)
       .patch("/api/committee/protocols/NOPE/review-method")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ review_method: "FCR" });
     assert.equal(nope.status, 404);
   });
 
   test("PATCH assign creates a reviewer assignment and upserts instead of duplicating", async () => {
     insertProtocol();
+    seedOfficeActor(db);
     const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
 
     const first = await request(app)
       .patch("/api/committee/protocols/TEST-0001/assign")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ personnel_id: reviewerId, role: "Primary Reviewer" });
     assert.equal(first.status, 200);
     assert.equal(first.body.role, "Primary Reviewer");
@@ -281,6 +290,7 @@ describe("review workflow depth (Domain A)", () => {
     // Same reviewer reassigned: role changes, no duplicate row.
     const second = await request(app)
       .patch("/api/committee/protocols/TEST-0001/assign")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ personnel_id: reviewerId, role: "Designated Member" });
     assert.equal(second.body.role, "Designated Member");
 
@@ -290,30 +300,36 @@ describe("review workflow depth (Domain A)", () => {
 
   test("PATCH assign validates role, personnel, and protocol", async () => {
     insertProtocol();
+    seedOfficeActor(db);
     const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
 
     let res = await request(app)
       .patch("/api/committee/protocols/TEST-0001/assign")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ role: "Primary Reviewer" }); // missing personnel_id
     assert.equal(res.status, 400);
 
     res = await request(app)
       .patch("/api/committee/protocols/TEST-0001/assign")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ personnel_id: reviewerId }); // missing role
     assert.equal(res.status, 400);
 
     res = await request(app)
       .patch("/api/committee/protocols/TEST-0001/assign")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ personnel_id: reviewerId, role: "Villain" });
     assert.equal(res.status, 400);
 
     res = await request(app)
       .patch("/api/committee/protocols/TEST-0001/assign")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ personnel_id: 99999, role: "Primary Reviewer" });
     assert.equal(res.status, 400);
 
     res = await request(app)
       .patch("/api/committee/protocols/NOPE/assign")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ personnel_id: reviewerId, role: "Primary Reviewer" });
     assert.equal(res.status, 404);
   });
@@ -347,6 +363,7 @@ describe("review workflow depth (Domain A)", () => {
 
     res = await request(app)
       .post("/api/committee/protocols/TEST-0001/comments")
+      .set("X-Actor", "Dr. Comment") // gate identity via header so validation 400s, not the gate 401
       .send({ personnel_id: 99999, section: "overall", comment: "hi" });
     assert.equal(res.status, 400);
 
@@ -358,6 +375,7 @@ describe("review workflow depth (Domain A)", () => {
 
   test("GET reviews returns the full review history", async () => {
     insertProtocol();
+    seedOfficeActor(db);
     const voterId = await insertPersonnel("Dr. Voter", "Committee Member", true);
     const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
 
@@ -366,6 +384,7 @@ describe("review workflow depth (Domain A)", () => {
       .send({ personnel_id: voterId, vote: "Approve", comment: "ok" });
     await request(app)
       .patch("/api/committee/protocols/TEST-0001/assign")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ personnel_id: reviewerId, role: "Primary Reviewer" });
     await request(app)
       .post("/api/committee/protocols/TEST-0001/comments")
@@ -410,10 +429,12 @@ describe("review workflow depth (Domain A)", () => {
 
   test("deleting a protocol cascades its assignments and comments", async () => {
     insertProtocol();
+    seedOfficeActor(db);
     const reviewerId = await insertPersonnel("Dr. Review", "Committee Member", true);
 
     await request(app)
       .patch("/api/committee/protocols/TEST-0001/assign")
+      .set("X-Actor", OFFICE_ACTOR)
       .send({ personnel_id: reviewerId, role: "Primary Reviewer" });
     await request(app)
       .post("/api/committee/protocols/TEST-0001/comments")

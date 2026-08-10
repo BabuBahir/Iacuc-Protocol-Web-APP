@@ -265,7 +265,7 @@ reassigns the protocol's principal investigator.
 </details>
 
 <details>
-<summary><b> Audit log (who changed what, when) </b> (Click to expand)</summary>
+<summary><b>  Audit log (who changed what, when) </b> (Click to expand)</summary>
 
 Every write in the app records an entry in an append-only audit trail — the
 admin page's "Audit log" panel shows it. Because there is no login yet, the
@@ -276,6 +276,33 @@ recorded as `system`.
 | Method | Path                                      | Description                                          | Status |
 |--------|-------------------------------------------|-------------------------------------------------------|--------|
 | GET    | /api/audit                                | The trail, newest first; filters `entity_type`, `entity_id`, `actor`, `action`, `provenance`, `from`/`to`, `limit`, `offset` | ✓ |
+
+</details>
+
+<details>
+<summary><b>  Compliance reports (AAALAC-style) </b> (Click to expand)</summary>
+
+Canned reports aggregated from the Appendix A application content, shown on
+the "Reports" tab with a CSV export for each. Read-only.
+
+| Method | Path          | Description                                          | Status |
+|--------|---------------|-------------------------------------------------------|--------|
+| GET    | /api/reports  | Restraint by species, euthanasia methods by species, surgery locations/types, multiple major recovery surgery, analgesic/anesthetic drugs, use locations by species | ✓ |
+
+</details>
+<details>
+<summary><b>  Saved search filters (dashboard) </b> (Click to expand)</summary>
+
+Named, recallable filter sets built from the dashboard's filter-builder
+(optional `?search_type=protocol|register` scoping on the list call).
+
+| Method | Path                         | Description                                             | Status |
+|--------|------------------------------|----------------------------------------------------------|--------|
+| GET    | /api/saved-filters           | List saved filters, optionally `?search_type=`           | ✓ |
+| POST   | /api/saved-filters           | Save the current filter set (name + clause array)        | ✓ |
+| DELETE | /api/saved-filters/:id       | Delete a saved filter                                    | ✓ |
+| GET    | /api/protocols?q=&filters=[{field,op,value},…] | Dashboard list with the stackable filter-builder | ✓ |
+| GET    | /api/animal-usage?filters=[…] | Register-wide search with the filter-builder (the Register tab) | ✓ |
 
 </details>
 
@@ -290,8 +317,7 @@ lands.
 
 | Domain | Planned endpoint(s)                                                         | Source | Status |
 |--------|-----------------------------------------------------------------------------|--------|--------|
-| File attachments | Real uploads for protocol narratives, SOPs, training certs | ROADMAP item 7 | ✗ |
-| Search filter-builder + CSV export | Stackable field/operator/value filters across protocols & the register; CSV on every result set | ROADMAP item 8 | ✗ |
+| File attachments | Real uploads for protocol narratives, SOPs, training certs — **not planned** | ROADMAP item 7 | ✗ |
 | AAALAC compliance reports | Restraint/euthanasia/surgery/drug reports by species | ROADMAP item 9 | ✗ |
 
 Amendments & renewals, PAM & incidents, facilities & inspections, transfer

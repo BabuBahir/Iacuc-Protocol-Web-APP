@@ -23,6 +23,7 @@ import type {
   ExperimentRow,
   Facility,
   FacilityInput,
+  FilterClause,
   Incident,
   IncidentInput,
   IncidentUpdateInput,
@@ -59,6 +60,8 @@ import type {
   Role,
   RrrInput,
   RrrEntry,
+  ReportsPayload,
+  SavedFilter,
   Species,
   Summary,
   TrainingRecord,
@@ -70,6 +73,7 @@ import type {
   VoteInput,
   Voter,
 } from "./types";
+import { getActingAs, ACTOR_HEADER_NAME } from "./identity";
 
 // Thin wrapper around fetch calls to the Express API.
 // In dev, Vite proxies /api -> http://localhost:4000 (see vite.config.js),
@@ -86,9 +90,19 @@ interface ErrorBody {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+
+  // Attach the self-declared "acting as" identity (see identity.ts) to every
+  // request, if one is set. This is what makes the audit trail show a real
+  // name instead of "system" — it costs nothing extra at each call site
+  // since it's centralized here, and it's a no-op (header simply omitted)
+  // for anyone who hasn't picked an identity, so anonymous use is unaffected.
+  const actingAs = getActingAs();
+  if (actingAs) headers[ACTOR_HEADER_NAME] = actingAs.name;
+
   const res = await fetch(`${API_BASE}/api${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers: { ...headers, ...(options.headers as Record<string, string> | undefined) },
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as ErrorBody;
@@ -99,8 +113,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  listProtocols: (query = ""): Promise<Protocol[]> =>
-    request(`/protocols${query ? `?q=${encodeURIComponent(query)}` : ""}`),
+  listProtocols: (query = "", filters: FilterClause[] = []): Promise<Protocol[]> => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (filters.length > 0) params.set("filters", JSON.stringify(filters));
+    const qs = params.toString();
+    return request(`/protocols${qs ? `?${qs}` : ""}`);
+  },
   getSummary: (): Promise<Summary> => request("/protocols/summary"),
   getProtocol: (id: string): Promise<ProtocolDetail> => request(`/protocols/${id}`),
   createProtocol: (data: ProtocolInput): Promise<Protocol> =>
@@ -189,6 +208,14 @@ export const api = {
   listAnimalUsage: (id: string): Promise<AnimalUsageLedger> => request(`/protocols/${id}/animal-usage`),
   createAnimalUsage: (id: string, data: AnimalUsageInput): Promise<AnimalUsageTransaction> =>
     request(`/protocols/${id}/animal-usage`, { method: "POST", body: JSON.stringify(data) }),
+  // Cross-protocol register search (Roadmap item 8): flattened ledger rows
+  // across every protocol, filterable with the shared builder.
+  searchAnimalUsage: (filters: FilterClause[] = []): Promise<AnimalUsageTransaction[]> => {
+    const params = new URLSearchParams();
+    if (filters.length > 0) params.set("filters", JSON.stringify(filters));
+    const qs = params.toString();
+    return request(`/animal-usage${qs ? `?${qs}` : ""}`);
+  },
   listExperiments: (id: string): Promise<ExperimentRow[]> => request(`/protocols/${id}/experiments`),
   createExperiment: (id: string, data: ExperimentInput): Promise<ExperimentRow> =>
     request(`/protocols/${id}/experiments`, { method: "POST", body: JSON.stringify(data) }),
@@ -297,4 +324,17 @@ export const api = {
     const query = qs.toString();
     return request(`/audit${query ? `?${query}` : ""}`);
   },
+
+  // ---- AAALAC-style compliance reports (Roadmap item 9) ----
+  getReports: (): Promise<ReportsPayload> => request("/reports"),
+
+  // ---- Saved search filters (Roadmap item 8) ----
+  listSavedFilters: (searchType: "protocol" | "register" = "protocol"): Promise<SavedFilter[]> =>
+    request(`/saved-filters?search_type=${searchType}`),
+  saveSavedFilter: (name: string, searchType: "protocol" | "register", filters: FilterClause[]): Promise<SavedFilter> =>
+    request("/saved-filters", {
+      method: "POST",
+      body: JSON.stringify({ name, search_type: searchType, filters }),
+    }),
+  deleteSavedFilter: (id: number): Promise<null> => request(`/saved-filters/${id}`, { method: "DELETE" }),
 };

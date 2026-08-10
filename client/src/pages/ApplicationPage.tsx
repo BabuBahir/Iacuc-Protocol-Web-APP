@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link } from "react-router";
 import {
   ChevronLeft, Plus, Trash2, Pencil, X, Save, BookOpen,
   ClipboardList, Syringe, FlaskConical, Search, ShieldCheck,

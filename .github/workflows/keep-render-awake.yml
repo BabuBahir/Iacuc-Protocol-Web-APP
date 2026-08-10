@@ -1,0 +1,38 @@
+name: Keep Render API awake
+
+# Render's free tier spins down the API after a period of inactivity
+# (observed under ~10 min for this project). This pings the health
+# endpoint on a schedule so the demo doesn't cold-start on someone's
+# first click.
+#
+# Known limitation: GitHub automatically disables scheduled workflows
+# on a repo after 60 days with no commit activity. If the demo starts
+# sleeping again despite this workflow existing, check whether it got
+# auto-disabled under Actions -> this workflow -> re-enable, or just
+# push any commit to reset the 60-day clock.
+
+on:
+  schedule:
+    # Every 10 minutes. GitHub does not guarantee exact cron timing —
+    # schedules can lag by a few minutes under high platform load,
+    # especially the top of the hour. If the demo still sleeps
+    # occasionally, tighten this to */5 for more margin.
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {} # allows a manual "Run workflow" click for testing
+
+jobs:
+  ping:
+    name: Ping API health endpoint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Curl health endpoint
+        run: |
+          echo "Pinging API to prevent Render free-tier spin-down..."
+          # --max-time caps how long we wait; a cold-starting instance can take
+          # 30-60s to respond, so allow enough time for the ping to actually
+          # succeed in waking it, without hanging the job indefinitely.
+          # -f treats non-2xx as a failure; -sS keeps output quiet but still
+          # shows errors if something's genuinely wrong (not just cold-starting).
+          curl -fsS --max-time 90 https://iacuc-protocol-web-app.onrender.com/api/health \
+            && echo "API responded OK." \
+            || echo "::warning::API did not respond within 90s — may still be cold-starting, or may be genuinely down. Check manually."

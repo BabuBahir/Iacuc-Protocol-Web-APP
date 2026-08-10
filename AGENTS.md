@@ -194,7 +194,7 @@ iacuc-app/
       protocol-form.js     Appendix A content: procedures/drugs/animal-use/experiments/alternatives
       admin.js             species / roles / personnel (personas) CRUD
       committee.js          FCR voting on protocols in review
-  client/              Vite + React + TypeScript + react-router-dom
+  client/              Vite + React + TypeScript + react-router
     src/pages/            ListPage, DetailPage, AdminPage, CommitteePage, CreatePage
     src/components/       AppHeader, StatusBadge, ProtocolForm (shared)
     src/api.ts            thin typed fetch wrapper, one function per endpoint
@@ -477,6 +477,16 @@ independent db instances within a single file — there it uses a cache-
 busted dynamic import (`import("../src/db.js?fresh=" + uniqueId)`), since
 Node treats a different query string as a different cached module.
 
+**CI (`ci.yml`) runs more than the unit suites.** Since Aug 2026 (PR #75), the
+`client-tests` job also runs `npm run build:client` and `npm run typecheck`,
+and a separate `e2e-tests` job runs the full Playwright suite on Chromium
+(installs browsers with `npx playwright install --with-deps chromium`,
+caches `~/.cache/ms-playwright` keyed on the lockfile, uploads
+`playwright-report`/`test-results` as artifacts; the playwright config's
+`webServer` array self-starts both servers). This exists because the tailwind
+v4 bump (see §4) broke `vite build` on fresh installs without any unit test
+failing — a build/typecheck/e2e gap that nothing on `main` covered.
+
 ### Package manager
 
 npm workspaces (`npm install` at root installs both `server/` and
@@ -484,32 +494,77 @@ npm workspaces (`npm install` at root installs both `server/` and
 approval gate (`ERR_PNPM_IGNORED_BUILDS`) caused repeated friction on
 Windows. Don't reintroduce pnpm without a strong reason.
 
-### Known dependency vulnerability (assessed, deferred)
+### Known dependency vulnerability (resolved — react-router v7)
 
-`npm install` flags 2 moderate CVEs in `react-router-dom@6.30.4`:
+The two moderate CVEs in `react-router-dom@6.30.4` —
 [GHSA-wrjc-x8rr-h8h6](https://github.com/advisories/GHSA-wrjc-x8rr-h8h6)
 (open redirect via backslash in `<Link>`/`useNavigate`) and
 [GHSA-337j-9hxr-rhxg](https://github.com/advisories/GHSA-337j-9hxr-rhxg)
 (arbitrary constructor injection via `deserializeErrors()` in SSR
-hydration). Neither is patched in the 6.x line — the fix requires
-react-router v7, which has breaking API changes from v6.
+hydration) — were **resolved by the v7 upgrade (ROADMAP item 12, Aug
+2026)**. The app now depends on `react-router@7.x` (the unified package;
+`react-router-dom` is only a v7 compatibility re-export and is no longer
+a dependency). The migration was a package swap plus an import swap
+(`react-router-dom` → `react-router`) across 18 files and 3 `vi.mock`
+targets — the app uses only declarative APIs (`BrowserRouter`,
+`MemoryRouter`, `Routes`, `Route`, `Link`, `useNavigate`, `useParams`),
+which are unchanged in v7. Verified by `tsc --noEmit`, 193 client tests,
+and 2 consecutive clean 36-test e2e runs.
 
-Assessed and deferred rather than blindly force-upgraded, because:
-- **SSR CVE doesn't apply**: this is a client-only SPA (`vite build` →
-  static files), no server-side rendering anywhere in the stack.
-- **Open-redirect CVE requires attacker-controlled URLs** flowing into
-  `<Link to={...}>` or `navigate(...)`. Checked every call site in this
-  repo (`grep -rn "useNavigate\|<Link\|navigate(" client/src`) — every
-  target is either a hardcoded path (`/`, `/committee`, `/admin`) or a
-  protocol ID sourced from our own database, never from a URL param,
-  query string, or other user-controlled input.
-- A v6→v7 major bump has real breaking changes and needs its own
-  regression pass across every page — not something to force through as
-  a side effect of adding tests.
-
-**Follow-up**: upgrade to react-router v7 as its own deliberate task, with
-routing behavior re-verified afterward — don't just bump the version
-number and assume it works.
+Notes from the upgrade, worth remembering:
+- **`npm audit` still shows 7 vulnerabilities** (3 moderate, 2 high, 2
+  critical) — all in the *dev toolchain* (`vite`, `vitest`, `esbuild`,
+  `nanoid`, `@vitest/*`), none in the production `react-router`
+  dependency. They were pre-existing, are dev-server/test-only, and are
+  not part of item 12; fixing them means a Vite 5→8 + Vitest 3→4 major
+  bump with its own regression pass.
+- **Don't merge dependabot major bumps on the Vite toolchain piecemeal —
+  it breaks the build.** Dependabot opened #58 (`@vitejs/plugin-react`
+  4.7.0 → 6.0.5) and #61 (`vitest` 2.1.9 → 4.1.10) independently; both
+  were merged into main, and both majors require **Vite ^8** as a peer
+  while the repo pins `vite ^5.3.4`. The merged state produced an invalid
+  peer tree (`npm ls` → ELSPROBLEMS) and `vite build` died with
+  `ERR_PACKAGE_PATH_NOT_EXPORTED` (plugin-react 6.x imports
+  `vite/internal`, which Vite 5 doesn't export) — main was red until the
+  revert in #65. The fix: `client/package.json` back to plugin-react
+  `^4.3.1` / vitest `^2.1.9` / vite `^5.3.4` / coverage-v8 `^2.1.9`, the
+  lockfile reset to the last green baseline, and `.github/dependabot.yml`
+  now **ignores semver-major updates** on `vite` /
+  `@vitejs/plugin-react` / `vitest` / `@vitest/coverage-v8` so all four
+  are upgraded together in one deliberate Vite 5→8 migration, not one
+  package at a time. If you ever do run that migration, remove the
+  ignore rules in the same PR that bumps the four packages. Also note the
+  `@vitest/coverage-v8` and `vitest` majors are coupled — coverage-v8
+  2.1.9 peer-requires vitest 2.1.9 — so bumping one without the other is
+  always invalid.
+- **v7 turns on `v7_startTransition` by default** (in v6 it was opt-in):
+  route updates now render inside `React.startTransition` (low priority).
+  Under cold Vite cache / CPU load, e2e can hit 30s timeouts on
+  navigation asserts — observed as intermittent failures across
+  dashboard/detail/admin/committee specs right after a fresh `npm
+  install`. By 7.18 the `v7_*` opt-out flags are removed (`FutureConfig`
+  is empty in the type defs), so this is not revertible from the app; it
+  just makes the suite load-sensitive. The Playwright config sets
+  `retries: 2`, and that's the cap: a test retries at most twice, and if
+  it still fails after those two retries it is reported as a failed test —
+  the suite is never rerun wholesale to chase a green. A retry cannot turn
+  a deterministic failure green (it only rescues transient load-stall
+  timeouts). The stateful specs (committee vote, admin species/personnel
+  add, compliance mutations) are seeded to tolerate a re-run of a failed
+  test. If flakiness reappears anyway, warm the Vite cache before the
+  run.
+- **The pre-existing e2e audit.spec race, fixed during this pass:** the
+  audit log panel loads on mount with one slow `GET /api/audit`; if that
+  fetch resolves *after* a species-add click, the new `species.created`
+  entry's diff text (`"Chinchilla"`) collides with the species row, so
+  `getByText("<species>")` trips strict mode (2 elements). Reproduced
+  identically on the v6 baseline — it was not caused by v7. Fixed by
+  scoping the species assertions with `.first()` in `audit.spec.js` and
+  `admin.spec.js` (the species row renders above the audit panel, so
+  `.first()` resolves to the intended element) and scoping the
+  `species.created` asserts to `getByTestId("audit-entries")`. Same
+  story as the Alpaca/Chinchilla entries: multiple species created
+  earlier in a run can put several `species.created` rows in the panel.
 
 ### What's implemented vs. not (as of this file's writing)
 
@@ -741,11 +796,19 @@ drug/animal-use creates). One server gap remains: `audit.js` 98.44% lines
 JSON, and the DB transaction-rollback error path in `protocol-form.js`
 stays uncovered per the note above).
 
+**Search filter-builder + saved filters + CSV export (Roadmap item 8):** the single substring search now sits alongside a stackable filter-builder on both the dashboard and the register. Server-side (already in place): `server/src/routes/filter.js` exports the whitelisted `PROTOCOL_FILTER_FIELDS`/`REGISTER_FILTER_FIELDS` definitions, `validateFilters`, and `applyFilters`; `GET /api/protocols?filters=[...]` and `GET /api/animal-usage?filters=[...]` both accept the clause array (the register list LEFT JOINs `protocols` so each row carries its `protocol_title`); saved-filters CRUD lives in `server/src/routes/saved-filters.js` (`GET/POST /api/saved-filters`, `DELETE /api/saved-filters/:id`, `search_type` scoping, audited). Client: `client/src/components/FilterBuilder.tsx` is a reusable, field-def-driven clause editor (enum fields render selects, operators constrained by field type via `operatorsFor` in `types.ts`); `ListPage.tsx` hosts it behind a "Filters" toggle with active-clause chips, a "Saved filters" menu (save current / apply / delete, `search_type: "protocol"`), and an "Export CSV" button for the filtered result set. `client/src/utils/csv.ts` holds the shared `downloadCsv`/`csvCell` helpers (extracted from `ReportsPage.tsx`, which still uses them). The client mirrors the server field defs as `PROTOCOL_FILTER_FIELD_DEFS` and `REGISTER_FILTER_FIELD_DEFS` in `types.ts` — keep them in sync with `filter.js`. The register-wide surface lives on the new "Register" nav tab (`client/src/pages/RegisterPage.tsx`, route `/register`): the same builder and saved filters with `search_type: "register"`, CSV export, and a row click that navigates to the protocol's detail page. The client `PROCEDURE_KEYS` in `types.ts` mirrors the server's `PROCEDURE_KEYS` in `protocol-form.js` exactly — the register builder's `procedure_key` enum passes server validation only because the two match.
+
 Not implemented (see §1 above for the domain detail on each): conditional/
-dynamic Table of Contents, auth or role-based
-access control, search filter-builder, compliance reports. (Amendments now
+dynamic Table of Contents, and auth or role-based
+access control. (Amendments now
 have the three-pane live-diff; protocol version lineage, renewals, Transfer
-Ownership, and audit logging are all implemented above.)
+Ownership, audit logging, the AAALAC compliance reports, and the item-8
+filter-builder/saved-filters/CSV surface on both the dashboard and the
+register are all implemented above.)
+
+**Roadmap item 7 (file attachments) is intentionally last priority and must
+never be proposed or started** — per product decision it is out of scope for
+this demo; do not surface it in plans.
 
 ## 3. HIPAA, PHI, and AI-safety guardrails
 
@@ -832,3 +895,152 @@ without the following, this section is documentation only:
 
 When you add a feature or hit a non-obvious bug, add a short note here —
 future sessions (agent or human) shouldn't have to rediscover it.
+
+### Reports (Roadmap item 9) — Aug 2026
+
+`GET /api/reports` (`server/src/routes/reports.js`) aggregates six
+AAALAC-style reports from Appendix A content, rendered on the new "Reports"
+nav tab (`client/src/pages/ReportsPage.tsx`, 7th tab after Amendments) with a
+per-report CSV download:
+
+1. **Restraint by species** — `protocol_procedures` rows where
+   `procedure_key = 'prolonged_restraint'` AND `checked = 1`; the restraint
+   narrative is the method.
+2. **Euthanasia methods by species** — `protocol_drugs` rows whose
+   `reason_for_use` ILIKE `%euthanasi%`; the drug name is the method.
+3. **Surgery locations/types** — survival/non-survival surgery checked × the
+   protocol's `research_steps[].location` JSON; one row per (protocol,
+   surgery type, step location) with no dedupe.
+4. **Multiple major recovery surgery** — `protocol_experiments` with
+   `multiple_surgical_events = 1`.
+5. **Analgesic/anesthetic drugs** — `protocol_drugs` whose `reason_for_use`
+   matches `%anesth%`/`%analg%`.
+6. **Use locations by species** — `research_steps` grouped by
+   (location, species) with `protocol_count` + `protocol_ids` array.
+
+Species resolves `COALESCE(au.species_strain, p.species)` via LEFT JOIN
+`protocol_animal_use`, so a protocol's animal-use rows win over the protocol
+column. `research_steps` is parsed defensively (malformed JSON → empty list).
+Reports are **read-only** — no audit rows, and per AGENTS.md §1.6 they are
+intentionally *not* the item-8 filter-builder/saved-filters scope; CSV export
+is a client-side `URL.createObjectURL` helper inside `ReportsPage.tsx` (UTF-8
+BOM-prefixed, cells quoted when they contain a comma/quote/newline).
+
+E2E seed fixtures the spec depends on: 0150's prolonged-restraint narrative
+("holding tube"), euthanasia drugs CO2/Pentobarbital/Tricaine (MS-222),
+"Surgical suite A"/"Surgical suite B" step locations on 0139/0155/0150, and
+two `multiple_surgical_events = 1` experiments. Keep those seeded if you
+touch the seed; the reports spec asserts on them. The client test stubs
+`URL.createObjectURL`/`revokeObjectURL` + `HTMLAnchorElement.prototype.click`
+to assert the CSV content without a real download.
+
+### Acting-as access banners — Aug 2026
+
+The admin and committee pages now render an amber `AccessBanner`
+(`client/src/components/AccessBanner.tsx`) when the acting persona (or lack
+of one) isn't who those pages are for. It's a **courtesy signal, not access
+control** — this app still has no auth (see §3.3), and the banner never
+disables anything; it just tells a researcher who wandered onto the admin
+page to pick an office persona. Eligibility is decided entirely client-side
+from `getActingAs()` (`personnelId` + `roleName` only — the persona record
+doesn't carry an `is_committee` flag):
+
+- **Admin page** (`mode="office"`): allowed only when the persona's
+  `roleName` is in `OFFICE_ROLES = ["IACUC Coordinator", "IACUC Chair"]`
+  (mirrors server-side `IACUC_OFFICE_ROLES` in `committee.js`/`admin.js`).
+- **Committee page** (`mode="committee"`): allowed when the persona is an
+  office role **or** its `personnelId` is in the committee-eligible voter
+  list — that's why `CommitteePage` passes `committeePersonnelIds={voters.map(v => v.id)}`.
+- Anonymous (no persona picked) → banner always shows.
+
+Two things worth remembering if you extend this:
+1. `identity.ts` gained a tiny pub-sub (`onActingAsChange()`, called from
+   `setActingAs()`) so the banner re-renders live when the header's
+   `ActorPicker` changes the persona — localStorage alone gives no change
+   notification, and the pages don't otherwise re-render on persona change.
+2. When asserting on banner text in page tests, the persona **name** also
+   appears in the `ActorPicker` header button, so `getByText(name)` is
+   ambiguous — scope with `within(screen.getByTestId("access-banner"))`
+   (the banner root carries `data-testid="access-banner"`). Same-name
+   collision as the personnel-dropdown-vs-row issue noted in the e2e notes.
+
+### Graduated access + e2e acting-as helper — Aug 2026
+
+The server gained a graduated access gate (`server/src/access.js`): anonymous
+users can read everything and author ordinary protocol content, but governance
+writes need a known persona — committee review (votes/comments) needs a
+committee-eligible role or office, admin CRUD / review assignments / transfer
+& amendment decisions need an office role. Identity resolves (precedence) from
+`X-Actor` → `body.actor` → `personnel_id`/`reported_by`/`auditor_id`, and the
+client attaches `X-Actor` from `getActingAs()` in `api.ts`'s central `request`
+wrapper. This is deliberately *not* auth — a self-declared name still passes.
+
+**e2e**: governance-mutation specs must act as a persona before the page
+loads. `e2e/utils/acting-as.js` exports `actAsOffice(request, page)`, which
+resolves the seeded **Maya Patel** (IACUC Coordinator) and injects
+`iacuc.actingAs` via `addInitScript` (so it's set before the app's own JS runs).
+It's wired into every e2e mutation whose body carries **no identity** (they'd
+401 otherwise): admin species/personnel add, audit species add, compliance
+training/OHSP, and the committee review-method switch. Committee
+vote/assign/comment tests need no helper — their bodies carry
+`personnel_id` (the voter/assignee/commenter), which `resolvePerson` turns
+into the acting identity. Gotchas from building this:
+- The Playwright `request` fixture's default baseURL is the Vite dev server,
+  whose SPA fallback returns index.html for unknown paths; the API also
+  returns an HTML body for unknown routes (Express default 404). Either way
+  `res.json()` throws `Unexpected token '<'`. Hit the API server directly
+  (`http://localhost:4100/api/...`, absolute URL) — same pattern as
+  `dashboard.spec.js`.
+- There is **no bare `GET /api/personnel` list route** — the persona list is
+  `GET /api/admin/personnel`. Don't guess the path.
+- The committee review-method select (`changeMethod` in `CommitteePage.tsx`)
+  is **optimistic**: it sets local state before the PATCH and never reverts on
+  error, so a 401'd review-method switch test passes spuriously. That's why
+  the review-method e2e test needs `actAsOffice` — without it the assertion
+  only proves UI optimism, not a server write.
+- `e2e/storageState.json` deliberately holds no persona (just the disclaimer
+  dismiss); per-test `addInitScript` is the only place a persona is set, so
+  specs stay independent.
+
+### Tailwind v4 bump reverted + CSS/build coverage closed — Aug 2026
+
+**Tailwind stays on v3 (`^3.4.19`).** Dependabot PR #69 bumped `tailwindcss`
+3.4.19 → 4.3.3 and it was merged piecemeal. It broke `vite build` on any fresh
+install, because v4 moved the PostCSS plugin into a separate
+`@tailwindcss/postcss` package and dropped the v3 `@tailwind base/components/
+utilities` directives, while this repo's `postcss.config.js` / `index.css` /
+`tailwind.config.js` are still v3 wiring. Local `node_modules` was still on
+3.4.19, so dev kept working and no test caught it. Reverted in PR #75 via
+`git revert -m 1` of the merge (the lockfile conflicted because the postcss/
+express/dotenv bumps landed after — resolved by restoring `^3.4.19` in
+`client/package.json` and regenerating with `npm install --package-lock-only`,
+which surgically downgrades only the tailwind entries). A real v4 migration is
+a deliberate pass (install `@tailwindcss/postcss`, `@import "tailwindcss"`,
+CSS-first `@theme` config), and dependabot is told to hold the major.
+
+**Why it slipped through, and the three fixes:**
+1. **Vitest stubbed CSS.** The `test` block in `client/vite.config.js` had no
+   `css` option (default = imports stubbed, never postcss-processed), and
+   `index.css` was imported only by `main.tsx`. Now `css: true` makes vitest
+   process CSS through Vite's postcss pipeline (tailwind) and inject it into
+   jsdom, and `client/src/__tests__/styles.test.tsx` imports `index.css` and
+   asserts the injected `<style>` is non-empty and contains a real generated
+   utility (`#032D60`). Verified it goes **red** with a broken postcss plugin
+   and green on v3 — a future v4-ish breakage now fails the unit suite.
+2. **CI ran neither build nor e2e.** `ci.yml`'s `client-tests` job now also
+   runs `npm run build:client` and `npm run typecheck`; a new `e2e-tests` job
+   runs the full Playwright suite on Chromium (see the Testing section). Root
+   `package.json` gained a `typecheck` script (`--workspace=client`).
+3. **Dependabot could reopen it.** `.github/dependabot.yml` now ignores
+   semver-major for `tailwindcss`, `express`, and `dotenv` (same pattern as the
+   Vite toolchain) until deliberate migration passes.
+
+**Express 5 + dotenv 17 audit (kept, no revert).** PRs #71/#70 merged express
+4.22.2 → 5.2.1 and dotenv 16.6.1 → 17.4.2 — both pure version bumps, no code.
+Verdict after review: safe. All query params are scalars or single URL-encoded
+JSON strings (`filters` sent via `URLSearchParams`, `JSON.parse(req.query
+.filters)` server-side), so Express 5's default query-parser change
+(extended → simple) doesn't apply; there are no `app.del`/wildcard/regex
+routes or `app.param`; and dotenv is used only as `import "dotenv/config"`
+(`server/src/index.js`, `seed.js`). The full server + e2e suites pass on both.
+If a *future* express/dotenv major ever lands, re-audit before un-ignoring.

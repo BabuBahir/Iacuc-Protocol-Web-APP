@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router";
 import {
   ChevronLeft, Star, Printer, MoreHorizontal, Check, X, ArrowRightLeft,
   Users, FileText, Clock, Paperclip, Mail, Phone, Building2,

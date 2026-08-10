@@ -2,8 +2,37 @@ import { Router } from "express";
 import { db } from "../db.js";
 import { PROCEDURE_KEYS, requireProtocol } from "./protocol-form.js";
 import { audit, resolveActor } from "../audit.js";
+import { applyFilters, validateFilters, REGISTER_FILTER_FIELDS } from "./filter.js";
 
 export const router = Router();
+
+// Cross-protocol register search (Roadmap item 8): flattened ledger
+// transactions across every protocol, filterable with the shared builder.
+// Mounted at /api (see app.js) so the path is GET /api/animal-usage — the
+// per-protocol ledger above stays at /api/protocols/:id/animal-usage.
+export const searchRouter = Router();
+
+searchRouter.get("/animal-usage", (req, res) => {
+  let filters = [];
+  if (req.query.filters) {
+    try {
+      filters = JSON.parse(req.query.filters);
+    } catch {
+      return res.status(400).json({ error: "filters must be a JSON array" });
+    }
+    const invalid = validateFilters(filters, REGISTER_FILTER_FIELDS);
+    if (invalid) return res.status(400).json({ error: invalid });
+  }
+  const rows = db
+    .prepare(`
+      SELECT t.*, p.title AS protocol_title
+      FROM animal_usage_transactions t
+      LEFT JOIN protocols p ON p.id = t.protocol_id
+      ORDER BY t.transaction_date DESC, t.id DESC
+    `)
+    .all();
+  res.json(applyFilters(rows, filters, REGISTER_FILTER_FIELDS));
+});
 
 // USDA pain categories used on the animal usage register (B/C/D/E map to the
 // protocol's "Category B".."Category E"; "Category A" is not applicable to

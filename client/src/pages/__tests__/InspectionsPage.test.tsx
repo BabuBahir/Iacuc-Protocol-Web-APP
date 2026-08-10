@@ -1,7 +1,7 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import InspectionsPage from "../InspectionsPage";
 import { api as realApi } from "../../api";
 import type { Facility, Inspection, InspectionDetail } from "../../types";

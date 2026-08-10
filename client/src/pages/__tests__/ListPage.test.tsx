@@ -1,10 +1,10 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, useNavigate } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router";
 import ListPage from "../ListPage";
 import { api as realApi } from "../../api";
-import type { Protocol, Summary } from "../../types";
+import type { FilterClause, Protocol, SavedFilter, Summary } from "../../types";
 
 vi.mock("../../api", () => ({
   api: {
@@ -17,7 +17,7 @@ vi.mock("../../api", () => ({
   },
 }));
 
-vi.mock("react-router-dom", async (importOriginal) => {
+vi.mock("react-router", async (importOriginal) => {
   const actual = await importOriginal();
   return { ...(actual as object), useNavigate: vi.fn() };
 });
@@ -82,6 +82,22 @@ const SAMPLE_PROTOCOLS: Protocol[] = [
 const SAMPLE_SUMMARY: Summary = { active: 2, pendingReview: 1, expiringSoon: 0, approvedThisQuarter: 3 };
 const EMPTY_SUMMARY: Summary = { active: 0, pendingReview: 0, expiringSoon: 0, approvedThisQuarter: 0 };
 
+const DRAFT_FILTER: FilterClause[] = [{ field: "status", op: "eq", value: "Draft" }];
+
+const SAVED_FILTER: SavedFilter = {
+  id: 1,
+  name: "Draft protocols",
+  search_type: "protocol",
+  filters: DRAFT_FILTER,
+  created_at: "2026-08-01T00:00:00.000Z",
+};
+
+async function resolveInitialLoad() {
+  await waitFor(() => {
+    expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument();
+  });
+}
+
 describe("ListPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -130,7 +146,7 @@ describe("ListPage", () => {
     renderListPage();
 
     await waitFor(() => {
-      expect(screen.getByText(/No protocols match/)).toBeInTheDocument();
+      expect(screen.getByText(/No protocols/)).toBeInTheDocument();
     });
   });
 
@@ -158,7 +174,7 @@ describe("ListPage", () => {
     const user = userEvent.setup();
 
     renderListPage();
-    await waitFor(() => expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument());
+    await resolveInitialLoad();
 
     await user.click(screen.getByRole("button", { name: "New protocol" }));
     expect(navigate).toHaveBeenCalledWith("/protocols/new");
@@ -171,9 +187,7 @@ describe("ListPage", () => {
       const user = userEvent.setup();
 
       renderListPage();
-      await waitFor(() => {
-        expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument();
-      });
+      await resolveInitialLoad();
 
       await user.click(screen.getByRole("button", { name: /Filters/ }));
       await user.click(screen.getByRole("button", { name: "Add clause" }));
@@ -194,9 +208,7 @@ describe("ListPage", () => {
       const user = userEvent.setup();
 
       renderListPage();
-      await waitFor(() => {
-        expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument();
-      });
+      await resolveInitialLoad();
 
       await user.click(screen.getByRole("button", { name: /Filters/ }));
       await user.click(screen.getByRole("button", { name: "Add clause" }));
@@ -213,7 +225,7 @@ describe("ListPage", () => {
 
       await user.selectOptions(valueSelect, "Draft");
       await waitFor(() => {
-        expect(api.listProtocols).toHaveBeenLastCalledWith("", [{ field: "status", op: "eq", value: "Draft" }]);
+        expect(api.listProtocols).toHaveBeenLastCalledWith("", DRAFT_FILTER);
       });
     });
 
@@ -223,9 +235,7 @@ describe("ListPage", () => {
       const user = userEvent.setup();
 
       renderListPage();
-      await waitFor(() => {
-        expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument();
-      });
+      await resolveInitialLoad();
 
       await user.click(screen.getByRole("button", { name: /Filters/ }));
       await user.click(screen.getByRole("button", { name: "Add clause" }));
@@ -243,9 +253,7 @@ describe("ListPage", () => {
       const user = userEvent.setup();
 
       renderListPage();
-      await waitFor(() => {
-        expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument();
-      });
+      await resolveInitialLoad();
 
       await user.click(screen.getByRole("button", { name: /Filters/ }));
       await user.click(screen.getByRole("button", { name: "Add clause" }));
@@ -264,21 +272,11 @@ describe("ListPage", () => {
     test("applying a saved filter re-queries with its clauses", async () => {
       api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
       api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
-      const DRAFT_FILTER = [{ field: "status", op: "eq", value: "Draft" }];
-      const SAVED_FILTER = {
-        id: 1,
-        name: "Draft protocols",
-        search_type: "protocol",
-        filters: DRAFT_FILTER,
-        created_at: "2026-08-01T00:00:00.000Z",
-      };
       api.listSavedFilters.mockResolvedValue([SAVED_FILTER]);
       const user = userEvent.setup();
 
       renderListPage();
-      await waitFor(() => {
-        expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument();
-      });
+      await resolveInitialLoad();
 
       await user.click(screen.getByRole("button", { name: "Saved filters" }));
       await user.click(screen.getByRole("button", { name: /^Draft protocols/ }));
@@ -292,21 +290,11 @@ describe("ListPage", () => {
     test("saving the current filter posts it and refreshes the list", async () => {
       api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
       api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
-      const DRAFT_FILTER = [{ field: "status", op: "eq", value: "Draft" }];
-      const SAVED_FILTER = {
-        id: 1,
-        name: "Draft protocols",
-        search_type: "protocol",
-        filters: DRAFT_FILTER,
-        created_at: "2026-08-01T00:00:00.000Z",
-      };
       api.saveSavedFilter.mockResolvedValue({ ...SAVED_FILTER, name: "My filter" });
       const user = userEvent.setup();
 
       renderListPage();
-      await waitFor(() => {
-        expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument();
-      });
+      await resolveInitialLoad();
 
       await user.click(screen.getByRole("button", { name: /Filters/ }));
       await user.click(screen.getByRole("button", { name: "Add clause" }));
@@ -328,9 +316,7 @@ describe("ListPage", () => {
       const user = userEvent.setup();
 
       renderListPage();
-      await waitFor(() => {
-        expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument();
-      });
+      await resolveInitialLoad();
 
       await user.click(screen.getByRole("button", { name: "Saved filters" }));
       expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
@@ -339,21 +325,12 @@ describe("ListPage", () => {
     test("deleting a saved filter calls the delete endpoint", async () => {
       api.listProtocols.mockResolvedValue(SAMPLE_PROTOCOLS);
       api.getSummary.mockResolvedValue(SAMPLE_SUMMARY);
-      const SAVED_FILTER = {
-        id: 1,
-        name: "Draft protocols",
-        search_type: "protocol",
-        filters: [],
-        created_at: "2026-08-01T00:00:00.000Z",
-      };
       api.listSavedFilters.mockResolvedValue([SAVED_FILTER]);
       api.deleteSavedFilter.mockResolvedValue(null);
       const user = userEvent.setup();
 
       renderListPage();
-      await waitFor(() => {
-        expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument();
-      });
+      await resolveInitialLoad();
 
       await user.click(screen.getByRole("button", { name: "Saved filters" }));
       await user.click(screen.getByRole("button", { name: "Delete saved filter Draft protocols" }));
@@ -369,9 +346,7 @@ describe("ListPage", () => {
       const user = userEvent.setup();
 
       renderListPage();
-      await waitFor(() => {
-        expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument();
-      });
+      await resolveInitialLoad();
 
       await user.click(screen.getByRole("button", { name: /Filters/ }));
       await user.click(screen.getByRole("button", { name: "Add clause" }));
@@ -416,9 +391,7 @@ describe("ListPage", () => {
       const user = userEvent.setup();
 
       renderListPage();
-      await waitFor(() => {
-        expect(screen.getByText("IACUC-2026-0001")).toBeInTheDocument();
-      });
+      await resolveInitialLoad();
 
       await user.click(screen.getByTestId("export-csv"));
 

@@ -387,6 +387,22 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_log_entity  ON audit_log(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_log_actor   ON audit_log(actor);
+
+-- ---- saved search filters (Roadmap item 8) ----
+--
+-- Named, recallable filter sets built from the dashboard filter-builder. The
+-- clauses are stored as a JSON array of { field, op, value } (the same shape
+-- GET /api/protocols and GET /api/animal-usage accept via ?filters=).
+-- search_type scopes a filter to one search surface ('protocol' | 'register').
+CREATE TABLE IF NOT EXISTS saved_filters (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,
+  search_type TEXT NOT NULL CHECK (search_type IN ('protocol', 'register')),
+  filters     TEXT NOT NULL, -- JSON array of filter clauses
+  created_at  TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_saved_filters_type ON saved_filters(search_type);
 `);
 
 // ---- lightweight migration for databases created before these columns existed ----

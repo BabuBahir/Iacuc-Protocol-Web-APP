@@ -1,9 +1,10 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import AdminPage from "../AdminPage";
 import { api as realApi } from "../../api";
+import { setActingAs } from "../../identity";
 import type { Personnel } from "../../types";
 
 vi.mock("../../api", () => ({
@@ -44,6 +45,7 @@ function renderAdminPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   api.listSpecies.mockResolvedValue([{ id: 1, name: "Mouse" }]);
   api.listRoles.mockResolvedValue([{ id: 1, name: "Principal Investigator", is_committee: 0 }]);
   api.listPersonnel.mockResolvedValue([]);
@@ -650,5 +652,30 @@ describe("AdminPage — audit log", () => {
         expect.objectContaining({ action: "species", limit: 100 }),
       );
     });
+  });
+});
+
+describe("AdminPage — office-staff access banner", () => {
+  test("shows a notice when no one is signed in", async () => {
+    renderAdminPage();
+    await waitFor(() => expect(screen.getByText("Mouse")).toBeInTheDocument());
+    expect(screen.getByTestId("access-banner")).toBeInTheDocument();
+    expect(screen.getByText(/IACUC office staff only/)).toBeInTheDocument();
+  });
+
+  test("shows a notice for a non-office persona", async () => {
+    setActingAs({ personnelId: 9, name: "Dr. Bench Scientist", roleName: "Principal Investigator" });
+    renderAdminPage();
+    await waitFor(() => expect(screen.getByText("Mouse")).toBeInTheDocument());
+    const banner = screen.getByTestId("access-banner");
+    expect(banner).toBeInTheDocument();
+    expect(within(banner).getByText(/Dr. Bench Scientist \(Principal Investigator\)/)).toBeInTheDocument();
+  });
+
+  test("hides the notice for an office persona", async () => {
+    setActingAs({ personnelId: 3, name: "Dr. Coordinator", roleName: "IACUC Coordinator" });
+    renderAdminPage();
+    await waitFor(() => expect(screen.getByText("Mouse")).toBeInTheDocument());
+    expect(screen.queryByTestId("access-banner")).not.toBeInTheDocument();
   });
 });

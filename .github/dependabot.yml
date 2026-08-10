@@ -4,3 +4,31 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # The Vite toolchain (vite + vitest + @vitest/coverage-v8 +
+      # @vitejs/plugin-react) must be bumped together — plugin-react 6.x and
+      # vitest 4.x require Vite 8, while this repo is still on Vite 5. A
+      # major bump on any one of these breaks `npm ci` / `vite build` (see
+      # PR #58). Defer them until the deliberate Vite 5→8 migration pass.
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitest/coverage-v8"
+        update-types: ["version-update:semver-major"]
+      # Tailwind v4 moved the PostCSS plugin out of the main package (into
+      # @tailwindcss/postcss) and dropped the v3 @tailwind directives; this
+      # repo's postcss.config.js / index.css are still v3 (PR #69 merged the
+      # 4.3.3 bump and broke `vite build` on fresh installs). Defer the major
+      # until a deliberate v4 migration pass.
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
+      # Express 5 and dotenv 17 are major-version bumps that dependabot opened
+      # alongside the tailwind one; treat them as a deliberate migration, not
+      # piecemeal auto-merges (CI today covers server tests only).
+      - dependency-name: "express"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "dotenv"
+        update-types: ["version-update:semver-major"]

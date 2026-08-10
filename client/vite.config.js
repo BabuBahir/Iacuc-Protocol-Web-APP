@@ -28,6 +28,11 @@ export default defineConfig({
     // exceed the 5s default under parallel-file CPU contention; 15s gives
     // headroom while still failing genuinely hung tests.
     testTimeout: 15000,
+    // Process CSS through Vite's postcss pipeline (tailwind) and inject it
+    // into the jsdom document. Without this, CSS imports are stubbed and a
+    // broken tailwind/postcss config passes every unit test silently — see
+    // styles.test.tsx, which guards the CSS bundle from that exact trap.
+    css: true,
     coverage: {
       exclude: [
         "*.config.js",

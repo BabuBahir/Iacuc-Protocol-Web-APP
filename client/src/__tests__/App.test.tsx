@@ -1,6 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import App from "../App";
 
 vi.mock("../pages/ListPage", () => ({ default: () => <div>ListPage</div> }));
@@ -9,6 +9,8 @@ vi.mock("../pages/CreatePage", () => ({ default: () => <div>CreatePage</div> }))
 vi.mock("../pages/ApplicationPage", () => ({ default: () => <div>ApplicationPage</div> }));
 vi.mock("../pages/AdminPage", () => ({ default: () => <div>AdminPage</div> }));
 vi.mock("../pages/CommitteePage", () => ({ default: () => <div>CommitteePage</div> }));
+vi.mock("../pages/ReportsPage", () => ({ default: () => <div>ReportsPage</div> }));
+vi.mock("../pages/RegisterPage", () => ({ default: () => <div>RegisterPage</div> }));
 
 function renderAt(path: string) {
   return render(
@@ -47,6 +49,16 @@ describe("App routing", () => {
   test("renders the admin page at /admin", () => {
     renderAt("/admin");
     expect(screen.getByText("AdminPage")).toBeInTheDocument();
+  });
+
+  test("renders the reports page at /reports", () => {
+    renderAt("/reports");
+    expect(screen.getByText("ReportsPage")).toBeInTheDocument();
+  });
+
+  test("renders the register page at /register", () => {
+    renderAt("/register");
+    expect(screen.getByText("RegisterPage")).toBeInTheDocument();
   });
 
   test("renders a not-found message for unknown paths", () => {

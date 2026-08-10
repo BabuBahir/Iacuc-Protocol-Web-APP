@@ -1,9 +1,10 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import CommitteePage from "../CommitteePage";
 import { api as realApi } from "../../api";
+import { setActingAs } from "../../identity";
 import type {
   CommitteeProtocol,
   CommitteeTally,
@@ -58,6 +59,7 @@ function renderCommitteePage() {
 describe("CommitteePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   test("shows a loading state before data resolves", () => {
@@ -387,5 +389,31 @@ describe("CommitteePage", () => {
 
     await user.type(screen.getByPlaceholderText("Add section feedback…"), "please expand");
     expect(screen.getByRole("button", { name: "Add comment" })).toBeEnabled();
+  });
+});
+
+describe("CommitteePage — committee access banner", () => {
+  function renderWithActingAs(actingAs: { personnelId: number; name: string; roleName: string }) {
+    setActingAs(actingAs);
+    api.listCommitteeProtocols.mockResolvedValue([SAMPLE_PROTOCOL]);
+    api.listVoters.mockResolvedValue(SAMPLE_VOTERS);
+    renderCommitteePage();
+    return waitFor(() => expect(screen.getByText("IACUC-2026-0142")).toBeInTheDocument());
+  }
+
+  test("shows a notice for a non-committee persona", async () => {
+    await renderWithActingAs({ personnelId: 9, name: "Dr. Bench Scientist", roleName: "Principal Investigator" });
+    expect(screen.getByTestId("access-banner")).toBeInTheDocument();
+    expect(screen.getByText(/Committee members only/)).toBeInTheDocument();
+  });
+
+  test("hides the notice for a committee-eligible persona", async () => {
+    await renderWithActingAs({ personnelId: 1, name: "Dr. Priya Nair", roleName: "Attending Veterinarian" });
+    expect(screen.queryByTestId("access-banner")).not.toBeInTheDocument();
+  });
+
+  test("hides the notice for office staff even when not on the voter list", async () => {
+    await renderWithActingAs({ personnelId: 99, name: "Dr. Coordinator", roleName: "IACUC Coordinator" });
+    expect(screen.queryByTestId("access-banner")).not.toBeInTheDocument();
   });
 });

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { actAsOffice } from "../utils/acting-as.js";
 
 // The seeded compliance fixtures (see server/src/seed.js):
 //  - Elena Marsh & Sam Whitfield (both on 0142) are fully compliant → green.
@@ -51,8 +52,11 @@ test("opens the compliance modal with training and OHSP data", async ({ page }) 
   await expect(page.getByText("Last reviewed 2026-01-10")).toBeVisible();
 });
 
-test("adds a training record from the compliance modal", async ({ page }) => {
+test("adds a training record from the compliance modal", async ({ page, request }) => {
   // Hana Sato starts with no records; adding one flips her row to Current.
+  // Training writes are an office-only mutation (server/src/access.js), so act
+  // as the seeded IACUC Coordinator before the page loads.
+  await actAsOffice(request, page);
   await page.goto("/admin");
 
   const hanaRow = personnelRow(page, "Dr. Hana Sato");
@@ -73,8 +77,11 @@ test("adds a training record from the compliance modal", async ({ page }) => {
   await expect(hanaRow.getByText("Training: Current")).toBeVisible();
 });
 
-test("sets OHSP clearance from the compliance modal", async ({ page }) => {
+test("sets OHSP clearance from the compliance modal", async ({ page, request }) => {
   // Hana Sato starts with OHSP Pending; clearing her flips the row chip.
+  // OHSP writes are an office-only mutation (server/src/access.js), so act as
+  // the seeded IACUC Coordinator before the page loads.
+  await actAsOffice(request, page);
   await page.goto("/admin");
 
   const hanaRow = personnelRow(page, "Dr. Hana Sato");

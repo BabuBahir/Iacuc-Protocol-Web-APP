@@ -386,6 +386,7 @@ export const USDA_PAIN_LEVELS = ["B", "C", "D", "E"];
 export interface AnimalUsageTransaction {
   id: number;
   protocol_id: string;
+  protocol_title?: string | null;
   transaction_date: string;
   species_strain: string;
   pain_level: string | null;
@@ -475,23 +476,23 @@ export const RRR_LABELS: Record<RrrType, string> = {
 // Surgery procedures get an expanded detail block on the application page.
 export const SURGERY_PROCEDURE_KEYS = ["survival_surgery", "non_survival_surgery"];
 
-// Full procedure checklist keys (mirrors server PROCEDURE_KEYS), used to label
-// usage-register transactions.
+// Full procedure checklist keys (mirrors server PROCEDURE_KEYS in
+// protocol-form.js), used to label usage-register transactions.
 export const PROCEDURE_KEYS = [
   "breeding",
-  "animal_id_methods",
+  "animal_id",
   "anesthesia",
   "blood_collection",
   "injections",
-  "experimental_substance_exposure",
-  "non_pharma_grade_compounds",
-  "prolonged_restraint_devices",
-  "animal_pain_distress",
+  "exposure_substance",
+  "non_pharma_compounds",
+  "prolonged_restraint",
+  "pain_distress",
   "non_survival_surgery",
-  "tissue_collection_after_euthanasia",
+  "tissue_collection",
   "survival_surgery",
-  "illness_disease_endpoint",
-  "special_diets_food_water_restriction",
+  "illness_endpoint",
+  "special_diets",
   "offsite_work",
 ];
 
@@ -780,6 +781,64 @@ export interface AuditQuery {
   offset?: number;
 }
 
+// ---- AAALAC-style compliance reports (Roadmap item 9) ----
+
+export interface RestraintBySpeciesRow {
+  protocol_id: string;
+  species: string | null;
+  restraint_method: string | null;
+}
+
+export interface EuthanasiaBySpeciesRow {
+  protocol_id: string;
+  species: string | null;
+  method: string;
+  dose: string | null;
+  route: string | null;
+}
+
+export interface SurgeryLocationRow {
+  protocol_id: string;
+  species: string | null;
+  surgery_type: "Survival surgery" | "Non-survival surgery";
+  location: string;
+}
+
+export interface MultipleMajorRecoverySurgeryRow {
+  protocol_id: string;
+  species: string | null;
+  experiment: string;
+  description: string | null;
+}
+
+export interface AnalgesicAnestheticDrugRow {
+  protocol_id: string;
+  species: string | null;
+  reason_for_use: string | null;
+  drug: string;
+  dose: string | null;
+  route: string | null;
+}
+
+export interface UseLocationBySpeciesRow {
+  location: string;
+  species: string | null;
+  protocol_count: number;
+  protocol_ids: string[];
+}
+
+export interface ReportsPayload {
+  generated_at: string;
+  reports: {
+    restraint_by_species: RestraintBySpeciesRow[];
+    euthanasia_by_species: EuthanasiaBySpeciesRow[];
+    surgery_locations: SurgeryLocationRow[];
+    multiple_major_recovery_surgery: MultipleMajorRecoverySurgeryRow[];
+    analgesic_anesthetic_drugs: AnalgesicAnestheticDrugRow[];
+    use_locations_by_species: UseLocationBySpeciesRow[];
+  };
+}
+
 // ---- constants shared across the UI ----
 
 export const PAIN_CATEGORIES = ["Category A", "Category B", "Category C", "Category D", "Category E"];
@@ -787,3 +846,100 @@ export const PAIN_CATEGORIES = ["Category A", "Category B", "Category C", "Categ
 export const PROTOCOL_TYPES = ["Research", "Teaching", "Breeding", "Animal care / maintenance", "Other"];
 
 export const STAGES = ["Draft", "Submitted", "Veterinary Review", "IACUC Review", "Approved", "Active"];
+
+// ---- filter-builder (Roadmap item 8) ----
+// Mirrors server/src/routes/filter.js: a clause is { field, op, value } and
+// the allowed fields/operators are whitelisted server-side. The client keeps
+// its own field-definition metadata for rendering the builder UI.
+
+export type FilterOperator =
+  | "eq"
+  | "neq"
+  | "contains"
+  | "starts_with"
+  | "ends_with"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte";
+
+export interface FilterClause {
+  field: string;
+  op: FilterOperator;
+  value: string;
+}
+
+export interface SavedFilter {
+  id: number;
+  name: string;
+  search_type: "protocol" | "register";
+  filters: FilterClause[];
+  created_at: string;
+}
+
+export interface FilterFieldDef {
+  key: string;
+  label: string;
+  type: "text" | "number" | "date" | "enum";
+  values?: string[];
+}
+
+// Text fields allow fuzzy operators; enums only eq/neq; numbers/dates add
+// gt/gte/lt/lte — matching operatorsFor() in filter.js.
+export const FILTER_OPERATORS: { key: FilterOperator; label: string }[] = [
+  { key: "eq", label: "is" },
+  { key: "neq", label: "is not" },
+  { key: "contains", label: "contains" },
+  { key: "starts_with", label: "starts with" },
+  { key: "ends_with", label: "ends with" },
+  { key: "gt", label: "> greater than" },
+  { key: "gte", label: "≥ at least" },
+  { key: "lt", label: "< less than" },
+  { key: "lte", label: "≤ at most" },
+];
+
+export const TEXT_FILTER_OPERATORS: FilterOperator[] = ["eq", "neq", "contains", "starts_with", "ends_with"];
+export const ENUM_FILTER_OPERATORS: FilterOperator[] = ["eq", "neq"];
+export const NUMERIC_FILTER_OPERATORS: FilterOperator[] = ["eq", "neq", "gt", "gte", "lt", "lte"];
+
+export function operatorsFor(def: FilterFieldDef): FilterOperator[] {
+  if (def.type === "text") return TEXT_FILTER_OPERATORS;
+  if (def.type === "enum") return ENUM_FILTER_OPERATORS;
+  return NUMERIC_FILTER_OPERATORS;
+}
+
+// Client mirror of PROTOCOL_FILTER_FIELDS in server/src/routes/filter.js.
+export const PROTOCOL_FILTER_FIELD_DEFS: FilterFieldDef[] = [
+  { key: "id", label: "Protocol number", type: "text" },
+  { key: "title", label: "Title", type: "text" },
+  { key: "pi", label: "Principal investigator", type: "text" },
+  { key: "species", label: "Species", type: "text" },
+  { key: "status", label: "Status", type: "enum", values: STAGES },
+  { key: "pain_category", label: "Pain category", type: "enum", values: PAIN_CATEGORIES },
+  { key: "protocol_type", label: "Protocol type", type: "enum", values: PROTOCOL_TYPES },
+  { key: "animals", label: "Animals", type: "number" },
+  { key: "submitted", label: "Submitted date", type: "date" },
+  { key: "expires", label: "Expiration date", type: "date" },
+];
+
+export function protocolFieldDef(key: string): FilterFieldDef | undefined {
+  return PROTOCOL_FILTER_FIELD_DEFS.find(d => d.key === key);
+}
+
+// Client mirror of REGISTER_FILTER_FIELDS in server/src/routes/filter.js.
+// The procedure enum mirrors the server's PROCEDURE_KEYS whitelist exactly, so
+// a saved register filter can never fail server-side validation.
+export const REGISTER_FILTER_FIELD_DEFS: FilterFieldDef[] = [
+  { key: "protocol_id", label: "Protocol number", type: "text" },
+  { key: "transaction_date", label: "Transaction date", type: "date" },
+  { key: "species_strain", label: "Species / strain", type: "text" },
+  { key: "pain_level", label: "Pain level", type: "enum", values: [...USDA_PAIN_LEVELS] },
+  { key: "quantity", label: "Quantity", type: "number" },
+  { key: "type", label: "Type", type: "enum", values: ["order", "use"] },
+  { key: "procedure_key", label: "Procedure", type: "enum", values: [...PROCEDURE_KEYS] },
+  { key: "notes", label: "Notes", type: "text" },
+];
+
+export function registerFieldDef(key: string): FilterFieldDef | undefined {
+  return REGISTER_FILTER_FIELD_DEFS.find(d => d.key === key);
+}

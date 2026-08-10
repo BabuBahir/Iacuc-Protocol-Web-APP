@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { actAsOffice } from "../utils/acting-as.js";
 
 test("admin page lists seeded species, roles, and personnel", async ({ page }) => {
   await page.goto("/admin");
@@ -11,16 +12,25 @@ test("admin page lists seeded species, roles, and personnel", async ({ page }) =
   await expect(page.getByText("Dr. Priya Nair").first()).toBeVisible();
 });
 
-test("adding a species makes it appear in the lookup list", async ({ page }) => {
+test("adding a species makes it appear in the lookup list", async ({ page, request }) => {
+  // Species creation is an office-only mutation (server/src/access.js), so act
+  // as the seeded IACUC Coordinator before the page loads.
+  await actAsOffice(request, page);
   await page.goto("/admin");
 
   await page.getByPlaceholder("e.g. Guinea pig").fill("Alpaca");
   await page.getByRole("button", { name: "Add" }).first().click();
 
-  await expect(page.getByText("Alpaca")).toBeVisible();
+  // .first(): the species row renders above the audit log, and the audit
+  // panel's slow on-mount fetch can resolve after this add and include a
+  // species.created entry whose diff also contains "Alpaca".
+  await expect(page.getByText("Alpaca").first()).toBeVisible();
 });
 
-test("adding a personnel member and seeing them in the list", async ({ page }) => {
+test("adding a personnel member and seeing them in the list", async ({ page, request }) => {
+  // Personnel creation is an office-only mutation (server/src/access.js), so
+  // act as the seeded IACUC Coordinator before the page loads.
+  await actAsOffice(request, page);
   await page.goto("/admin");
 
   await page.getByPlaceholder("Full name").fill("Dr. E2E Reviewer");
