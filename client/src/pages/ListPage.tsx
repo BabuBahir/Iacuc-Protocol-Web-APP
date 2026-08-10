@@ -21,7 +21,7 @@ import StatusBadge from "../components/StatusBadge";
 import FilterBuilder from "../components/FilterBuilder";
 import { api } from "../api";
 import { downloadCsv } from "../utils/csv";
-import type { Protocol, SavedFilter, Summary, FilterClause } from "../types";
+import type { Protocol, SavedFilter, Summary, FilterClause, AuditEntry } from "../types";
 import { PROTOCOL_FILTER_FIELD_DEFS, protocolFieldDef } from "../types";
 
 interface MetricMeta {
@@ -44,6 +44,7 @@ export default function ListPage() {
   const navigate = useNavigate();
   const [protocols, setProtocols] = useState<Protocol[]>([]);
   const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY);
+  const [activity, setActivity] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<FilterClause[]>([]);
   const [showFilters, setShowFilters] = useState(false);
@@ -54,12 +55,67 @@ export default function ListPage() {
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const formatActivity = (audit: AuditEntry[]): string[] => {
+    return audit.map(entry => {
+      const date = new Date(entry.created_at).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+
+      const id = entry.entity_id || entry.entity_type;
+      let message = `${id} updated`;
+      const d = entry.details as any;
+
+      switch (entry.action) {
+        case "protocol.created":
+          message = `${id} created by ${entry.actor}`;
+          break;
+        case "protocol.updated":
+          if (d?.status) {
+            message = `${id} status changed to ${d.status[1]}`;
+          } else {
+            message = `${id} updated by ${entry.actor}`;
+          }
+          break;
+        case "vote.cast":
+          message = `${id} vote cast: ${d?.vote} by ${entry.actor}`;
+          break;
+        case "comment.added":
+          message = `${id} comment added by ${entry.actor}`;
+          break;
+        case "assignment.updated":
+          message = `${id} assigned to ${d?.reviewer} as ${d?.role}`;
+          break;
+        case "review_method.updated":
+          message = `${id} review method set to ${d?.review_method}`;
+          break;
+        case "amendment.created":
+          message = `${id} amendment submitted`;
+          break;
+        case "renewal.created":
+          message = `${id} renewal submitted`;
+          break;
+        case "transfer.created":
+          message = `${id} transfer requested`;
+          break;
+      }
+
+      return `${message} — ${date}`;
+    });
+  };
+
   const load = () => {
     setLoading(true);
-    Promise.all([api.listProtocols(query, filters), api.getSummary()])
-      .then(([rows, summaryData]) => {
+    Promise.all([
+      api.listProtocols(query, filters),
+      api.getSummary(),
+      api.getAuditLog({ limit: 5 })
+    ])
+      .then(([rows, summaryData, auditData]) => {
         setProtocols(rows);
         setSummary(summaryData);
+        setActivity(formatActivity(auditData));
         setError(null);
       })
       .catch(err => setError(err instanceof Error ? err.message : String(err)))
@@ -342,13 +398,14 @@ export default function ListPage() {
             Recent committee activity
           </div>
           <div className="divide-y divide-gray-100">
-            {[
-              "IACUC-2026-0139 approved by full committee — Jun 18, 2026",
-              "IACUC-2025-0091 flagged for 60-day expiration reminder — Jul 10, 2026",
-              "IACUC-2026-0142 assigned to full committee review — Jul 10, 2026",
-            ].map(row => (
+            {activity.map(row => (
               <div key={row} className="px-4 py-2.5 text-[13px] text-gray-700">{row}</div>
             ))}
+            {activity.length === 0 && !loading && (
+              <div className="px-4 py-8 text-center text-gray-400 text-[13px]">
+                No recent activity.
+              </div>
+            )}
           </div>
         </div>
       </div>
