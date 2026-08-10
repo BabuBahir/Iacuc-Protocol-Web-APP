@@ -1,7 +1,7 @@
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
-import { resetTables } from "./helpers.js";
+import { resetTables, OFFICE_ACTOR, seedOfficeActor } from "./helpers.js";
 
 process.env.DB_PATH = ":memory:";
 const { createApp } = await import("../src/app.js");
@@ -104,11 +104,15 @@ describe("transfers — queue", () => {
 
   test("GET filters by status", async () => {
     insertProtocol();
+    seedOfficeActor(db);
     const pid = insertPersonnel();
     const created = await request(app)
       .post("/api/protocols/TEST-0001/transfers")
       .send({ to_personnel_id: pid, reason: "PI is relocating." });
-    await request(app).patch(`/api/transfers/${created.body.id}`).send({ status: "Approved" });
+    await request(app)
+      .patch(`/api/transfers/${created.body.id}`)
+      .set("X-Actor", OFFICE_ACTOR)
+      .send({ status: "Approved" });
 
     const pending = await request(app).get("/api/transfers?status=Pending");
     assert.equal(pending.body.length, 0);
@@ -182,7 +186,14 @@ describe("transfers — bulk", () => {
 });
 
 describe("transfers — decision", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(() => {
+    resetTables(db);
+    seedOfficeActor(db); // deciding a transfer is an IACUC-office action (gated)
+  });
+
+  // Office persona acts via the X-Actor header; body carries just the status.
+  const decide = (id, status) =>
+    request(app).patch(`/api/transfers/${id}`).set("X-Actor", OFFICE_ACTOR).send({ status });
 
   test("approving reassigns the protocol PI, the Personnel label, and adds an approval-history entry", async () => {
     insertProtocol();
@@ -194,7 +205,7 @@ describe("transfers — decision", () => {
       .post("/api/protocols/TEST-0001/transfers")
       .send({ to_personnel_id: pid, reason: "PI is relocating." });
 
-    const res = await request(app).patch(`/api/transfers/${created.body.id}`).send({ status: "Approved" });
+    const res = await decide(created.body.id, "Approved");
     assert.equal(res.status, 200);
     assert.equal(res.body.status, "Approved");
     assert.ok(res.body.decision_date);
@@ -213,7 +224,7 @@ describe("transfers — decision", () => {
     const created = await request(app)
       .post("/api/protocols/TEST-0001/transfers")
       .send({ to_personnel_id: pid, reason: "PI is relocating." });
-    const res = await request(app).patch(`/api/transfers/${created.body.id}`).send({ status: "Approved" });
+    const res = await decide(created.body.id, "Approved");
     assert.equal(res.status, 200);
     assert.equal(db.prepare("SELECT pi FROM protocols WHERE id = 'TEST-0001'").get().pi, "Dr. New PI");
   });
@@ -224,7 +235,7 @@ describe("transfers — decision", () => {
     const created = await request(app)
       .post("/api/protocols/TEST-0001/transfers")
       .send({ to_personnel_id: pid, reason: "Requested by the lab manager." });
-    const res = await request(app).patch(`/api/transfers/${created.body.id}`).send({ status: "Rejected" });
+    const res = await decide(created.body.id, "Rejected");
     assert.equal(res.status, 200);
     assert.equal(res.body.status, "Rejected");
     assert.equal(db.prepare("SELECT pi FROM protocols WHERE id = 'TEST-0001'").get().pi, "Dr. Test");
@@ -236,7 +247,7 @@ describe("transfers — decision", () => {
     const created = await request(app)
       .post("/api/protocols/TEST-0001/transfers")
       .send({ to_personnel_id: pid, reason: "X" });
-    const res = await request(app).patch(`/api/transfers/${created.body.id}`).send({ status: "Filed" });
+    const res = await decide(created.body.id, "Filed");
     assert.equal(res.status, 400);
   });
 
@@ -246,14 +257,14 @@ describe("transfers — decision", () => {
     const created = await request(app)
       .post("/api/protocols/TEST-0001/transfers")
       .send({ to_personnel_id: pid, reason: "X" });
-    await request(app).patch(`/api/transfers/${created.body.id}`).send({ status: "Rejected" });
-    const res = await request(app).patch(`/api/transfers/${created.body.id}`).send({ status: "Approved" });
+    await decide(created.body.id, "Rejected");
+    const res = await decide(created.body.id, "Approved");
     assert.equal(res.status, 400);
     assert.match(res.body.error, /already been decided/);
   });
 
   test("404 for an unknown transfer", async () => {
-    const res = await request(app).patch("/api/transfers/9999").send({ status: "Approved" });
+    const res = await decide(9999, "Approved");
     assert.equal(res.status, 404);
   });
 });

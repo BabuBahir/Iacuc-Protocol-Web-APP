@@ -923,3 +923,71 @@ two `multiple_surgical_events = 1` experiments. Keep those seeded if you
 touch the seed; the reports spec asserts on them. The client test stubs
 `URL.createObjectURL`/`revokeObjectURL` + `HTMLAnchorElement.prototype.click`
 to assert the CSV content without a real download.
+
+### Acting-as access banners — Aug 2026
+
+The admin and committee pages now render an amber `AccessBanner`
+(`client/src/components/AccessBanner.tsx`) when the acting persona (or lack
+of one) isn't who those pages are for. It's a **courtesy signal, not access
+control** — this app still has no auth (see §3.3), and the banner never
+disables anything; it just tells a researcher who wandered onto the admin
+page to pick an office persona. Eligibility is decided entirely client-side
+from `getActingAs()` (`personnelId` + `roleName` only — the persona record
+doesn't carry an `is_committee` flag):
+
+- **Admin page** (`mode="office"`): allowed only when the persona's
+  `roleName` is in `OFFICE_ROLES = ["IACUC Coordinator", "IACUC Chair"]`
+  (mirrors server-side `IACUC_OFFICE_ROLES` in `committee.js`/`admin.js`).
+- **Committee page** (`mode="committee"`): allowed when the persona is an
+  office role **or** its `personnelId` is in the committee-eligible voter
+  list — that's why `CommitteePage` passes `committeePersonnelIds={voters.map(v => v.id)}`.
+- Anonymous (no persona picked) → banner always shows.
+
+Two things worth remembering if you extend this:
+1. `identity.ts` gained a tiny pub-sub (`onActingAsChange()`, called from
+   `setActingAs()`) so the banner re-renders live when the header's
+   `ActorPicker` changes the persona — localStorage alone gives no change
+   notification, and the pages don't otherwise re-render on persona change.
+2. When asserting on banner text in page tests, the persona **name** also
+   appears in the `ActorPicker` header button, so `getByText(name)` is
+   ambiguous — scope with `within(screen.getByTestId("access-banner"))`
+   (the banner root carries `data-testid="access-banner"`). Same-name
+   collision as the personnel-dropdown-vs-row issue noted in the e2e notes.
+
+### Graduated access + e2e acting-as helper — Aug 2026
+
+The server gained a graduated access gate (`server/src/access.js`): anonymous
+users can read everything and author ordinary protocol content, but governance
+writes need a known persona — committee review (votes/comments) needs a
+committee-eligible role or office, admin CRUD / review assignments / transfer
+& amendment decisions need an office role. Identity resolves (precedence) from
+`X-Actor` → `body.actor` → `personnel_id`/`reported_by`/`auditor_id`, and the
+client attaches `X-Actor` from `getActingAs()` in `api.ts`'s central `request`
+wrapper. This is deliberately *not* auth — a self-declared name still passes.
+
+**e2e**: governance-mutation specs must act as a persona before the page
+loads. `e2e/utils/acting-as.js` exports `actAsOffice(request, page)`, which
+resolves the seeded **Maya Patel** (IACUC Coordinator) and injects
+`iacuc.actingAs` via `addInitScript` (so it's set before the app's own JS runs).
+It's wired into every e2e mutation whose body carries **no identity** (they'd
+401 otherwise): admin species/personnel add, audit species add, compliance
+training/OHSP, and the committee review-method switch. Committee
+vote/assign/comment tests need no helper — their bodies carry
+`personnel_id` (the voter/assignee/commenter), which `resolvePerson` turns
+into the acting identity. Gotchas from building this:
+- The Playwright `request` fixture's default baseURL is the Vite dev server,
+  whose SPA fallback returns index.html for unknown paths; the API also
+  returns an HTML body for unknown routes (Express default 404). Either way
+  `res.json()` throws `Unexpected token '<'`. Hit the API server directly
+  (`http://localhost:4100/api/...`, absolute URL) — same pattern as
+  `dashboard.spec.js`.
+- There is **no bare `GET /api/personnel` list route** — the persona list is
+  `GET /api/admin/personnel`. Don't guess the path.
+- The committee review-method select (`changeMethod` in `CommitteePage.tsx`)
+  is **optimistic**: it sets local state before the PATCH and never reverts on
+  error, so a 401'd review-method switch test passes spuriously. That's why
+  the review-method e2e test needs `actAsOffice` — without it the assertion
+  only proves UI optimism, not a server write.
+- `e2e/storageState.json` deliberately holds no persona (just the disclaimer
+  dismiss); per-test `addInitScript` is the only place a persona is set, so
+  specs stay independent.

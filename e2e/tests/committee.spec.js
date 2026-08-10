@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { actAsOffice } from "../utils/acting-as.js";
 
 test("committee page lists protocols in review with method, assignments, and comments", async ({ page }) => {
   await page.goto("/committee");
@@ -36,7 +37,12 @@ test("assigns a reviewer and posts a section comment", async ({ page }) => {
   await expect(card.getByText(/Clarify the humane endpoint criteria/)).toBeVisible();
 });
 
-test("switches a protocol's review method between FCR and DMR", async ({ page }) => {
+test("switches a protocol's review method between FCR and DMR", async ({ page, request }) => {
+  // Review-method is office-gated (server/src/access.js) and its body carries no
+  // identity, unlike votes/comments/assignments (which resolve the persona from
+  // body personnel_id). Without a persona the PATCH 401s and the select's
+  // optimistic state makes this test pass spuriously — so act as the office.
+  await actAsOffice(request, page);
   await page.goto("/committee");
 
   const card = page.locator(".rounded-lg").filter({ hasText: "IACUC-2026-0150" });

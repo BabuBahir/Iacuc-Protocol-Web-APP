@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeEach } from "vitest";
-import { getActingAs, setActingAs, ACTOR_HEADER_NAME } from "../identity";
+import { getActingAs, setActingAs, onActingAsChange, ACTOR_HEADER_NAME } from "../identity";
+import type { ActingAs } from "../identity";
 
 describe("identity.ts", () => {
   beforeEach(() => {
@@ -19,6 +20,21 @@ describe("identity.ts", () => {
     setActingAs({ personnelId: 5, name: "Dr. Test", roleName: "Committee Member" });
     setActingAs(null);
     expect(getActingAs()).toBeNull();
+  });
+
+  test("onActingAsChange notifies listeners on change and unsubscribe stops it", () => {
+    const seen: Array<ActingAs | null> = [];
+    const unsubscribe = onActingAsChange(() => seen.push(getActingAs()));
+
+    setActingAs({ personnelId: 1, name: "Dr. A", roleName: "PI" });
+    setActingAs(null);
+    unsubscribe();
+    setActingAs({ personnelId: 2, name: "Dr. B", roleName: "PI" });
+
+    expect(seen).toEqual([
+      { personnelId: 1, name: "Dr. A", roleName: "PI" },
+      null,
+    ]);
   });
 
   test("survives a fresh getActingAs call after being set (simulates a page reload)", () => {

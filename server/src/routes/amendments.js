@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "../db.js";
 import { requireProtocol } from "./protocol-form.js";
 import { audit, resolveActor } from "../audit.js";
+import { requireOfficeRole } from "../access.js";
 
 // Amendments & annual renewals (Domain B).
 //
@@ -139,6 +140,7 @@ router.post("/:id/amendments/:amendmentId/changes", (req, res) => {
 // Approve (→ creates a new protocol version with its own approval/expiration
 // dates) or reject a pending amendment.
 router.patch("/:id/amendments/:amendmentId", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   if (!requireProtocol(req, res)) return;
   const amendment = requireAmendment(req, res);
   if (!amendment) return;
@@ -233,6 +235,7 @@ router.post("/:id/renewals", (req, res) => {
 // PATCH /api/protocols/:id/renewals/:renewalId  { status, approved_until? }
 // Approve (→ new protocol version + updated expiration) or reject a renewal.
 router.patch("/:id/renewals/:renewalId", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   if (!requireProtocol(req, res)) return;
   const renewal = db.prepare("SELECT * FROM renewals WHERE id = ? AND protocol_id = ?")
     .get(Number(req.params.renewalId), req.params.id);

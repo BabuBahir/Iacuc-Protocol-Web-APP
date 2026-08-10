@@ -1,7 +1,7 @@
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
-import { resetTables } from "./helpers.js";
+import { resetTables, OFFICE_ACTOR, seedOfficeActor } from "./helpers.js";
 
 process.env.DB_PATH = ":memory:";
 const { createApp } = await import("../src/app.js");
@@ -29,6 +29,10 @@ async function startAmendment(reason = "Add a strain.") {
   assert.equal(res.status, 201);
   return res.body;
 }
+
+// Deciding an amendment/renewal is an IACUC-office action (gated).
+const decide = (url, body) =>
+  request(app).patch(url).set("X-Actor", OFFICE_ACTOR).send(body);
 
 describe("amendments — listing & creation", () => {
   beforeEach(() => resetTables(db));
@@ -70,7 +74,10 @@ describe("amendments — listing & creation", () => {
 });
 
 describe("amendments — changes", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(() => {
+    resetTables(db);
+    seedOfficeActor(db); // the "change after decision" guard needs a decided (office-gated) amendment
+  });
 
   test("records a field-level change on a pending amendment", async () => {
     insertProtocol();
@@ -95,9 +102,7 @@ describe("amendments — changes", () => {
   test("rejects a change once the amendment is decided", async () => {
     insertProtocol();
     const am = await startAmendment();
-    await request(app)
-      .patch(`/api/protocols/TEST-0001/amendments/${am.id}`)
-      .send({ status: "Approved", expiration_date: "2027-01-01" });
+    await decide(`/api/protocols/TEST-0001/amendments/${am.id}`, { status: "Approved", expiration_date: "2027-01-01" });
 
     const res = await request(app)
       .post(`/api/protocols/TEST-0001/amendments/${am.id}/changes`)
@@ -141,14 +146,15 @@ describe("GET /api/protocols/:id/amendments/:amendmentId", () => {
 });
 
 describe("amendments — decision", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(() => {
+    resetTables(db);
+    seedOfficeActor(db); // approving/rejecting an amendment is an office action (gated)
+  });
 
   test("approving creates a new protocol version and updates expiration", async () => {
     insertProtocol();
     const am = await startAmendment();
-    const res = await request(app)
-      .patch(`/api/protocols/TEST-0001/amendments/${am.id}`)
-      .send({ status: "Approved", expiration_date: "2029-07-01" });
+    const res = await decide(`/api/protocols/TEST-0001/amendments/${am.id}`, { status: "Approved", expiration_date: "2029-07-01" });
     assert.equal(res.status, 200);
     assert.equal(res.body.status, "Approved");
 
@@ -163,7 +169,7 @@ describe("amendments — decision", () => {
   test("approving without an explicit expiration defaults to +365 days", async () => {
     insertProtocol();
     const am = await startAmendment();
-    await request(app).patch(`/api/protocols/TEST-0001/amendments/${am.id}`).send({ status: "Approved" });
+    await decide(`/api/protocols/TEST-0001/amendments/${am.id}`, { status: "Approved" });
     const versions = await request(app).get("/api/protocols/TEST-0001/versions");
     assert.equal(versions.body.length, 1);
     const exp = new Date(versions.body[0].expiration_date);
@@ -175,9 +181,9 @@ describe("amendments — decision", () => {
   test("version numbers increment for consecutive approvals", async () => {
     insertProtocol();
     const first = await startAmendment("First.");
-    await request(app).patch(`/api/protocols/TEST-0001/amendments/${first.id}`).send({ status: "Approved", expiration_date: "2027-01-01" });
+    await decide(`/api/protocols/TEST-0001/amendments/${first.id}`, { status: "Approved", expiration_date: "2027-01-01" });
     const second = await startAmendment("Second.");
-    await request(app).patch(`/api/protocols/TEST-0001/amendments/${second.id}`).send({ status: "Approved", expiration_date: "2027-01-01" });
+    await decide(`/api/protocols/TEST-0001/amendments/${second.id}`, { status: "Approved", expiration_date: "2027-01-01" });
 
     const versions = await request(app).get("/api/protocols/TEST-0001/versions");
     assert.deepEqual(versions.body.map(v => v.version_number), ["0002", "0001"]);
@@ -186,7 +192,7 @@ describe("amendments — decision", () => {
   test("rejecting an amendment does not create a version", async () => {
     insertProtocol();
     const am = await startAmendment();
-    await request(app).patch(`/api/protocols/TEST-0001/amendments/${am.id}`).send({ status: "Rejected" });
+    await decide(`/api/protocols/TEST-0001/amendments/${am.id}`, { status: "Rejected" });
 
     const versions = await request(app).get("/api/protocols/TEST-0001/versions");
     assert.equal(versions.body.length, 0);
@@ -196,22 +202,25 @@ describe("amendments — decision", () => {
   test("rejects an invalid status", async () => {
     insertProtocol();
     const am = await startAmendment();
-    const res = await request(app).patch(`/api/protocols/TEST-0001/amendments/${am.id}`).send({ status: "Filed" });
+    const res = await decide(`/api/protocols/TEST-0001/amendments/${am.id}`, { status: "Filed" });
     assert.equal(res.status, 400);
   });
 
   test("rejects deciding an already-decided amendment", async () => {
     insertProtocol();
     const am = await startAmendment();
-    await request(app).patch(`/api/protocols/TEST-0001/amendments/${am.id}`).send({ status: "Rejected" });
-    const res = await request(app).patch(`/api/protocols/TEST-0001/amendments/${am.id}`).send({ status: "Approved" });
+    await decide(`/api/protocols/TEST-0001/amendments/${am.id}`, { status: "Rejected" });
+    const res = await decide(`/api/protocols/TEST-0001/amendments/${am.id}`, { status: "Approved" });
     assert.equal(res.status, 400);
     assert.match(res.body.error, /already been decided/);
   });
 });
 
 describe("renewals", () => {
-  beforeEach(() => resetTables(db));
+  beforeEach(() => {
+    resetTables(db);
+    seedOfficeActor(db); // approving/rejecting a renewal is an office action (gated)
+  });
 
   test("GET and POST a continuing review", async () => {
     insertProtocol();
@@ -241,7 +250,7 @@ describe("renewals", () => {
   test("approving requires approved_until", async () => {
     insertProtocol();
     const renewal = await request(app).post("/api/protocols/TEST-0001/renewals").send({ type: "Continuing Review" });
-    const res = await request(app).patch(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`).send({ status: "Approved" });
+    const res = await decide(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`, { status: "Approved" });
     assert.equal(res.status, 400);
     assert.match(res.body.error, /approved_until is required/);
   });
@@ -249,9 +258,7 @@ describe("renewals", () => {
   test("approving a continuing review creates a version and updates expiration", async () => {
     insertProtocol();
     const renewal = await request(app).post("/api/protocols/TEST-0001/renewals").send({ type: "Continuing Review" });
-    const res = await request(app)
-      .patch(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`)
-      .send({ status: "Approved", approved_until: "2029-09-01" });
+    const res = await decide(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`, { status: "Approved", approved_until: "2029-09-01" });
     assert.equal(res.status, 200);
     assert.equal(res.body.approved_until, "2029-09-01");
 
@@ -264,9 +271,7 @@ describe("renewals", () => {
   test("approving a de novo review is recorded with the De Novo source", async () => {
     insertProtocol();
     const renewal = await request(app).post("/api/protocols/TEST-0001/renewals").send({ type: "De Novo Review" });
-    await request(app)
-      .patch(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`)
-      .send({ status: "Approved", approved_until: "2029-09-01" });
+    await decide(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`, { status: "Approved", approved_until: "2029-09-01" });
     const versions = await request(app).get("/api/protocols/TEST-0001/versions");
     assert.equal(versions.body[0].source, "De Novo Document");
   });
@@ -274,7 +279,7 @@ describe("renewals", () => {
   test("rejecting a renewal does not create a version", async () => {
     insertProtocol();
     const renewal = await request(app).post("/api/protocols/TEST-0001/renewals").send({ type: "Continuing Review" });
-    await request(app).patch(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`).send({ status: "Rejected" });
+    await decide(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`, { status: "Rejected" });
     const versions = await request(app).get("/api/protocols/TEST-0001/versions");
     assert.equal(versions.body.length, 0);
   });
@@ -282,19 +287,15 @@ describe("renewals", () => {
   test("rejects an invalid renewal status", async () => {
     insertProtocol();
     const renewal = await request(app).post("/api/protocols/TEST-0001/renewals").send({ type: "Continuing Review" });
-    const res = await request(app)
-      .patch(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`)
-      .send({ status: "Filed" });
+    const res = await decide(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`, { status: "Filed" });
     assert.equal(res.status, 400);
   });
 
   test("rejects deciding an already-decided renewal", async () => {
     insertProtocol();
     const renewal = await request(app).post("/api/protocols/TEST-0001/renewals").send({ type: "Continuing Review" });
-    await request(app).patch(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`).send({ status: "Rejected" });
-    const res = await request(app)
-      .patch(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`)
-      .send({ status: "Approved", approved_until: "2029-09-01" });
+    await decide(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`, { status: "Rejected" });
+    const res = await decide(`/api/protocols/TEST-0001/renewals/${renewal.body.id}`, { status: "Approved", approved_until: "2029-09-01" });
     assert.equal(res.status, 400);
     assert.match(res.body.error, /already been decided/);
   });
@@ -302,9 +303,7 @@ describe("renewals", () => {
   test("404s for a renewal on the wrong protocol", async () => {
     insertProtocol();
     const renewal = await request(app).post("/api/protocols/TEST-0001/renewals").send({ type: "Continuing Review" });
-    const res = await request(app)
-      .patch(`/api/protocols/OTHER/renewals/${renewal.body.id}`)
-      .send({ status: "Rejected" });
+    const res = await decide(`/api/protocols/OTHER/renewals/${renewal.body.id}`, { status: "Rejected" });
     assert.equal(res.status, 404);
   });
 });

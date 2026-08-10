@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "../db.js";
 import { requireProtocol } from "./protocol-form.js";
 import { audit, resolveActor } from "../audit.js";
+import { requireOfficeRole } from "../access.js";
 
 // Transfer Ownership (Domain B depth — AGENTS.md §1.1). Transfer is its own
 // approval workflow, not an instant reassignment: a request sits Pending in
@@ -113,6 +114,7 @@ router.post("/protocols/:id/transfers", (req, res) => {
 // Approving reassigns the protocol: protocols.pi + the related_items Personnel
 // label, plus an "Approval history" entry.
 router.patch("/transfers/:id", (req, res) => {
+  if (!requireOfficeRole(req, res)) return;
   const transfer = db.prepare("SELECT * FROM protocol_transfers WHERE id = ?").get(Number(req.params.id));
   if (!transfer) return res.status(404).json({ error: "Transfer request not found" });
   const { status } = req.body || {};
