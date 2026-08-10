@@ -386,6 +386,7 @@ export const USDA_PAIN_LEVELS = ["B", "C", "D", "E"];
 export interface AnimalUsageTransaction {
   id: number;
   protocol_id: string;
+  protocol_title?: string | null;
   transaction_date: string;
   species_strain: string;
   pain_level: string | null;
@@ -475,23 +476,23 @@ export const RRR_LABELS: Record<RrrType, string> = {
 // Surgery procedures get an expanded detail block on the application page.
 export const SURGERY_PROCEDURE_KEYS = ["survival_surgery", "non_survival_surgery"];
 
-// Full procedure checklist keys (mirrors server PROCEDURE_KEYS), used to label
-// usage-register transactions.
+// Full procedure checklist keys (mirrors server PROCEDURE_KEYS in
+// protocol-form.js), used to label usage-register transactions.
 export const PROCEDURE_KEYS = [
   "breeding",
-  "animal_id_methods",
+  "animal_id",
   "anesthesia",
   "blood_collection",
   "injections",
-  "experimental_substance_exposure",
-  "non_pharma_grade_compounds",
-  "prolonged_restraint_devices",
-  "animal_pain_distress",
+  "exposure_substance",
+  "non_pharma_compounds",
+  "prolonged_restraint",
+  "pain_distress",
   "non_survival_surgery",
-  "tissue_collection_after_euthanasia",
+  "tissue_collection",
   "survival_surgery",
-  "illness_disease_endpoint",
-  "special_diets_food_water_restriction",
+  "illness_endpoint",
+  "special_diets",
   "offsite_work",
 ];
 
@@ -923,4 +924,22 @@ export const PROTOCOL_FILTER_FIELD_DEFS: FilterFieldDef[] = [
 
 export function protocolFieldDef(key: string): FilterFieldDef | undefined {
   return PROTOCOL_FILTER_FIELD_DEFS.find(d => d.key === key);
+}
+
+// Client mirror of REGISTER_FILTER_FIELDS in server/src/routes/filter.js.
+// The procedure enum mirrors the server's PROCEDURE_KEYS whitelist exactly, so
+// a saved register filter can never fail server-side validation.
+export const REGISTER_FILTER_FIELD_DEFS: FilterFieldDef[] = [
+  { key: "protocol_id", label: "Protocol number", type: "text" },
+  { key: "transaction_date", label: "Transaction date", type: "date" },
+  { key: "species_strain", label: "Species / strain", type: "text" },
+  { key: "pain_level", label: "Pain level", type: "enum", values: [...USDA_PAIN_LEVELS] },
+  { key: "quantity", label: "Quantity", type: "number" },
+  { key: "type", label: "Type", type: "enum", values: ["order", "use"] },
+  { key: "procedure_key", label: "Procedure", type: "enum", values: [...PROCEDURE_KEYS] },
+  { key: "notes", label: "Notes", type: "text" },
+];
+
+export function registerFieldDef(key: string): FilterFieldDef | undefined {
+  return REGISTER_FILTER_FIELD_DEFS.find(d => d.key === key);
 }

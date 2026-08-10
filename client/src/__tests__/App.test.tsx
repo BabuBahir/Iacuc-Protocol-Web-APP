@@ -10,6 +10,7 @@ vi.mock("../pages/ApplicationPage", () => ({ default: () => <div>ApplicationPage
 vi.mock("../pages/AdminPage", () => ({ default: () => <div>AdminPage</div> }));
 vi.mock("../pages/CommitteePage", () => ({ default: () => <div>CommitteePage</div> }));
 vi.mock("../pages/ReportsPage", () => ({ default: () => <div>ReportsPage</div> }));
+vi.mock("../pages/RegisterPage", () => ({ default: () => <div>RegisterPage</div> }));
 
 function renderAt(path: string) {
   return render(
@@ -53,6 +54,11 @@ describe("App routing", () => {
   test("renders the reports page at /reports", () => {
     renderAt("/reports");
     expect(screen.getByText("ReportsPage")).toBeInTheDocument();
+  });
+
+  test("renders the register page at /register", () => {
+    renderAt("/register");
+    expect(screen.getByText("RegisterPage")).toBeInTheDocument();
   });
 
   test("renders a not-found message for unknown paths", () => {

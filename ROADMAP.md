@@ -86,8 +86,11 @@ PR (not a separate cleanup pass) is the fix.
   saved filters, and CSV export (shared `client/src/utils/csv.ts`, also
   used by the reports page). The **register-wide search surface** (the
   same builder applied to `GET /api/animal-usage` with
-  `search_type=register`) is deferred — the register remains per-protocol
-  on the application page.
+  `search_type=register`) is also done: a Register tab
+  (`client/src/pages/RegisterPage.tsx`) lists ledger transactions across
+  all protocols (each row joins its protocol title) with the shared
+  `FilterBuilder`, register-scoped saved filters, CSV export, and a row
+  click that opens the protocol's detail page. Item 8 is fully complete.
 
 - [x] **9. AAALAC-style compliance reports**
   Restraint by species, euthanasia methods by species, surgery
