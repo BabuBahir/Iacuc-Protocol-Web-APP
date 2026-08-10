@@ -80,6 +80,7 @@ const SAMPLE_PROTOCOLS: Protocol[] = [
 ];
 
 const SAMPLE_SUMMARY: Summary = { active: 2, pendingReview: 1, expiringSoon: 0, approvedThisQuarter: 3 };
+const EMPTY_SUMMARY: Summary = { active: 0, pendingReview: 0, expiringSoon: 0, approvedThisQuarter: 0 };
 
 const DRAFT_FILTER: FilterClause[] = [{ field: "status", op: "eq", value: "Draft" }];
 
@@ -356,6 +357,26 @@ describe("ListPage", () => {
 
       expect(await screen.findByText("Enter a name for this filter.")).toBeInTheDocument();
       expect(api.saveSavedFilter).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Recent committee activity", () => {
+    test("renders various audit activity types", async () => {
+      api.listProtocols.mockResolvedValue([]);
+      api.getSummary.mockResolvedValue(EMPTY_SUMMARY);
+      api.getAuditLog.mockResolvedValue([
+        { id: 1, action: "protocol.created", entity_type: "protocol", entity_id: "IACUC-001", actor: "Alice", details: null, provenance: "human", created_at: "2026-08-01T10:00:00Z" },
+        { id: 2, action: "vote.cast", entity_type: "protocol", entity_id: "IACUC-001", actor: "Bob", details: { vote: "Approve" }, provenance: "human", created_at: "2026-08-01T11:00:00Z" },
+        { id: 3, action: "assignment.updated", entity_type: "protocol", entity_id: "IACUC-002", actor: "System", details: { reviewer: "Charlie", role: "Primary Reviewer" }, provenance: "system", created_at: "2026-08-01T12:00:00Z" },
+      ] as any);
+
+      renderListPage();
+      
+      await waitFor(() => {
+        expect(screen.getByText("IACUC-001 created by Alice — Aug 1, 2026")).toBeInTheDocument();
+        expect(screen.getByText("IACUC-001 vote cast: Approve by Bob — Aug 1, 2026")).toBeInTheDocument();
+        expect(screen.getByText("IACUC-002 assigned to Charlie as Primary Reviewer — Aug 1, 2026")).toBeInTheDocument();
+      });
     });
   });
 
