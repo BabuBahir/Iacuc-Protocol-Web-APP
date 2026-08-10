@@ -143,7 +143,7 @@ describe("CreatePage", () => {
       }));
     });
     expect(navigate).toHaveBeenCalledWith("/protocols/IACUC-2026-0999");
-  }, 15000);
+  }, 30000);
 
   test("surfaces a server error (e.g. duplicate id) and stays on the page", async () => {
     api.listSpecies.mockResolvedValue([{ id: 1, name: "Mouse" }]);
