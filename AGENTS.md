@@ -477,6 +477,16 @@ independent db instances within a single file — there it uses a cache-
 busted dynamic import (`import("../src/db.js?fresh=" + uniqueId)`), since
 Node treats a different query string as a different cached module.
 
+**CI (`ci.yml`) runs more than the unit suites.** Since Aug 2026 (PR #75), the
+`client-tests` job also runs `npm run build:client` and `npm run typecheck`,
+and a separate `e2e-tests` job runs the full Playwright suite on Chromium
+(installs browsers with `npx playwright install --with-deps chromium`,
+caches `~/.cache/ms-playwright` keyed on the lockfile, uploads
+`playwright-report`/`test-results` as artifacts; the playwright config's
+`webServer` array self-starts both servers). This exists because the tailwind
+v4 bump (see §4) broke `vite build` on fresh installs without any unit test
+failing — a build/typecheck/e2e gap that nothing on `main` covered.
+
 ### Package manager
 
 npm workspaces (`npm install` at root installs both `server/` and
@@ -991,3 +1001,46 @@ into the acting identity. Gotchas from building this:
 - `e2e/storageState.json` deliberately holds no persona (just the disclaimer
   dismiss); per-test `addInitScript` is the only place a persona is set, so
   specs stay independent.
+
+### Tailwind v4 bump reverted + CSS/build coverage closed — Aug 2026
+
+**Tailwind stays on v3 (`^3.4.19`).** Dependabot PR #69 bumped `tailwindcss`
+3.4.19 → 4.3.3 and it was merged piecemeal. It broke `vite build` on any fresh
+install, because v4 moved the PostCSS plugin into a separate
+`@tailwindcss/postcss` package and dropped the v3 `@tailwind base/components/
+utilities` directives, while this repo's `postcss.config.js` / `index.css` /
+`tailwind.config.js` are still v3 wiring. Local `node_modules` was still on
+3.4.19, so dev kept working and no test caught it. Reverted in PR #75 via
+`git revert -m 1` of the merge (the lockfile conflicted because the postcss/
+express/dotenv bumps landed after — resolved by restoring `^3.4.19` in
+`client/package.json` and regenerating with `npm install --package-lock-only`,
+which surgically downgrades only the tailwind entries). A real v4 migration is
+a deliberate pass (install `@tailwindcss/postcss`, `@import "tailwindcss"`,
+CSS-first `@theme` config), and dependabot is told to hold the major.
+
+**Why it slipped through, and the three fixes:**
+1. **Vitest stubbed CSS.** The `test` block in `client/vite.config.js` had no
+   `css` option (default = imports stubbed, never postcss-processed), and
+   `index.css` was imported only by `main.tsx`. Now `css: true` makes vitest
+   process CSS through Vite's postcss pipeline (tailwind) and inject it into
+   jsdom, and `client/src/__tests__/styles.test.tsx` imports `index.css` and
+   asserts the injected `<style>` is non-empty and contains a real generated
+   utility (`#032D60`). Verified it goes **red** with a broken postcss plugin
+   and green on v3 — a future v4-ish breakage now fails the unit suite.
+2. **CI ran neither build nor e2e.** `ci.yml`'s `client-tests` job now also
+   runs `npm run build:client` and `npm run typecheck`; a new `e2e-tests` job
+   runs the full Playwright suite on Chromium (see the Testing section). Root
+   `package.json` gained a `typecheck` script (`--workspace=client`).
+3. **Dependabot could reopen it.** `.github/dependabot.yml` now ignores
+   semver-major for `tailwindcss`, `express`, and `dotenv` (same pattern as the
+   Vite toolchain) until deliberate migration passes.
+
+**Express 5 + dotenv 17 audit (kept, no revert).** PRs #71/#70 merged express
+4.22.2 → 5.2.1 and dotenv 16.6.1 → 17.4.2 — both pure version bumps, no code.
+Verdict after review: safe. All query params are scalars or single URL-encoded
+JSON strings (`filters` sent via `URLSearchParams`, `JSON.parse(req.query
+.filters)` server-side), so Express 5's default query-parser change
+(extended → simple) doesn't apply; there are no `app.del`/wildcard/regex
+routes or `app.param`; and dotenv is used only as `import "dotenv/config"`
+(`server/src/index.js`, `seed.js`). The full server + e2e suites pass on both.
+If a *future* express/dotenv major ever lands, re-audit before un-ignoring.
