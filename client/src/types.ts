@@ -527,7 +527,47 @@ export interface ValidationResult {
     animal_use: ValidationSection;
     experiments: ValidationSection;
     alternatives: ValidationSection;
+    conditional: ValidationSection;
   };
+}
+
+// ---- Options questionnaire + conditional sections (Roadmap item 5) ----
+// The server's OPTION_DEFS / CONDITIONAL_SECTIONS registries
+// (server/src/routes/protocol-form.js) are the source of truth; these types
+// mirror the GET /protocols/:id/sections payload so the client renders from
+// what the server returns rather than duplicating the field defs.
+
+export type ConditionalOptions = {
+  funded: boolean;
+  hazardous_materials: boolean;
+  off_campus: boolean;
+  offsite_housing: boolean;
+  human_tissues: boolean;
+};
+
+export type ConditionalSectionFieldType = "text" | "textarea" | "select";
+
+export interface ConditionalSectionField {
+  key: string;
+  label: string;
+  type: ConditionalSectionFieldType;
+  required: boolean;
+  options?: string[];
+}
+
+export interface ConditionalSection {
+  key: string;
+  label: string;
+  description: string | null;
+  fields: ConditionalSectionField[];
+  data: Record<string, string>;
+  complete: boolean;
+  missing: string[];
+}
+
+export interface ConditionalSectionsResponse {
+  options: ConditionalOptions;
+  visible: ConditionalSection[];
 }
 
 // ---- Domain F: facilities & semi-annual inspections ----

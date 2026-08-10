@@ -14,6 +14,7 @@ import type {
   AnimalUsageLedger,
   AnimalUseInput,
   AnimalUseRow,
+  ConditionalSection,
   DrugInput,
   DrugRow,
   ExperimentInput,
@@ -364,7 +365,35 @@ const SECTION_LABELS: Record<keyof ValidationResult["sections"], string> = {
   animal_use: "Animal use",
   experiments: "Experiments",
   alternatives: "3 Rs & alternatives",
+  conditional: "Options / conditional sections",
 };
+
+const OPTION_LABELS: Record<string, string> = {
+  funded: "This project is funded",
+  hazardous_materials: "Uses hazardous materials, chemicals, radioactive agents, or nanoparticles",
+  off_campus: "Includes animal work off campus",
+  offsite_housing: "Houses animals outside the central facility for more than 12 hours",
+  human_tissues: "Uses human tissues or samples",
+};
+
+const OPTION_DESCRIPTIONS: Record<string, string> = {
+  funded: "Adds a Funding sources section.",
+  hazardous_materials: "Adds a Hazardous materials & nanoparticles section.",
+  off_campus: "Adds an Off-campus work section.",
+  offsite_housing: "Adds a Housing outside central facility section.",
+  human_tissues: "Adds a Human tissues / samples section.",
+};
+
+const DEFAULT_OPTIONS: Record<string, boolean> = {
+  funded: false,
+  hazardous_materials: false,
+  off_campus: false,
+  offsite_housing: false,
+  human_tissues: false,
+};
+
+type OptionKey = keyof typeof DEFAULT_OPTIONS;
+const ALL_OPTION_KEYS: OptionKey[] = ["funded", "hazardous_materials", "off_campus", "offsite_housing", "human_tissues"];
 
 function RrrModal({ initial, onClose, onSave }: { initial: RrrDraft; onClose: () => void; onSave: (d: RrrDraft) => void }) {
   const [draft, setDraft] = useState<RrrDraft>(initial);
@@ -427,6 +456,12 @@ export default function ApplicationPage() {
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [status, setStatus] = useState("");
 
+  const [options, setOptions] = useState<Record<string, boolean>>(DEFAULT_OPTIONS);
+  const [conditionalSections, setConditionalSections] = useState<ConditionalSection[]>([]);
+  const [sectionDrafts, setSectionDrafts] = useState<Record<string, Record<string, string>>>({});
+  const [savingOption, setSavingOption] = useState<OptionKey | null>(null);
+  const [savingSection, setSavingSection] = useState<string | null>(null);
+
   const [drugModal, setDrugModal] = useState<{ open: boolean; editing: DrugRow | null }>({ open: false, editing: null });
   const [animalModal, setAnimalModal] = useState<{ open: boolean; editing: AnimalUseRow | null }>({ open: false, editing: null });
   const [expModal, setExpModal] = useState<{ open: boolean; editing: ExperimentRow | null }>({ open: false, editing: null });
@@ -457,8 +492,10 @@ export default function ApplicationPage() {
       api.listRrrEntries(id),
       api.listAnimalUsage(id),
       api.getValidation(id),
+      api.getOptions(id),
+      api.getSections(id),
     ])
-      .then(([p, procs, dr, au, exps, alt, rrr, usage, v]) => {
+      .then(([p, procs, dr, au, exps, alt, rrr, usage, v, opts, sections]) => {
         if (cancelled) return;
         setPurpose(p.purpose_summary ?? "");
         setHarmBenefit(p.harm_benefit_analysis ?? "");
@@ -472,6 +509,11 @@ export default function ApplicationPage() {
         setRrrEntries(rrr);
         setUsageLedger(usage);
         setValidation(v);
+        setOptions(opts);
+        setConditionalSections(sections.visible);
+        const drafts: Record<string, Record<string, string>> = {};
+        for (const s of sections.visible) drafts[s.key] = { ...s.data };
+        setSectionDrafts(drafts);
         setLoading(false);
       })
       .catch(err => {
@@ -586,6 +628,46 @@ export default function ApplicationPage() {
       setValidation(await api.getValidation(id));
     } catch {
       // non-fatal: the readiness panel keeps its last known state
+    }
+  };
+
+  const toggleOption = async (key: OptionKey) => {
+    if (!id) return;
+    setSavingOption(key);
+    try {
+      const updated = await api.updateOptions(id, { [key]: !options[key] });
+      setOptions(updated);
+      const fresh = await api.getSections(id);
+      setConditionalSections(fresh.visible);
+      const drafts: Record<string, Record<string, string>> = {};
+      for (const s of fresh.visible) drafts[s.key] = { ...s.data };
+      setSectionDrafts(drafts);
+      await refreshValidation();
+    } catch (err) {
+      setTablesError(errorMessage(err));
+    } finally {
+      setSavingOption(null);
+    }
+  };
+
+  const setDraftField = (sectionKey: string, fieldKey: string, value: string) => {
+    setSectionDrafts(prev => ({
+      ...prev,
+      [sectionKey]: { ...(prev[sectionKey] ?? {}), [fieldKey]: value },
+    }));
+  };
+
+  const saveSection = async (sectionKey: string) => {
+    if (!id) return;
+    setSavingSection(sectionKey);
+    try {
+      const updated = await api.updateSection(id, sectionKey, sectionDrafts[sectionKey] ?? {});
+      setConditionalSections(prev => prev.map(s => (s.key === sectionKey ? updated : s)));
+      await refreshValidation();
+    } catch (err) {
+      setTablesError(errorMessage(err));
+    } finally {
+      setSavingSection(null);
     }
   };
 
@@ -843,6 +925,113 @@ export default function ApplicationPage() {
             </div>
           )}
         </Card>
+
+        <Card icon={ClipboardList} title="Options — what applies to this protocol">
+          <p className="text-[12px] text-gray-500 mb-2">
+            Answering "Yes" adds a section to this application. Every section that appears must be
+            complete before the protocol can be submitted.
+          </p>
+          <div className="space-y-1.5">
+            {ALL_OPTION_KEYS.map(key => (
+              <label key={key} className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!options[key]}
+                  onChange={() => toggleOption(key)}
+                  disabled={savingOption === key}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block text-[13px] text-gray-800">{OPTION_LABELS[key]}</span>
+                  <span className="block text-[11px] text-gray-500">{OPTION_DESCRIPTIONS[key]}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </Card>
+
+        {conditionalSections.map(section => (
+          <Card
+            key={section.key}
+            icon={section.complete ? CheckCircle2 : AlertTriangle}
+            title={section.label}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[12px] text-gray-500">{section.description}</p>
+              {section.complete ? (
+                <span className="flex items-center gap-1 text-[11px] font-medium text-green-600">
+                  <CheckCircle2 size={13} /> Complete
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-[11px] font-medium text-amber-500">
+                  <AlertTriangle size={13} /> {section.missing.length} required field{section.missing.length === 1 ? "" : "s"} missing
+                </span>
+              )}
+            </div>
+            <div className="space-y-3">
+              {section.fields.map(field =>
+                field.type === "select" ? (
+                  <div key={field.key}>
+                    <label htmlFor={`cs-${section.key}-${field.key}`} className={LABEL_CLASS}>
+                      {field.label}{field.required ? " *" : ""}
+                    </label>
+                    <select
+                      id={`cs-${section.key}-${field.key}`}
+                      value={sectionDrafts[section.key]?.[field.key] ?? ""}
+                      onChange={e => setDraftField(section.key, field.key, e.target.value)}
+                      className={INPUT_CLASS}
+                    >
+                      <option value="">Select…</option>
+                      {(field.options ?? []).map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : field.type === "textarea" ? (
+                  <div key={field.key}>
+                    <label htmlFor={`cs-${section.key}-${field.key}`} className={LABEL_CLASS}>
+                      {field.label}{field.required ? " *" : ""}
+                    </label>
+                    <textarea
+                      id={`cs-${section.key}-${field.key}`}
+                      rows={3}
+                      value={sectionDrafts[section.key]?.[field.key] ?? ""}
+                      onChange={e => setDraftField(section.key, field.key, e.target.value)}
+                      className={INPUT_CLASS}
+                    />
+                  </div>
+                ) : (
+                  <div key={field.key}>
+                    <label htmlFor={`cs-${section.key}-${field.key}`} className={LABEL_CLASS}>
+                      {field.label}{field.required ? " *" : ""}
+                    </label>
+                    <input
+                      id={`cs-${section.key}-${field.key}`}
+                      value={sectionDrafts[section.key]?.[field.key] ?? ""}
+                      onChange={e => setDraftField(section.key, field.key, e.target.value)}
+                      className={INPUT_CLASS}
+                    />
+                  </div>
+                )
+              )}
+            </div>
+            {!section.complete && section.missing.length > 0 && (
+              <ul className="mt-2 text-[12px] text-amber-700 list-disc list-inside">
+                {section.missing.map((m, i) => <li key={i}>{m}</li>)}
+              </ul>
+            )}
+            <div className="flex justify-end pt-3">
+              <button
+                type="button"
+                onClick={() => saveSection(section.key)}
+                disabled={savingSection === section.key}
+                className="flex items-center gap-1 px-3 py-1.5 rounded bg-[#0176D3] text-white text-[13px] font-medium hover:bg-[#0b5cab] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save size={14} />{savingSection === section.key ? "Saving…" : "Save section"}
+              </button>
+            </div>
+          </Card>
+        ))}
 
         <Card icon={BookOpen} title="Purpose & summary">
           <div>

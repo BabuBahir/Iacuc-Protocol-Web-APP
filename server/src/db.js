@@ -215,6 +215,21 @@ CREATE TABLE IF NOT EXISTS protocol_rrr_entries (
   explanation TEXT           -- why it applies to this protocol
 );
 
+-- Conditional sections (Roadmap item 5): a per-protocol store for the content
+-- of sections that only exist when an Options-page question is answered "Yes"
+-- (funded, hazardous materials, off-campus work, off-site housing, human
+-- tissues). Which sections are *visible* and which fields are required is
+-- decided by the CONDITIONAL_SECTIONS registry in routes/protocol-form.js;
+-- this table just holds each triggered section's data payload as JSON.
+CREATE TABLE IF NOT EXISTS protocol_sections (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  protocol_id TEXT NOT NULL REFERENCES protocols(id) ON DELETE CASCADE,
+  section_key TEXT NOT NULL,
+  data        TEXT, -- JSON object of { fieldKey: value }
+  updated_at  TEXT DEFAULT (datetime('now')),
+  UNIQUE(protocol_id, section_key)
+);
+
 -- Animal usage register (AGENTS.md §1.4): a ledger of *actual* ordering/usage
 -- transactions against a protocol's approved allowance. The approved allowance
 -- is the sum of protocol_animal_use.max_count per species; these rows are the
@@ -422,6 +437,7 @@ for (const [col, type] of [
   ["npg", "TEXT"],
   ["research_steps", "TEXT"],
   ["review_method", "TEXT"], // 'FCR' (full committee) | 'DMR' (designated member)
+  ["options", "TEXT"], // JSON yes/no answers to the Options questionnaire (Roadmap item 5)
 ]) {
   if (!protocolColumns.has(col)) {
     db.exec(`ALTER TABLE protocols ADD COLUMN ${col} ${type}`);

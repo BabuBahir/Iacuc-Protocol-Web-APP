@@ -16,6 +16,9 @@ import type {
   CommitteeProtocol,
   CommitteeReview,
   CommitteeTally,
+  ConditionalOptions,
+  ConditionalSection,
+  ConditionalSectionsResponse,
   DeficiencyInput,
   DrugInput,
   DrugRow,
@@ -234,6 +237,14 @@ export const api = {
   deleteRrrEntry: (id: string, entryId: number): Promise<null> =>
     request(`/protocols/${id}/rrr/${entryId}`, { method: "DELETE" }),
   getValidation: (id: string): Promise<ValidationResult> => request(`/protocols/${id}/validation`),
+
+  // ---- Options questionnaire + conditional sections (Roadmap item 5) ----
+  getOptions: (id: string): Promise<ConditionalOptions> => request(`/protocols/${id}/options`),
+  updateOptions: (id: string, data: Partial<ConditionalOptions>): Promise<ConditionalOptions> =>
+    request(`/protocols/${id}/options`, { method: "PATCH", body: JSON.stringify(data) }),
+  getSections: (id: string): Promise<ConditionalSectionsResponse> => request(`/protocols/${id}/sections`),
+  updateSection: (id: string, sectionKey: string, data: Record<string, string>): Promise<ConditionalSection> =>
+    request(`/protocols/${id}/sections/${sectionKey}`, { method: "PUT", body: JSON.stringify({ data }) }),
 
   // ---- Domain F: facilities & semi-annual inspections ----
   listFacilities: (): Promise<Facility[]> => request("/facilities"),

@@ -7,7 +7,7 @@ const protocols = [
         { description: "Deliver corticosterone in drinking water for 21 days with daily restraint sessions.", duration: "21 days", frequency: "Daily", species: "Mouse", pain_category: "Category D", anesthesia: "No", location: "Vivarium housing room", personnel: "Sam Whitfield", notes: "Restraint is brief (<15 min/day) per the refined stress protocol." },
         { description: "Collect brains and adrenals after euthanasia for histology and qPCR.", duration: "~30 min per animal", frequency: "Once", species: "Mouse", pain_category: "Category E", anesthesia: "No", location: "Necropsy room", personnel: "Dr. Elena Marsh, Sam Whitfield", notes: "Euthanasia per approved disposal SOP." },
       ], purpose_summary: "Study how chronic psychological stress changes the brain circuits that control anxiety and memory, using mice as a model to guide better treatments for stress-related psychiatric illness.", harm_benefit_analysis: "Animals undergo 21 days of daily restraint and corticosterone exposure — mild, reversible distress. The benefit is identifying stress-driven neuroendocrine mechanisms that could lead to new psychiatric interventions, which justifies the discomfort over current alternatives.", scientific_summary: "Characterize the neurobehavioral consequences of chronic stress in adult male C57BL/6 mice. Specific aims: (1) quantify anxiety-like behavior and spatial memory after 21 days of restraint plus corticosterone; (2) measure HPA-axis output via corticosterone and adrenal mass; (3) correlate hippocampal gene expression by qPCR with behavioral outcomes." },
-  { id: "IACUC-2026-0139", title: "Cardiac Regeneration Following Induced Myocardial Infarction", pi: "Dr. Raj Patel", species: "Rat", status: "Approved", animals: 80, pain_category: "Category C", submitted: "2026-06-12", expires: "2029-06-12", pi_proxy: "Sam Whitfield", ptm_member: "Dr. Harold Kim", protocol_type: "Research", anesthesia_required: 1, housing: "Standard rat housing, 2/cage, corncob bedding, 12:12 light cycle, environmental enrichment provided.", disposal: "Sodium pentobarbital overdose followed by necropsy; carcasses incinerated per institutional SOP.", npg: "None", research_steps: [
+  { id: "IACUC-2026-0139", title: "Cardiac Regeneration Following Induced Myocardial Infarction", pi: "Dr. Raj Patel", species: "Rat", status: "Approved", animals: 80, pain_category: "Category C", submitted: "2026-06-12", expires: "2029-06-12", pi_proxy: "Sam Whitfield", ptm_member: "Dr. Harold Kim", protocol_type: "Research", anesthesia_required: 1, housing: "Standard rat housing, 2/cage, corncob bedding, 12:12 light cycle, environmental enrichment provided.", disposal: "Sodium pentobarbital overdose followed by necropsy; carcasses incinerated per institutional SOP.", npg: "None", options: { funded: false, hazardous_materials: true, off_campus: false, offsite_housing: false, human_tissues: false }, research_steps: [
         { description: "Induce myocardial infarction by permanent LAD ligation under isoflurane anesthesia.", duration: "~60 min surgery", frequency: "Once", species: "Rat", pain_category: "Category D", anesthesia: "Yes", location: "Surgical suite A", personnel: "Dr. Raj Patel", notes: "Survival surgery using aseptic technique with post-op analgesia." },
         { description: "Monitor animals with telemetry and echocardiography at 1, 4, and 8 weeks.", duration: "1 hour per session", frequency: "Weekly", species: "Rat", pain_category: "Category C", anesthesia: "Yes", location: "Imaging core", personnel: "Dr. Harold Kim", notes: "Isoflurane for echo; analgesia per approved protocol." },
         { description: "Harvest hearts for histology and gene expression analysis.", duration: "~45 min per animal", frequency: "Once", species: "Rat", pain_category: "Category E", anesthesia: "No", location: "Necropsy room", personnel: "Dr. Raj Patel", notes: "" },
@@ -32,7 +32,7 @@ const protocols = [
         { description: "Score graft clarity, vascularization, and rejection weekly for 8 weeks.", duration: "8 weeks", frequency: "Weekly", species: "Rabbit", pain_category: "Category C", anesthesia: "Yes", location: "Ophthalmology clinic", personnel: "Dr. Wen Liu", notes: "Brief isoflurane sedation for slit-lamp exams." },
         { description: "Collect corneas for histologic assessment of graft survival.", duration: "~40 min per animal", frequency: "Once", species: "Rabbit", pain_category: "Category E", anesthesia: "No", location: "Necropsy room", personnel: "Dr. Wen Liu", notes: "" },
       ], purpose_summary: "Compare corneal graft survival between standard and modified transplantation techniques to reduce graft rejection in humans.", harm_benefit_analysis: "Animals undergo survival corneal surgery under anesthesia with post-operative analgesia. The benefit is improving corneal transplant outcomes, which restore sight in thousands of patients each year.", scientific_summary: "Penetrating keratoplasty in New Zealand White rabbits comparing suture versus sutureless graft apposition. Aims: (1) graft clarity score; (2) corneal neovascularization index; (3) histologic graft rejection at 8 weeks." },
-  { id: "IACUC-2026-0158", title: "Genetic Basis of Spontaneous Seizures in Zebrafish", pi: "Dr. Amara Osei", species: "Zebrafish", status: "Draft", animals: 800, pain_category: "Category B", submitted: null, expires: null, pi_proxy: "Dr. Wen Liu", ptm_member: "Dr. Priya Nair", protocol_type: "Breeding", anesthesia_required: 0, housing: "Recirculating aquatic system, 28°C, density ≤5 fish/L.", disposal: "Tricaine overdose followed by incineration.", npg: "None", research_steps: [
+  { id: "IACUC-2026-0158", title: "Genetic Basis of Spontaneous Seizures in Zebrafish", pi: "Dr. Amara Osei", species: "Zebrafish", status: "Draft", animals: 800, pain_category: "Category B", submitted: null, expires: null, pi_proxy: "Dr. Wen Liu", ptm_member: "Dr. Priya Nair", protocol_type: "Breeding", anesthesia_required: 0, housing: "Recirculating aquatic system, 28°C, density ≤5 fish/L.", disposal: "Tricaine overdose followed by incineration.", npg: "None", options: { funded: true, hazardous_materials: false, off_campus: false, offsite_housing: false, human_tissues: false }, research_steps: [
         { description: "Maintain mutant and wild-type lines.", duration: "Ongoing", frequency: "Continuous", species: "Zebrafish", pain_category: "Category B", anesthesia: "No", location: "Aquatics facility", personnel: "Dr. Amara Osei", notes: "" },
         { description: "Score seizure behavior from video recordings.", duration: "~10 min per trial", frequency: "As needed", species: "Zebrafish", pain_category: "Category B", anesthesia: "No", location: "Aquatics facility", personnel: "Dr. Amara Osei", notes: "Non-invasive video analysis." },
         { description: "Genotype offspring via fin-clip PCR.", duration: "~5 min per fish", frequency: "As needed", species: "Zebrafish", pain_category: "Category B", anesthesia: "Yes", location: "Aquatics facility", personnel: "Dr. Wen Liu", notes: "Tricaine anesthesia for fin clips." },
@@ -595,6 +595,34 @@ const alternativesSeed = {
   },
 };
 
+// Conditional sections (Roadmap item 5): data for the sections that are
+// visible because the protocol's Options questionnaire says "Yes". These
+// mirror the options set on the protocol objects above — 0139's hazardous
+// materials option and 0158's funded option — and must stay complete so the
+// fully-filled protocols remain submittable (the e2e submit spec drives 0158).
+const conditionalSectionsSeed = {
+  "IACUC-2026-0139": [
+    {
+      section_key: "hazardous_materials",
+      data: JSON.stringify({
+        materials: "Isoflurane, sodium pentobarbital, and contrast agents used in imaging.",
+        safety_measures: "Fume hood handling, personal protective equipment, and chemical hygiene plan per EH&S.",
+        disposal: "Trace waste incinerated; sharps disposed via institutional waste stream.",
+      }),
+    },
+  ],
+  "IACUC-2026-0158": [
+    {
+      section_key: "funding",
+      data: JSON.stringify({
+        agency: "National Institutes of Health",
+        grant_number: "R01-NS-12345",
+        funding_status: "Awarded",
+      }),
+    },
+  ],
+};
+
 // FCR votes — only for review protocols other than IACUC-2026-0142, which the
 // e2e committee spec relies on being vote-free ("No votes cast yet.").
 const votesSeed = [
@@ -812,12 +840,12 @@ const insertProtocol = db.prepare(`
   INSERT INTO protocols (
     id, title, pi, species, status, animals, pain_category, submitted, expires,
     pi_proxy, ptm_member, protocol_type, anesthesia_required, housing, disposal, npg, research_steps,
-    purpose_summary, harm_benefit_analysis, scientific_summary, review_method
+    purpose_summary, harm_benefit_analysis, scientific_summary, review_method, options
   )
   VALUES (
     @id, @title, @pi, @species, @status, @animals, @pain_category, @submitted, @expires,
     @pi_proxy, @ptm_member, @protocol_type, @anesthesia_required, @housing, @disposal, @npg, @research_steps,
-    @purpose_summary, @harm_benefit_analysis, @scientific_summary, @review_method
+    @purpose_summary, @harm_benefit_analysis, @scientific_summary, @review_method, @options
   )
 `);
 
@@ -879,6 +907,10 @@ const insertRrrEntry = db.prepare(`
   INSERT INTO protocol_rrr_entries (protocol_id, rrr_type, method, explanation)
   VALUES (?, ?, ?, ?)
 `);
+const insertSection = db.prepare(`
+  INSERT INTO protocol_sections (protocol_id, section_key, data)
+  VALUES (?, ?, ?)
+`);
 const getPersonnelId = db.prepare(`SELECT id FROM personnel WHERE name = ?`);
 const insertVote = db.prepare(`
   INSERT INTO protocol_votes (protocol_id, personnel_id, vote, comment, voted_at)
@@ -933,7 +965,7 @@ const insertTransfer = db.prepare(`
   VALUES (?, ?, ?, ?, ?, ?)
 `);
 
-let procCount = 0, drugCount = 0, animalUseCount = 0, alternativesCount = 0, experimentCount = 0, rrrCount = 0, usageCount = 0, assignmentCount = 0, commentCount = 0, trainingCount = 0, ohspCount = 0;
+let procCount = 0, drugCount = 0, animalUseCount = 0, alternativesCount = 0, experimentCount = 0, rrrCount = 0, sectionCount = 0, usageCount = 0, assignmentCount = 0, commentCount = 0, trainingCount = 0, ohspCount = 0;
 let facilityCount = 0, inspectionCount = 0, deficiencyCount = 0, incidentCount = 0, pamCount = 0, amendmentCount = 0, changeCount = 0, versionCount = 0, renewalCount = 0, transferCount = 0;
 
 db.exec("BEGIN");
@@ -975,6 +1007,7 @@ try {
       harm_benefit_analysis: p.harm_benefit_analysis ?? null,
       scientific_summary: p.scientific_summary ?? null,
       review_method: p.review_method ?? null,
+      options: p.options ? JSON.stringify(p.options) : null,
     });
   }
   for (const r of relatedItems) insertRelated.run(r.protocol_id, r.list_name, r.label);
@@ -1046,6 +1079,12 @@ try {
     for (const [type, method] of Object.entries(RRR_METHODS)) {
       insertRrrEntry.run(protocolId, type, method, r[`${type}_text`]);
       rrrCount++;
+    }
+  }
+  for (const [protocolId, rows] of Object.entries(conditionalSectionsSeed)) {
+    for (const s of rows) {
+      insertSection.run(protocolId, s.section_key, s.data);
+      sectionCount++;
     }
   }
   for (const v of votesSeed) {

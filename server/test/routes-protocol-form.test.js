@@ -696,3 +696,117 @@ describe("submission-readiness validation", () => {
     assert.equal(res.status, 404);
   });
 });
+
+describe("options questionnaire + conditional sections", () => {
+  beforeEach(() => resetTables(db));
+
+  test("GET /:id/options defaults every option to false", async () => {
+    insertProtocol();
+    const res = await request(app).get("/api/protocols/TEST-0001/options");
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, {
+      funded: false,
+      hazardous_materials: false,
+      off_campus: false,
+      offsite_housing: false,
+      human_tissues: false,
+    });
+  });
+
+  test("PATCH /:id/options updates a subset and persists", async () => {
+    insertProtocol();
+    const res = await request(app).patch("/api/protocols/TEST-0001/options").send({ funded: true });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.funded, true);
+    assert.equal(res.body.hazardous_materials, false);
+    const get = await request(app).get("/api/protocols/TEST-0001/options");
+    assert.equal(get.body.funded, true);
+  });
+
+  test("PATCH /:id/options rejects unknown keys and non-boolean values", async () => {
+    insertProtocol();
+    const unknown = await request(app).patch("/api/protocols/TEST-0001/options").send({ nonsense: true });
+    assert.equal(unknown.status, 400);
+    const nonBool = await request(app).patch("/api/protocols/TEST-0001/options").send({ funded: "yes" });
+    assert.equal(nonBool.status, 400);
+  });
+
+  test("GET /:id/sections returns no visible sections when no option is triggered", async () => {
+    insertProtocol();
+    const res = await request(app).get("/api/protocols/TEST-0001/sections");
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body.visible, []);
+  });
+
+  test("GET /:id/sections surfaces triggered sections with field defs and completeness", async () => {
+    insertProtocol();
+    await request(app).patch("/api/protocols/TEST-0001/options").send({ funded: true });
+    const res = await request(app).get("/api/protocols/TEST-0001/sections");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.options.funded, true);
+    assert.equal(res.body.visible.length, 1);
+    assert.equal(res.body.visible[0].key, "funding");
+    assert.equal(res.body.visible[0].label, "Funding sources");
+    assert.equal(res.body.visible[0].complete, false);
+    assert.deepEqual(res.body.visible[0].data, {});
+    assert.ok(res.body.visible[0].fields.some(f => f.key === "agency" && f.required));
+  });
+
+  test("PUT /:id/sections/:key saves data, reports completeness, and guards bad requests", async () => {
+    insertProtocol();
+    await request(app).patch("/api/protocols/TEST-0001/options").send({ funded: true });
+    const res = await request(app)
+      .put("/api/protocols/TEST-0001/sections/funding")
+      .send({ data: { agency: "NIH", grant_number: "R01-X", funding_status: "Awarded" } });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.complete, true);
+    assert.deepEqual(res.body.missing, []);
+    assert.equal(res.body.data.agency, "NIH");
+
+    const stored = db.prepare("SELECT data FROM protocol_sections WHERE protocol_id = 'TEST-0001' AND section_key = 'funding'").get();
+    assert.equal(JSON.parse(stored.data).grant_number, "R01-X");
+
+    const inactive = await request(app).put("/api/protocols/TEST-0001/sections/off_campus").send({ data: { location: "X" } });
+    assert.equal(inactive.status, 400);
+    const unknown = await request(app).put("/api/protocols/TEST-0001/sections/bogus").send({ data: {} });
+    assert.equal(unknown.status, 404);
+    const noData = await request(app).put("/api/protocols/TEST-0001/sections/funding").send({});
+    assert.equal(noData.status, 400);
+    const missing = await request(app).get("/api/protocols/NOPE/sections");
+    assert.equal(missing.status, 404);
+  });
+
+  test("a triggered section missing required fields blocks overall submission", async () => {
+    insertProtocol();
+    await request(app).patch("/api/protocols/TEST-0001/options").send({ funded: true });
+    const res = await request(app).get("/api/protocols/TEST-0001/validation");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.sections.conditional.complete, false);
+    assert.ok(res.body.sections.conditional.missing.some(m => m.includes("Funding sources")));
+
+    await request(app)
+      .put("/api/protocols/TEST-0001/sections/funding")
+      .send({ data: { agency: "NIH", funding_status: "Awarded" } });
+    const after = await request(app).get("/api/protocols/TEST-0001/validation");
+    assert.equal(after.body.sections.conditional.complete, true);
+  });
+
+  test("an untriggered option never blocks the conditional group", async () => {
+    insertProtocol();
+    const res = await request(app).get("/api/protocols/TEST-0001/validation");
+    assert.equal(res.body.sections.conditional.complete, true);
+    assert.deepEqual(res.body.sections.conditional.missing, []);
+  });
+
+  test("options and section updates are audited", async () => {
+    insertProtocol();
+    await request(app).patch("/api/protocols/TEST-0001/options").send({ funded: true }).set("X-Actor", "Maya Patel");
+    await request(app)
+      .put("/api/protocols/TEST-0001/sections/funding")
+      .send({ data: { agency: "NIH", funding_status: "Awarded" } })
+      .set("X-Actor", "Maya Patel");
+    const actions = db.prepare("SELECT action, actor FROM audit_log WHERE entity_id = 'TEST-0001'").all();
+    assert.ok(actions.some(a => a.action === "options.updated" && a.actor === "Maya Patel"));
+    assert.ok(actions.some(a => a.action === "section.updated"));
+  });
+});
