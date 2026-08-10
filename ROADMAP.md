@@ -41,18 +41,24 @@ PR (not a separate cleanup pass) is the fix.
 - [ ] **4. Authentication + role-based access control**
   **Product decision: this app stays anonymous-friendly, no login wall
   — see item 17 below before starting this.** Real auth is still
-  genuinely absent (anyone can vote as anyone, edit anything, no
-  session, no enforcement), so this item stays open. But it needs to be
-  designed as *optional/graduated* access control, not a login
-  requirement to use the app at all — item 17's `ActorPicker` already
-  proves the audit-attribution half of what auth would give you,
-  without the friction. Whatever this becomes, it should build on that
-  pattern (e.g. an optional "sign in to unlock admin actions" rather
-  than a wall on page load). This is also a stated prerequisite for the
+  genuinely absent (no session, no verified identity), so this item stays
+  open. But it needs to be designed as *optional/graduated* access
+  control, not a login requirement to use the app at all — item 17's
+  `ActorPicker` already proves the audit-attribution half of what auth
+  would give you, without the friction. **Partial (Aug 2026, PR #74):**
+  a graduated server gate (`server/src/access.js`) now blocks governance
+  writes — committee review needs a committee-eligible or office role,
+  admin CRUD / review assignments / transfer & amendment decisions need an
+  office role — and the client shows amber `AccessBanner`s on the
+  Admin/Committee pages when the acting persona isn't who those pages are
+  for. This is deliberately *not* auth: a self-declared `X-Actor` name
+  still passes. Whatever this becomes, it should build on that pattern
+  (e.g. an optional "sign in to unlock admin actions" rather than a wall
+  on page load). This is also a stated prerequisite for the
   HIPAA/AI-safety guardrails in AGENTS.md §3 to mean anything as
   *enforcement* rather than just documentation.
 
-- [ ] **5. Dynamic/conditional Table of Contents**
+- [x] **5. Dynamic/conditional Table of Contents**
   The Options-page-driven section model from Cayuse: an initial yes/no
   questionnaire determines which sections even appear on a protocol.
   Bigger architectural lift — sections become data-driven instead of
@@ -61,6 +67,18 @@ PR (not a separate cleanup pass) is the fix.
   content. Not to be confused with item 14 (FCR vs. DMR review
   assignment) — that's about *who* reviews a protocol, this is about
   *which sections even exist* on it.
+  **Done (Aug 2026, PR #81):** the fixed form is gone. `protocol-form.js`
+  owns the source-of-truth registries `OPTION_DEFS` (5 yes/no questions)
+  and `CONDITIONAL_SECTIONS` (5 triggered sections, each with field defs),
+  stored per-protocol in `protocol_sections`; `GET/PATCH
+  /api/protocols/:id/options`, `GET /api/protocols/:id/sections`, and
+  `PUT /api/protocols/:id/sections/:sectionKey` drive it, with a 7th
+  `conditional` completeness group in `validateCompleteness` (visible
+  sections must be complete; untriggered ones don't count). The client
+  Application page renders the Options card + one card per visible section
+  **from the server's field defs** — it never mirrors them. Seeds: 0139
+  (hazardous_materials) and 0158 (funded) are submittable with sections.
+  See AGENTS.md §4.
 
 - [x] **6. Register / animal usage ledger**
   `server/src/routes/animal-usage.js`. Actual procurement/usage
