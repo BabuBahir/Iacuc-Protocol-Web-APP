@@ -112,6 +112,7 @@ describe("ListPage", () => {
 
     renderListPage();
     expect(screen.getByText("Loading…")).toBeInTheDocument();
+    expect(screen.getByText("Loading protocols…")).toBeInTheDocument();
   });
 
   test("renders protocols and summary metrics once data resolves", async () => {

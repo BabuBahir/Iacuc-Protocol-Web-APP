@@ -213,6 +213,17 @@ Detail/Create/Application pages intentionally use the white breadcrumb bar
 instead. Note `AppHeader` hardcodes the "EM" avatar; it's a placeholder for
 whatever auth/persona UI comes later (see §1.5).
 
+**UI conventions & responsiveness:** all client UI is Tailwind utility
+classes (v3) — there are no per-component CSS files. Tables with many columns
+must be wrapped in `overflow-x-auto` (the established pattern in
+ApplicationPage/ReportsPage/ListPage) so they scroll inside their card on
+narrow screens instead of overflowing the page layout. Pages that fetch data
+on mount should render an inline `Loader2` + `animate-spin` loading state in
+the content area (see ReportsPage/ListPage) instead of leaving it blank.
+Sanity-check any new or touched page at a phone width (~375px) before
+shipping; `flex-wrap` on toolbar rows and `grid-cols-2 md:grid-cols-4`-style
+responsive grids are the norm.
+
 ### Documentation audience (README = non-technical first)
 
 The people who actually read `README.md` for this project are **university
@@ -503,6 +514,12 @@ conflicts at merge time, makes CI run against the latest base, and is
 required when "require branches to be up to date" protection is on.
 After any remote merge, `git fetch` + `git pull` — local refs go stale
 quickly (see PR #80/#81: `origin/main` was a commit behind live `main`).
+
+**Regression gate before raising a PR:** run the full suites and confirm the
+change introduces no new failures — `npm run test:server` and `npm run
+test:client` (or at minimum `npm run typecheck`), plus `npm run test:e2e`
+for UI changes. Compare against the pre-change baseline; a green-but-failing
+run (or a newly broken test) means the PR is not ready to raise.
 
 ### Known dependency vulnerability (resolved — react-router v7)
 
