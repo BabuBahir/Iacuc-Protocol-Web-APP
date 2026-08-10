@@ -49,6 +49,9 @@ jobs:
             server/coverage
             server/test-results.xml
 
+      - name: Codeball AI Code Review
+        uses: sturdy-dev/codeball-action@v2.6.0
+
   client-tests:
     name: Client tests
     runs-on: ubuntu-latest
