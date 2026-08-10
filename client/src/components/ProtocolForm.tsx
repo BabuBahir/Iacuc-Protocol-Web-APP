@@ -6,7 +6,7 @@ import { PAIN_CATEGORIES, PROTOCOL_TYPES, STEP_FREQUENCIES, type ProtocolFormVal
 const INPUT_CLASS = "w-full bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-[13px] outline-none focus:border-[#0176D3]";
 const LABEL_CLASS = "block text-[11px] uppercase tracking-wide text-gray-500 mb-1";
 
-function errorMessage(err: unknown): string {
+export function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
@@ -74,7 +74,7 @@ const EMPTY_STEP: ResearchStep = {
 // Defensive normalization: legacy databases and older API payloads store steps
 // as plain strings; the server also normalizes, but the client should never
 // assume that when rendering the form.
-function normalizeStep(step: string | ResearchStep): ResearchStep {
+export function normalizeStep(step: string | ResearchStep): ResearchStep {
   if (typeof step === "string") return { ...EMPTY_STEP, description: step };
   return { ...EMPTY_STEP, ...step, anesthesia: step.anesthesia === "Yes" ? "Yes" : "No" };
 }
