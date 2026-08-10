@@ -10,6 +10,7 @@ vi.mock("../../api", () => ({
   api: {
     listProtocols: vi.fn(),
     getSummary: vi.fn(),
+    getAuditLog: vi.fn(),
     listSavedFilters: vi.fn(),
     saveSavedFilter: vi.fn(),
     deleteSavedFilter: vi.fn(),
@@ -100,11 +101,13 @@ describe("ListPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.listSavedFilters.mockResolvedValue([]);
+    api.getAuditLog.mockResolvedValue([]);
   });
 
   test("shows a loading state before data resolves", () => {
     api.listProtocols.mockReturnValue(new Promise<Protocol[]>(() => {})); // never resolves
     api.getSummary.mockReturnValue(new Promise<Summary>(() => {}));
+    api.getAuditLog.mockReturnValue(new Promise<any>(() => {}));
 
     renderListPage();
     expect(screen.getByText("Loading…")).toBeInTheDocument();
