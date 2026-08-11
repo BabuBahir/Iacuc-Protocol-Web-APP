@@ -6,9 +6,9 @@ test("creates a protocol from the UI and lands on its detail page", async ({ pag
   await expect(page).toHaveURL(/\/protocols\/new/);
 
   await page.getByLabel("Protocol number").fill("IACUC-2026-0999");
-  await page.getByLabel("Title").fill("raju owl protocol");
+  await page.getByLabel("Title", { exact: true }).fill("raju owl protocol");
   await page.getByLabel("Principal investigator").fill("Dr. Raju");
-  await page.getByLabel("Number of animals").fill("42");
+  await page.getByLabel("Number of animals", { exact: true }).fill("42");
 
   await page.getByRole("button", { name: "Add step" }).click();
   await page.getByLabel("Step description").fill("Habituate animals to handling");
@@ -45,7 +45,7 @@ test("empty submit shows the required-field message and does not navigate", asyn
 
   // Filling the missing fields clears the block and creates successfully.
   await page.getByLabel("Protocol number").fill("IACUC-2026-0997");
-  await page.getByLabel("Title").fill("partial then completed");
+  await page.getByLabel("Title", { exact: true }).fill("partial then completed");
   await page.getByLabel("Principal investigator").fill("Dr. Raju");
   await page.getByRole("button", { name: "Create protocol" }).click();
   await expect(page).toHaveURL(/\/protocols\/IACUC-2026-0997/);
@@ -56,7 +56,7 @@ test("duplicate protocol number surfaces the server error and stays on the page"
   // IACUC-2026-0142 already exists in the seeded database.
   await page.goto("/protocols/new");
   await page.getByLabel("Protocol number").fill("IACUC-2026-0142");
-  await page.getByLabel("Title").fill("duplicate id attempt");
+  await page.getByLabel("Title", { exact: true }).fill("duplicate id attempt");
   await page.getByLabel("Principal investigator").fill("Dr. Raju");
   await page.getByRole("button", { name: "Create protocol" }).click();
 

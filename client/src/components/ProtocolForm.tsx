@@ -1,5 +1,6 @@
 import React, { useEffect, useState, type ReactNode } from "react";
 import { Plus, Trash2, X } from "lucide-react";
+import FieldHelp from "./FieldHelp";
 import { api } from "../api";
 import { PAIN_CATEGORIES, PROTOCOL_TYPES, STEP_FREQUENCIES, type ProtocolFormValues, type ResearchStep, type Species } from "../types";
 
@@ -102,7 +103,10 @@ function ResearchStepModal({ initial, index, speciesOptions, onSave, onClose }: 
         </div>
         <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
           <div>
-            <label htmlFor="research-step-text" className={LABEL_CLASS}>Step description</label>
+            <div className="flex items-start gap-1">
+              <label htmlFor="research-step-text" className={LABEL_CLASS}>Step description</label>
+              <FieldHelp text="Describe what is executed in this step of the research plan — procedures, handling, and any interventions." />
+            </div>
             <textarea
               id="research-step-text"
               value={step.description}
@@ -371,7 +375,10 @@ export default function ProtocolForm({
         </div>
       )}
       <div>
-        <label htmlFor="protocol-form-title" className={LABEL_CLASS}>Title</label>
+        <div className="flex items-start gap-1">
+          <label htmlFor="protocol-form-title" className={LABEL_CLASS}>Title</label>
+          <FieldHelp text="Provide a concise, descriptive title that clearly identifies the main objective of the protocol." />
+        </div>
         <input
           id="protocol-form-title"
           value={form.title}
@@ -383,7 +390,10 @@ export default function ProtocolForm({
 
       <SectionTitle>Purpose &amp; summary</SectionTitle>
       <div>
-        <label htmlFor="protocol-form-purpose" className={LABEL_CLASS}>Lay purpose</label>
+        <div className="flex items-start gap-1">
+          <label htmlFor="protocol-form-purpose" className={LABEL_CLASS}>Lay purpose</label>
+          <FieldHelp text="Explain the objective of the study in non-technical terms suitable for the general public." />
+        </div>
         <textarea
           id="protocol-form-purpose"
           value={form.purpose_summary}
@@ -394,7 +404,10 @@ export default function ProtocolForm({
         />
       </div>
       <div>
-        <label htmlFor="protocol-form-harm-benefit" className={LABEL_CLASS}>Harm–benefit analysis</label>
+        <div className="flex items-start gap-1">
+          <label htmlFor="protocol-form-harm-benefit" className={LABEL_CLASS}>Harm–benefit analysis</label>
+          <FieldHelp text="Briefly describe potential discomfort/pain to animals versus the expected scientific or medical benefits." />
+        </div>
         <textarea
           id="protocol-form-harm-benefit"
           value={form.harm_benefit_analysis}
@@ -405,7 +418,10 @@ export default function ProtocolForm({
         />
       </div>
       <div>
-        <label htmlFor="protocol-form-scientific" className={LABEL_CLASS}>Scientific summary</label>
+        <div className="flex items-start gap-1">
+          <label htmlFor="protocol-form-scientific" className={LABEL_CLASS}>Scientific summary</label>
+          <FieldHelp text="Provide a technical overview of the study design, specific aims, and methodology." />
+        </div>
         <textarea
           id="protocol-form-scientific"
           value={form.scientific_summary}
@@ -479,7 +495,10 @@ export default function ProtocolForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="protocol-form-animals" className={LABEL_CLASS}>Number of animals</label>
+          <div className="flex items-start gap-1">
+            <label htmlFor="protocol-form-animals" className={LABEL_CLASS}>Number of animals</label>
+            <FieldHelp text="Maximum number of animals to be used across the lifetime of the protocol. Should match the animal-use table on the application." />
+          </div>
           <input
             id="protocol-form-animals"
             value={form.animals}
