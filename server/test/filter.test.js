@@ -71,6 +71,21 @@ describe("validateFilters — non-primitive value rejection (regression)", () =>
     const err = validateFilters([{ field: "animals", op: "gt", value: "5" }], PROTOCOL_FILTER_FIELDS);
     assert.equal(err, null);
   });
+
+  test("rejects Infinity on a numeric field", () => {
+    const err = validateFilters([{ field: "animals", op: "gt", value: Infinity }], PROTOCOL_FILTER_FIELDS);
+    assert.match(err, /must be a finite number/);
+  });
+
+  test("rejects -Infinity on a numeric field", () => {
+    const err = validateFilters([{ field: "animals", op: "lt", value: -Infinity }], PROTOCOL_FILTER_FIELDS);
+    assert.match(err, /must be a finite number/);
+  });
+
+  test("rejects 'Infinity' string on a numeric field", () => {
+    const err = validateFilters([{ field: "animals", op: "gt", value: "Infinity" }], PROTOCOL_FILTER_FIELDS);
+    assert.match(err, /must be a finite number/);
+  });
 });
 
 describe("matchesFilter / applyFilters — confirms the crash is actually gone end-to-end", () => {
