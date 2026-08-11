@@ -133,6 +133,46 @@ describe("GET /api/protocols", () => {
     assert.match(res.body.error, /unknown filter field/);
   });
 
+  test(
+    "regression: a non-primitive filter value on a text field returns 400, " +
+      "not a 500 crash (matchesFilter's .toLowerCase() previously threw on " +
+      "an object/array value that validateFilters let through)",
+    async () => {
+      insertProtocol();
+      const filters = encodeURIComponent(
+        JSON.stringify([{ field: "title", op: "contains", value: { nested: "x" } }])
+      );
+      const res = await request(app).get(`/api/protocols?filters=${filters}`);
+      assert.equal(res.status, 400);
+      assert.match(res.body.error, /must be a string or number/);
+    }
+  );
+
+  test(
+    "regression: a non-primitive filter value on a date field returns 400, " +
+      "not silent wrong results (date fields route through NUMERIC_OPS but " +
+      "were only guarded by the type === 'number' check, not checked at all)",
+    async () => {
+      insertProtocol({ expires: "2026-01-01" });
+      const filters = encodeURIComponent(
+        JSON.stringify([{ field: "expires", op: "gt", value: { nested: "x" } }])
+      );
+      const res = await request(app).get(`/api/protocols?filters=${filters}`);
+      assert.equal(res.status, 400);
+      assert.match(res.body.error, /must be a string or number/);
+    }
+  );
+
+  test("regression: a non-primitive filter value on an enum field is also rejected", async () => {
+    insertProtocol();
+    const filters = encodeURIComponent(
+      JSON.stringify([{ field: "status", op: "eq", value: ["Draft"] }])
+    );
+    const res = await request(app).get(`/api/protocols?filters=${filters}`);
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /must be a string or number/);
+  });
+
   test("rejects an operator that is invalid for the field type", async () => {
     const filters = encodeURIComponent(JSON.stringify([{ field: "status", op: "gt", value: "Active" }]));
     const res = await request(app).get(`/api/protocols?filters=${filters}`);

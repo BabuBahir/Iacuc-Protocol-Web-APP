@@ -237,4 +237,19 @@ describe("GET /api/animal-usage (cross-protocol register search)", () => {
     assert.equal(res.status, 400);
     assert.match(res.body.error, /unknown filter field/);
   });
+
+  test(
+    "regression: a non-primitive filter value returns 400, not a 500 crash " +
+      "(same root cause as the protocols endpoint: matchesFilter's .toLowerCase() " +
+      "threw on an object/array value validateFilters previously let through)",
+    async () => {
+      seedTwoTransactions();
+      const filters = encodeURIComponent(
+        JSON.stringify([{ field: "species_strain", op: "contains", value: { nested: "x" } }])
+      );
+      const res = await request(app).get(`/api/animal-usage?filters=${filters}`);
+      assert.equal(res.status, 400);
+      assert.match(res.body.error, /must be a string or number/);
+    }
+  );
 });
