@@ -40,7 +40,7 @@ test("edits a protocol from the detail page", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "IACUC-2026-0158" })).toBeVisible();
 
   await page.getByRole("button", { name: "Edit", exact: true }).click();
-  const titleInput = page.getByLabel("Title");
+  const titleInput = page.getByLabel("Title", { exact: true });
   await expect(titleInput).toHaveValue("Genetic Basis of Spontaneous Seizures in Zebrafish");
   await titleInput.fill("Genetic Basis of Spontaneous Seizures (edited)");
   await page.getByRole("button", { name: "Save changes" }).click();
