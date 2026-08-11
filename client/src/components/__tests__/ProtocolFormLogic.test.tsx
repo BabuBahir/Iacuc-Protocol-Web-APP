@@ -48,3 +48,48 @@ describe("ProtocolForm validation", () => {
     expect(screen.queryByText(/Please fill in/)).not.toBeInTheDocument();
   });
 });
+
+describe("ProtocolForm field help icons (issue #90)", () => {
+  test("renders an info button beside the Title, purpose, harm-benefit, scientific, and animals labels without changing their accessible names", () => {
+    render(
+      <ProtocolForm
+        initialValues={{}}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+        submitLabel="Save"
+      />
+    );
+
+    // Labels keep their exact names so getByLabelText queries still resolve.
+    expect(screen.getByLabelText("Title")).toBeInTheDocument();
+    expect(screen.getByLabelText("Lay purpose")).toBeInTheDocument();
+    expect(screen.getByLabelText("Harm–benefit analysis")).toBeInTheDocument();
+    expect(screen.getByLabelText("Scientific summary")).toBeInTheDocument();
+    expect(screen.getByLabelText("Number of animals")).toBeInTheDocument();
+
+    // Each of those fields carries a help trigger with its own guidance text.
+    expect(screen.getByRole("button", { name: /descriptive title that clearly identifies/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /non-technical terms suitable for the general public/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /potential discomfort\/pain to animals/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /technical overview of the study design/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Maximum number of animals to be used/ })).toBeInTheDocument();
+  });
+
+  test("hovering a field's help icon reveals the tooltip", () => {
+    render(
+      <ProtocolForm
+        initialValues={{}}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+        submitLabel="Save"
+      />
+    );
+
+    const titleHelp = screen.getByRole("button", { name: /descriptive title that clearly identifies/ });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    fireEvent.mouseEnter(titleHelp);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/descriptive title/);
+
+    fireEvent.mouseLeave(titleHelp);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+});
