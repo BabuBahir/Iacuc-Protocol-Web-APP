@@ -191,7 +191,7 @@ describe("GET /api/protocols", () => {
     const filters = encodeURIComponent(JSON.stringify([{ field: "animals", op: "eq", value: "many" }]));
     const res = await request(app).get(`/api/protocols?filters=${filters}`);
     assert.equal(res.status, 400);
-    assert.match(res.body.error, /must be a number/);
+    assert.match(res.body.error, /must be a finite number/);
   });
 
   test("combines q search and filters together", async () => {

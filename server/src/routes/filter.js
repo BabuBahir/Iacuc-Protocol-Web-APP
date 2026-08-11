@@ -94,8 +94,8 @@ export function validateFilters(filters, fieldDefs) {
     if (def.type === "enum" && !def.values.includes(f.value)) {
       return `invalid value "${f.value}" for field "${f.field}"`;
     }
-    if (def.type === "number" && Number.isNaN(Number(f.value))) {
-      return `value "${f.value}" for field "${f.field}" must be a number`;
+    if (def.type === "number" && !Number.isFinite(Number(f.value))) {
+      return `value "${f.value}" for field "${f.field}" must be a finite number`;
     }
   }
   return null;
