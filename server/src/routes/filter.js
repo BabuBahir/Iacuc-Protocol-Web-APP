@@ -80,6 +80,17 @@ export function validateFilters(filters, fieldDefs) {
     if (f.value === undefined || f.value === null || f.value === "") {
       return `filter "${f.field}" requires a value`;
     }
+    // Every operator eventually does string/number work on f.value (matchesFilter's
+    // .toLowerCase()/.localeCompare() for text/date, Number(f.value) for numbers).
+    // An object or array value passes the checks below silently (enum/number don't
+    // apply to it) and either throws deep inside matchesFilter (text fields:
+    // "f.value.toLowerCase is not a function") or, worse, gets silently coerced to
+    // "[object Object]" and produces wrong-but-not-erroring results (date fields,
+    // since operatorsFor() routes them through NUMERIC_OPS but only `number`-typed
+    // fields were checked here). Reject non-primitives up front, for every type.
+    if (typeof f.value !== "string" && typeof f.value !== "number") {
+      return `value for field "${f.field}" must be a string or number, not ${Array.isArray(f.value) ? "an array" : typeof f.value}`;
+    }
     if (def.type === "enum" && !def.values.includes(f.value)) {
       return `invalid value "${f.value}" for field "${f.field}"`;
     }
