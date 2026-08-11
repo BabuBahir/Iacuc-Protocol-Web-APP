@@ -6,6 +6,7 @@ import {
   Syringe, ClipboardList, type LucideIcon,
 } from "lucide-react";
 import StatusBadge from "../components/StatusBadge";
+import ProtocolInfographic from "../components/ProtocolInfographic";
 import ProtocolForm from "../components/ProtocolForm";
 import { api } from "../api";
 import type { Personnel, ProtocolDetail, ProtocolFormValues, ProtocolPersonnelEntry, ProtocolTransfer } from "../types";
@@ -262,25 +263,11 @@ export default function DetailPage() {
           <div><div className="text-[11px] uppercase text-gray-500 mb-0.5">Number of animals</div><div className="text-sm font-medium">{protocol.animals}</div></div>
           <div><div className="text-[11px] uppercase text-gray-500 mb-0.5">Pain category</div><div className="text-sm font-medium">{protocol.pain_category}</div></div>
         </div>
+</div>
 
-        <div className="flex items-stretch border-t border-gray-100 -mx-4 px-4 pt-2 pb-2 bg-gray-50">
-          {protocol.stages.map((stage, i) => {
-            const done = i < stageIndex;
-            const active = i === stageIndex;
-            return (
-              <div key={stage} className={[
-                "relative flex-1 text-center text-[12px] font-medium py-1.5 px-2 first:rounded-l-full last:rounded-r-full",
-                done ? "bg-[#97C459] text-[#173404]" : active ? "bg-[#0176D3] text-white" : "bg-gray-200 text-gray-500",
-                i !== 0 ? "ml-0.5" : "",
-              ].join(" ")}>
-                <span className="inline-flex items-center gap-1">{done && <Check size={12} />}{stage}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+<ProtocolInfographic protocol={protocol} personnel={personnel} />
 
-      <div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+<div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           <SectionBlock icon={FileText} title="Protocol information">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
