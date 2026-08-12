@@ -3,7 +3,7 @@ FROM node:22-alpine
 WORKDIR /app
 
 # Leverage caching for npm dependencies
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json ./
 COPY server/package.json ./server/
 
 RUN npm ci --omit=dev --workspace=server

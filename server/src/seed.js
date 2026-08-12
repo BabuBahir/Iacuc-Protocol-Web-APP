@@ -1,3 +1,4 @@
+console.log("Seeding started...");
 import "dotenv/config";
 import { db } from "./db.js";
 
