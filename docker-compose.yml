@@ -1,0 +1,30 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: iacuc-server
+    restart: unless-stopped
+    environment:
+      - PORT=4000
+      - NODE_ENV=production
+      - DB_PATH=./data/iacuc.db
+      - CLIENT_ORIGIN=http://localhost
+    volumes:
+      - iacuc-data:/app/server/data
+    expose:
+      - "4000"
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: iacuc-client
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+
+volumes:
+  iacuc-data:
