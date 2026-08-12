@@ -6,7 +6,16 @@ const app = createApp();
 const PORT = process.env.PORT || 4000;
 
 const { n } = db.prepare("SELECT COUNT(*) AS n FROM protocols").get();
-if (n === 0) {
+const forceSeed = process.env.SEED_ON_STARTUP === 'true';
+
+console.log(`Database initialized. Protocol count: ${n}. SEED_ON_STARTUP: ${process.env.SEED_ON_STARTUP}`);
+
+if (n === 0 || forceSeed) {
+  if (forceSeed) {
+    console.log("Forcing database re-seed due to SEED_ON_STARTUP=true");
+  } else {
+    console.log("Database is empty, triggering automatic seed.");
+  }
   await import("./seed.js");
 }
 

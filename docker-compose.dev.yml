@@ -1,0 +1,29 @@
+services:
+  server:
+    image: node:22-alpine
+    container_name: iacuc-server-dev
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "4000:4000"
+    command: npm run dev:server
+    environment:
+      - PORT=4000
+      - NODE_ENV=development
+      - DB_PATH=./server/data/iacuc.db
+      - CLIENT_ORIGIN=http://localhost:5173
+
+  client:
+    image: node:22-alpine
+    container_name: iacuc-client-dev
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "5173:5173"
+    command: npm run dev:client
+    environment:
+      - API_BASE_URL=http://server:4000
+    depends_on:
+      - server
