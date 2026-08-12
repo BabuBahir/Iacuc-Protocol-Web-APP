@@ -10,6 +10,7 @@ services:
       - NODE_ENV=production
       - DB_PATH=./data/iacuc.db
       - CLIENT_ORIGIN=http://localhost
+      - SEED_ON_STARTUP=true
     volumes:
       - iacuc-data:/app/server/data
     expose:
