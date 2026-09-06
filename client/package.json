@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:e2e": "vite --config ../e2e/vite.e2e.config.js",
-    "build": "vite build",
+    "dev": "node init && vite",
+    "dev:e2e": "node init && vite --config ../e2e/vite.e2e.config.js",
+    "build": "node init && vite build",
     "preview": "vite preview",
     "test": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
@@ -22,7 +22,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.0.1",
-    "@testing-library/user-event": "^14.6.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^4.3.1",
