@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:e2e": "vite --config ../e2e/vite.e2e.config.js",
-    "build": "vite build",
+    "dev": "node init && vite",
+    "dev:e2e": "node init && vite --config ../e2e/vite.e2e.config.js",
+    "build": "node init && vite build",
     "preview": "vite preview",
     "test": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
