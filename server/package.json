@@ -8,8 +8,8 @@
   },
   "scripts": {
     "seed": "node src/seed.js",
-    "dev": "node --watch src/index.js",
-    "start": "node src/index.js",
+    "dev": "node init && node --watch src/index.js",
+    "start": "node init && node src/index.js",
     "test": "node --test --experimental-test-coverage \"test/**/*.test.js\""
   },
   "dependencies": {
