@@ -3,9 +3,9 @@ dist/
 coverage/
 server/data/*.db
 server/data/*.db-*
-.env
 
 # Playwright e2e
 test-results/
 playwright-report/
 e2e/e2e.db
+config.bat
